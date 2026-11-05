@@ -199,6 +199,8 @@ export const CATALOG = [
     blurb: "Solve Sudoku three ways: blind backtracking makes hundreds of thousands of guesses, propagation plus smart choices almost none.", prereqs: ["dynamic-programming"] },
   { id: "pipes", title: "Shell pipes", area: "tools", level: "intro", tags: ["unix", "shell", "pipes", "backpressure", "streaming", "sigpipe"],
     blurb: "Why cat | grep | head is instant on a 10 GB file: programs running at once, tiny buffers, backpressure and SIGPIPE.", prereqs: [] },
+  { id: "containers", title: "Containers", area: "tools", level: "core", tags: ["docker", "containers", "image layers", "build cache", "namespaces", "cgroups"],
+    blurb: "Why reordering two lines of a Dockerfile skips a 45-second reinstall on every edit, and what a container really is.", prereqs: ["build-systems"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
