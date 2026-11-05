@@ -209,6 +209,8 @@ export const CATALOG = [
     blurb: "How NTP sets your clock over a network it can't see into: four timestamps, half the round trip, and the error you can't remove.", prereqs: ["vector-clocks"] },
   { id: "file-systems", title: "File systems", area: "systems", level: "core", tags: ["inode", "hard link", "symlink", "journaling", "fsck", "ext4"],
     blurb: "Names point to inodes, inodes point to blocks. Make hard links and symlinks, then cut the power mid-save.", prereqs: ["write-ahead-log"] },
+  { id: "quadtree", title: "Spatial indexes", area: "algorithms", level: "core", tags: ["quadtree", "spatial index", "geospatial", "range query", "r-tree", "maps"],
+    blurb: "Find everything near you without checking everything: a quadtree splits space where it's crowded. Drag a search box.", prereqs: ["big-o"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
