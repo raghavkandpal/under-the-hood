@@ -1,8 +1,8 @@
-// Scaffold a new explainer: page, logic module, test, and catalog entry.
+// Scaffold a new explainer folder (explainers/<id>/: page, logic module, test) and its catalog entry.
 //   npm run new -- <id> "<Title>" <area> <level>
 // e.g. npm run new -- bloom-filters "Bloom filters" algorithms intro
 // Refuses to touch any file that already exists.
-import { existsSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { AREAS, LEVELS, CATALOG } from "../catalog.js";
 
 const [id, title, area = "algorithms", level = "core"] = process.argv.slice(2);
@@ -12,8 +12,9 @@ if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(id)) fail("id must be lowercase words joine
 if (!AREAS.some(a => a.id === area)) fail(`area must be one of: ${AREAS.map(a => a.id).join(", ")}`);
 if (!(level in LEVELS)) fail(`level must be one of: ${Object.keys(LEVELS).join(", ")}`);
 if (CATALOG.some(e => e.id === id)) fail(`catalog already has "${id}"`);
-const files = { page: `${id}.html`, lib: `lib/${id}.js`, test: `tests/${id}.test.js` };
-for (const f of Object.values(files)) if (existsSync(f)) fail(`${f} already exists, not overwriting`);
+const dir = `explainers/${id}`, files = { page: `${dir}/index.html`, lib: `${dir}/${id}.js`, test: `${dir}/${id}.test.js` };
+if (existsSync(dir)) fail(`${dir}/ already exists, not overwriting`);
+mkdirSync(dir, { recursive: true });
 
 const fn = id.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
 writeFileSync(files.lib, `// ${title}: the logic, with no DOM, so it can be tested in Node.
@@ -25,7 +26,7 @@ export function ${fn}(n) {
 `);
 writeFileSync(files.test, `import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ${fn} } from "../lib/${id}.js";
+import { ${fn} } from "./${id}.js";
 
 test("${title}: replace with real checks", () => {
   assert.equal(${fn}(3).steps, 3);
@@ -37,9 +38,9 @@ writeFileSync(files.page, `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../shared/style.css">
 <style>
-  /* Page-specific styles only. Shared: .row .tabs .stats .stat .panel .controls .status .scroll-x (style.css) */
+  /* Page-specific styles only. Shared: .row .tabs .stats .stat .panel .controls .status .scroll-x (shared/style.css) */
 </style>
 </head>
 <body>
@@ -58,8 +59,8 @@ writeFileSync(files.page, `<!doctype html>
   <p class="status">Where it's used in the real world, and links to related explainers.</p>
 </main>
 <script type="module">
-import { chrome, $, statTile, tabs } from "./common.js";
-import { ${fn} } from "./lib/${id}.js";
+import { chrome, $, statTile, tabs } from "../../shared/common.js";
+import { ${fn} } from "./${id}.js";
 chrome();
 
 let mode = "a";
@@ -78,4 +79,4 @@ render();
 const cat = readFileSync("catalog.js", "utf8"), start = cat.indexOf("export const CATALOG = ["), end = cat.indexOf("\n];", start);
 const entry = `  { id: "${id}", title: ${JSON.stringify(title)}, area: "${area}", level: "${level}", tags: [],\n    blurb: "TODO: one sentence for the home page card.", prereqs: [] },`;
 writeFileSync("catalog.js", cat.slice(0, end) + "\n" + entry + cat.slice(end));
-console.log(`✓ created ${Object.values(files).join(", ")} and a catalog entry.\n  Next: write lib/${id}.js + its test, fill in the page, then tags/blurb/prereqs in catalog.js.`);
+console.log(`✓ created ${Object.values(files).join(", ")} and a catalog entry.\n  Next: write ${dir}/${id}.js + its test, fill in ${dir}/index.html, then tags/blurb/prereqs in catalog.js.`);

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPU Caches</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 800px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  .mat { display: grid; gap: 2px; }
+  .cell { aspect-ratio: 1; border-radius: 2px; background: var(--surface-2); }
+  .cell.hit { background: var(--green); opacity: .55; }
+  .cell.miss { background: var(--red); opacity: .8; }
+  .cell.now { outline: 2px solid var(--text); outline-offset: 0; opacity: 1; }
+  .cell.inline { box-shadow: inset 0 -3px 0 var(--accent); }
+  .lines { font-family: var(--mono); font-size: 12px; border-collapse: separate; border-spacing: 3px; }
+  .lines td { padding: 3px 6px; border-radius: 4px; background: var(--surface-2); min-width: 70px; text-align: center; }
+  .lines td.fresh { background: var(--red-soft); }
+  .lines td.used { background: var(--green-soft); }
+  .lines th { color: var(--muted); font-weight: 600; padding-right: 6px; text-align: right; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 14px; }
+  .grid label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .stats { --stat-min: 110px; }
+  table.data td.num { font-family: var(--mono); }
+  .ladder { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+  .ladder div { display: grid; grid-template-columns: 150px 1fr 90px; gap: 10px; align-items: center; }
+  .ladder .bar { height: 12px; background: var(--accent); border-radius: 3px; min-width: 3px; }
+  input[type=range] { accent-color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>CPU caches &amp; locality</h1>
+  <p class="lede">The same loop over the same data can run several times slower depending only on the <i>order</i> you visit it in. The reason is the cache, a tiny, fast memory that only pays off if you use what it just fetched.</p>
+
+  <div class="panel">
+    <div class="grid">
+      <label>Visit order <select id="pattern"></select></label>
+      <label>Cache size <select id="size"><option value="128">128 B</option><option value="256" selected>256 B</option><option value="512">512 B</option><option value="1024">1 KB (fits it all)</option></select></label>
+      <label>Line size <select id="line"><option value="8">8 B (2 ints)</option><option value="16" selected>16 B (4 ints)</option><option value="32">32 B (8 ints)</option></select></label>
+      <label>Associativity <select id="ways"><option value="1">direct-mapped</option><option value="2" selected>2-way</option><option value="4">4-way</option><option value="0">fully associative</option></select></label>
+    </div>
+    <div class="controls" style="margin:12px 0 0">
+      <button id="play" class="primary">▶ Play</button><button id="step">Step</button><button id="end">⏭ Finish</button><button id="reset">Reset</button>
+      <label class="inline">speed <input type="range" id="speed" min="1" max="30" value="4"></label>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <b>A 16×16 matrix of ints in memory</b> <span class="status">(stored row by row; the orange underline marks the line just fetched)</span>
+      <div class="mat" id="mat" style="margin-top:8px"></div>
+      <p class="status"><span style="color:var(--green)">■</span> hit: already in cache · <span style="color:var(--red)">■</span> miss: had to go to main memory</p>
+    </div>
+    <div class="panel">
+      <b>What's in the cache right now</b>
+      <div class="scroll-x" style="margin-top:8px"><table class="lines" id="lines"></table></div>
+      <p class="status" id="explain" style="margin-top:8px"></p>
+    </div>
+  </div>
+
+  <div class="panel scroll-x"><b>All visit orders, same cache</b><table class="data" id="compare" style="margin-top:6px"></table></div>
+
+  <h2>Why order matters</h2>
+  <p><b>Memory arrives in lines.</b> When the CPU misses, it doesn't fetch one int. It fetches a whole <b>cache line</b> of neighbours, 64 bytes on real chips, betting you'll want them next. This is <i>spatial locality</i>. Walking row by row uses all of each line, so you get one miss and then several hits.</p>
+  <p><b>Columns waste it.</b> In a row-major matrix, going down a column jumps a whole row each step. Each access lands on a different line, and by the time you come back for the neighbours the line has been evicted to make room. Almost every access misses.</p>
+  <p><b>Tiling fixes it.</b> Work in small blocks that fit in the cache, and the neighbours are still there when you need them. Fast matrix multiplication, image processing and database joins all use this trick.</p>
+  <p><b>Associativity.</b> Each line can only live in one <i>set</i>, picked by its address. Direct-mapped caches give each set a single slot, so two hot addresses that share a set keep evicting each other. More ways mean fewer of these <i>conflict misses</i>, at the cost of more hardware.</p>
+
+  <h2>Rough latency ladder</h2>
+  <div class="panel ladder" id="ladder"></div>
+  <p class="status">Orders of magnitude for a modern desktop chip, varying by hardware. The bars use a log scale, or main memory wouldn't fit on the page. This page's "estimated time" uses 1 ns per hit and 80 ns per miss.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile } from "../../shared/common.js";
+import { Cache, PATTERNS, addrOf, simulate, LAT } from "./cache.js";
+chrome();
+
+const N = 16;
+$("#pattern").innerHTML = Object.entries(PATTERNS).map(([k, p]) => `<option value="${k}"${k === "cols" ? " selected" : ""}>${p.label}</option>`).join("");
+let cache, trace, i, timer = null, state;
+const cfg = () => { const size = +$("#size").value, lineSize = +$("#line").value, w = +$("#ways").value; return { size, lineSize, ways: w || size / lineSize }; };
+
+function reset() {
+  stop(); cache = new Cache(cfg()); trace = PATTERNS[$("#pattern").value].gen(N); i = 0; state = new Array(N * N).fill(""); last = null;
+  $("#mat").style.gridTemplateColumns = `repeat(${N}, 1fr)`;
+  render(); compare();
+}
+let last = null;
+function stepOnce() {
+  if (i >= trace.length) return false;
+  const p = trace[i++], r = cache.access(addrOf(p, N));
+  state[p.r * N + p.c] = r.hit ? "hit" : "miss"; last = { ...p, ...r };
+  return true;
+}
+function render() {
+  const per = cache.lineSize / 4;
+  const lineCells = last && !last.hit ? new Set(Array.from({ length: per }, (_, k) => last.line * per + k)) : new Set();
+  $("#mat").innerHTML = state.map((s, idx) => `<div class="cell ${s}${last && idx === last.r * N + last.c ? " now" : ""}${lineCells.has(idx) ? " inline" : ""}"></div>`).join("");
+  const desc = line => { const first = line * per, r = Math.floor(first / N), c = first % N; return `row ${r}, cols ${c}–${c + per - 1}`; };
+  $("#lines").innerHTML = cache.sets.map((S, si) => `<tr><th>set ${si}</th>${Array.from({ length: cache.ways }, (_, w) => {
+    const e = S[w]; if (!e) return `<td>·</td>`;
+    const cls = last && e.line === last.line ? (last.hit ? "used" : "fresh") : "";
+    return `<td class="${cls}">${desc(e.line)}</td>`; }).join("")}</tr>`).join("");
+  const t = cache.hits * LAT.hit + cache.misses * LAT.miss;
+  $("#stats").innerHTML = [[`${i}/${trace.length}`, "accesses"], [cache.hits, "hits"], [cache.misses, "misses"], [(cache.hitRate * 100).toFixed(0) + "%", "hit rate"], [t.toLocaleString() + " ns", "estimated time"]]
+    .map(statTile).join("");
+  $("#explain").textContent = !last ? `${cache.numSets} sets × ${cache.ways} way${cache.ways > 1 ? "s" : ""}, ${cache.lineSize}-byte lines.` :
+    last.hit ? `m[${last.r}][${last.c}] was already in the cache (set ${last.set}). Hit.` :
+    `m[${last.r}][${last.c}] missed, so the whole line (${desc(last.line)}) was loaded into set ${last.set}` + (last.evicted != null ? `, evicting ${desc(last.evicted)}.` : ".");
+}
+function compare() {
+  $("#compare").innerHTML = `<tr><th>Visit order</th><th>Hit rate</th><th>Misses</th><th>Estimated time</th><th>vs. best</th></tr>` + (() => {
+    const rows = Object.entries(PATTERNS).map(([k, p]) => { const c = simulate(k, N, cfg()).cache; return { k, p, c, t: c.hits * LAT.hit + c.misses * LAT.miss }; });
+    const best = Math.min(...rows.map(r => r.t));
+    return rows.map(({ p, c, t }) => `<tr><td>${p.label}</td><td class="num">${(c.hitRate * 100).toFixed(0)}%</td><td class="num">${c.misses}</td><td class="num">${t.toLocaleString()} ns</td><td class="num">${(t / best).toFixed(1)}×</td></tr>`).join("");
+  })();
+}
+const stop = () => { clearInterval(timer); timer = null; $("#play").textContent = "▶ Play"; };
+$("#play").onclick = () => {
+  if (timer) return stop();
+  if (i >= trace.length) reset();
+  $("#play").textContent = "⏸ Pause";
+  timer = setInterval(() => { let k = +$("#speed").value; while (k-- && stepOnce()); render(); if (i >= trace.length) stop(); }, 60);
+};
+$("#step").onclick = () => { stop(); stepOnce(); render(); };
+$("#end").onclick = () => { stop(); while (stepOnce()); render(); };
+$("#reset").onclick = reset;
+for (const id of ["pattern", "size", "line", "ways"]) $("#" + id).onchange = reset;
+
+const L = [["L1 cache", 1], ["L2 cache", 4], ["L3 cache", 15], ["Main memory (RAM)", 80], ["NVMe SSD read", 20000], ["Network round trip, same city", 1e6]];
+$("#ladder").innerHTML = L.map(([n, ns]) => `<div><span>${n}</span><span class="bar" style="width:${(Math.log10(ns) + 0.3) / 6.3 * 100}%"></span><span class="mono">${ns >= 1e6 ? ns / 1e6 + " ms" : ns >= 1000 ? ns / 1000 + " µs" : "~" + ns + " ns"}</span></div>`).join("");
+reset();
+</script>
+</body>
+</html>

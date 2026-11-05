@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two's Complement</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .reg { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
+  .reg .lab { width: 64px; font-size: 13px; color: var(--muted); }
+  .bit { width: 36px; text-align: center; border-radius: 6px; border: 2px solid var(--border); padding: 4px 0 2px; cursor: pointer; background: var(--surface); font-family: var(--mono); }
+  .bit b { display: block; font-size: 18px; }
+  .bit small { font-size: 9.5px; color: var(--muted); }
+  .bit.one { background: var(--blue-soft); border-color: var(--blue); }
+  .bit.sign { border-style: double; border-width: 3px; }
+  .bit.ro { cursor: default; }
+  .carry { width: 36px; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--accent); }
+  .vals { font-family: var(--mono); font-size: 13px; margin-left: 10px; }
+  .vals b { color: var(--text); }
+  .flags { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .flag { padding: 4px 10px; border-radius: 999px; font-size: 13px; background: var(--surface-2); }
+  .flag.on { background: var(--red-soft); color: var(--red); font-weight: 700; }
+  .wheel { display: block; margin: 0 auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Two's complement</h1>
+  <p class="lede">Inside a CPU there are no minus signs, only bits. So how are negative numbers stored, and why does adding 1 to the biggest number suddenly give the most negative one? The answer is an elegant trick that lets the same adder circuit handle positive and negative numbers alike.</p>
+
+  <div class="panel">
+    <p class="status" style="margin-top:0"><b>Click bits to flip them.</b> The leftmost bit (double border) is the sign bit.</p>
+    <div class="reg" id="ra"></div>
+    <div class="reg" id="rb"></div>
+    <div class="controls" style="margin:6px 0"><div class="tabs" id="ops"></div><button id="neg">a = −a</button><button id="inc">a = a + 1</button></div>
+    <div class="reg" id="rc"></div>
+    <div class="reg" id="rr"></div>
+    <div class="flags" id="flags"></div>
+    <p id="explain" style="margin:10px 0 0"></p>
+  </div>
+
+  <div class="panel"><b>The 8-bit number wheel</b> <span class="status">(the same 256 bit patterns, read two ways)</span><svg class="wheel" id="wheel" viewBox="-170 -170 340 340" style="width:100%;max-width:340px;height:auto"></svg></div>
+
+  <h2>How it works</h2>
+  <p><b>The top bit counts as negative.</b> In 8 bits, the leftmost bit is worth −128 instead of +128, and the rest are worth 64, 32 … 1 as usual. So <code>11111111</code> is −128 + 127 = <b>−1</b>, and <code>10000000</code> is −128. The range is −128 to 127.</p>
+  <p><b>Negating: flip every bit, then add 1.</b> 5 is <code>00000101</code>. Flip it to get <code>11111010</code>, add 1 for <code>11111011</code>, which reads as −5. Press "a = −a" to watch. There's one odd case: −128 has no positive partner, so negating it gives −128 again.</p>
+  <p><b>Why bother?</b> Because ordinary binary addition, carries and all, now just works for negative numbers too: 5 + (−3) adds the bit patterns and drops the final carry to give 2. The CPU needs one adder, not separate add and subtract logic, and comparisons stay simple.</p>
+  <p><b>Overflow.</b> The patterns wrap around like a clock (see the wheel). 127 + 1 lands on −128. CPUs set two flags: <b>carry</b> (the result didn't fit as an <i>unsigned</i> number) and <b>overflow</b> (it didn't fit as a <i>signed</i> one). Languages differ on what happens next: C has undefined behaviour for signed overflow, Rust panics in debug builds, Java silently wraps. Famous bugs, from game scores flipping negative to Ariane 5's self-destruct in 1996, came from numbers outgrowing their bits.</p>
+  <p class="status">Shown at 8 bits so everything fits. Real CPUs use the same scheme at 32 or 64 bits.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl } from "../../shared/common.js";
+import { toSigned, fromSigned, add, negate, bitsOf, OPS } from "./bits.js";
+chrome();
+
+const W = 8; let a = fromSigned(100, W), b = fromSigned(27, W), op = "add";
+const ALL = { add: { label: "a + b" }, ...OPS };
+$("#ops").innerHTML = Object.entries(ALL).map(([k, o]) => `<button data-o="${k}" aria-pressed="${k === op}">${o.label}</button>`).join("");
+const weights = Array.from({ length: W }, (_, i) => (i === 0 ? -(2 ** (W - 1)) : 2 ** (W - 1 - i)));
+function reg(el, name, u, editable, extra = "") {
+  $(el).innerHTML = `<span class="lab">${name}</span>` + bitsOf(u, W).map((bit, i) => `<div class="bit${bit ? " one" : ""}${i === 0 ? " sign" : ""}${editable ? "" : " ro"}" ${editable ? `data-r="${name}" data-i="${i}"` : ""}><b>${bit}</b><small>${weights[i]}</small></div>`).join("") +
+    `<span class="vals">unsigned <b>${u}</b> · signed <b>${toSigned(u, W)}</b> · hex <b>0x${u.toString(16).toUpperCase().padStart(2, "0")}</b>${extra}</span>`;
+}
+function render() {
+  reg("#ra", "a", a, true); reg("#rb", "b", b, true);
+  let res, flags = [], ex = "";
+  if (op === "add") {
+    const r = add(a, b, W); res = r.result;
+    $("#rc").innerHTML = `<span class="lab">carries</span>` + r.carries.map(c => `<span class="carry">${c ? "1" : ""}</span>`).join("");
+    flags = [["carry out", r.carryOut], ["signed overflow", r.signedOverflow]];
+    ex = r.signedOverflow ? `${toSigned(a, W)} + ${toSigned(b, W)} should be ${r.trueSigned}, which doesn't fit in −128…127, so it wrapped to <b>${toSigned(res, W)}</b>.` : r.carryOut ? `As unsigned numbers ${a} + ${b} = ${r.trueUnsigned} doesn't fit (carry out), but read as signed (${toSigned(a, W)} + ${toSigned(b, W)} = ${toSigned(res, W)}) it's exactly right. That's the point of two's complement.` : `${toSigned(a, W)} + ${toSigned(b, W)} = ${toSigned(res, W)}: plain binary addition, no special cases for the sign.`;
+  } else { res = OPS[op].f(a, b, W) & 0xff; $("#rc").innerHTML = ""; ex = op === "shr" ? "Arithmetic shift right copies the sign bit in, so negative numbers stay negative (it divides by 2, rounding down)." : op === "ushr" ? "Logical shift right fills with 0, so a negative number becomes a large positive one." : op === "shl" ? "Shift left multiplies by 2. The top bit falls off, which can flip the sign." : "Bitwise operators work column by column, with no carries."; }
+  reg("#rr", "result", res, false); $("#flags").innerHTML = flags.map(([n, on]) => `<span class="flag${on ? " on" : ""}">${n}: ${on ? "YES" : "no"}</span>`).join("");
+  $("#explain").innerHTML = ex; wheel(res);
+}
+function wheel(res) {
+  const svg = $("#wheel"); svg.replaceChildren();
+  svg.append(svgEl("circle", { r: 130, fill: "none", stroke: "var(--border)", "stroke-width": 14 }));
+  for (let u = 0; u < 256; u++) { const ang = u / 256 * 2 * Math.PI - Math.PI / 2, x = 130 * Math.cos(ang), y = 130 * Math.sin(ang); if (u % 32 === 0 || u === 127 || u === 255) { svg.append(svgEl("text", { x: x * 1.18, y: y * 1.18 + 4, "text-anchor": "middle", "font-size": 10, fill: "var(--muted)" }, `${u}/${toSigned(u, W)}`)); } }
+  for (const [u, col] of [[a, "var(--blue)"], [res, "var(--accent)"]]) { const ang = u / 256 * 2 * Math.PI - Math.PI / 2; svg.append(svgEl("circle", { cx: 130 * Math.cos(ang), cy: 130 * Math.sin(ang), r: 8, fill: col })); }
+  svg.append(svgEl("line", { x1: 0, y1: -110, x2: 0, y2: -150, stroke: "var(--red)", "stroke-width": 2, transform: `rotate(${128 / 256 * 360 - 0.7})` }));
+  svg.append(svgEl("text", { x: 0, y: -4, "text-anchor": "middle", "font-size": 12, fill: "var(--text)" }, "unsigned / signed"), svgEl("text", { x: 0, y: 14, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, "blue = a, orange = result"), svgEl("text", { x: 0, y: 30, "text-anchor": "middle", "font-size": 11, fill: "var(--red)" }, "red tick: 127 → −128 wrap"));
+}
+document.addEventListener("click", e => { const t = e.target.closest("[data-r]"); if (!t) return; const bit = 1 << (W - 1 - +t.dataset.i); if (t.dataset.r === "a") a ^= bit; else b ^= bit; render(); });
+$("#ops").onclick = e => { const t = e.target.closest("[data-o]"); if (!t) return; op = t.dataset.o; document.querySelectorAll("#ops button").forEach(x => x.setAttribute("aria-pressed", x === t)); render(); };
+$("#neg").onclick = () => { a = negate(a, W); render(); };
+$("#inc").onclick = () => { a = add(a, 1, W).result; render(); };
+render();
+</script>
+</body>
+</html>

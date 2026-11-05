@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Containers</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; margin-top: 10px; align-items: start; }
+  @media (max-width: 680px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  .df { font-family: var(--mono); font-size: 13px; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--border); }
+  .df div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 5px 10px; border-bottom: 1px solid var(--border); }
+  .df div:last-child { border-bottom: none; }
+  .df span:first-child { overflow-wrap: anywhere; }
+  .df .op { color: var(--blue); font-weight: 700; }
+  .df .hit { background: var(--green-soft); } .df .hit em { color: var(--green); }
+  .df .miss { background: var(--accent-soft); } .df .miss em { color: var(--accent); }
+  .df em { font-style: normal; font-weight: 700; white-space: nowrap; }
+  .files { display: grid; gap: 4px; }
+  .files button { font-family: var(--mono); font-size: 12.5px; text-align: left; display: flex; justify-content: space-between; gap: 8px; }
+  .files button small { color: var(--muted); }
+  .files button.edited { border-color: var(--accent); }
+  .ps { font-family: var(--mono); font-size: 12.5px; border: 1.5px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+  .ps div { display: grid; grid-template-columns: 56px minmax(0, 1fr); }
+  .ps .mine { background: var(--blue-soft); border-radius: 4px; }
+  #mem { width: 100%; height: auto; display: block; margin-top: 6px; }
+  #mem text { font-size: 11px; fill: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Containers</h1>
+  <p class="lede">“It works on my machine.” A container ships the machine too: your app, its exact libraries and its files, packed as a stack of read-only layers that run the same anywhere. Builds are fast because unchanged layers are reused, as long as you write the build steps in the right order.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="order"></div></div>
+    <div class="two">
+      <div><b>Dockerfile</b> <span class="status" id="btime"></span><div class="df" id="df" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:8px"><button id="build" class="primary">🐳 docker build</button><span class="status" id="hist" style="min-height:0"></span></div></div>
+      <div><b>Your project</b> <span class="status">(click a file to edit it)</span><div class="files" id="files" style="margin-top:6px"></div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <b>Running it: isolated, and limited</b>
+    <div class="two">
+      <div><div class="row"><span>Processes as seen from</span><div class="tabs" id="view"></div></div><div class="ps" id="ps" style="margin-top:6px"></div></div>
+      <div>
+        <label class="inline">memory limit <input type="range" id="limit" min="128" max="1024" step="64" value="512"> <b id="lv"></b></label>
+        <button id="load" style="margin-top:6px">Send a traffic spike</button>
+        <svg id="mem" viewBox="0 0 300 140" role="img" aria-label="Container memory use over time"></svg>
+        <p class="status" id="oom" style="margin:2px 0 0"></p>
+      </div>
+    </div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Layers.</b> Each instruction in a Dockerfile produces a layer: the files it added or changed. An image is the stack of them. A layer's ID is a hash of its parent's ID, the instruction, and the contents of any files it copies, so if anything above it changes, so does it.</p>
+  <p><b>The cache.</b> On rebuild, Docker walks down the steps and reuses each layer whose ID it already has. At the first miss it stops, and every step below runs again. In the “copy everything first” order, editing one line of <code>server.js</code> changes the <code>COPY . .</code> layer and forces a 45-second <code>npm ci</code>. Copy only the dependency files first, install, <i>then</i> copy your code, and everyday edits skip the install entirely: 13 seconds instead of 58, most of it your own build step. Edit <code>package.json</code> and the install reruns, as it should.</p>
+  <p><b>Shared on disk.</b> Ten services built <code>FROM</code> the same base image store that base once, and pulling an update downloads only the layers that changed.</p>
+  <p><b>Not a virtual machine.</b> A container is an ordinary process on the host's kernel, wearing blinkers. <i>Namespaces</i> give it its own view of process IDs (it thinks it's PID 1), the filesystem (the image), network and hostname. <i>Cgroups</i> cap its CPU and memory: go over the memory limit and the kernel kills it (“OOMKilled”). It starts in milliseconds and adds almost no overhead, but it shares the host kernel, so it's a weaker security boundary than a VM.</p>
+  <p class="status">Simplified: real layer IDs are SHA-256 digests, and build times and sizes here are illustrative. Related: <a href="../build-systems/">build systems</a> (the same cache-by-hash idea), <a href="../virtual-memory/">virtual memory</a>.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, escapeHtml, tabs } from "../../shared/common.js";
+import { build, FILES, DOCKERFILES, runWithLimit } from "./containers.js";
+chrome();
+
+let order = "bad", files, cache, edits = 0, edited = new Set(), history = [], last;
+tabs($("#order"), { bad: "Copy everything, then install", good: "Install first, then copy code" }, order, k => { order = k; fresh(); });
+function fresh() { files = { ...FILES }; edited.clear(); history = []; const b = build(DOCKERFILES[order], files); cache = b.cache; last = { ...b, layers: b.layers.map(l => ({ ...l, cached: false })) }; history.push(b.time); draw("First build: every step ran."); }
+const line = s => s.op === "COPY" ? `${s.files.join(" ")} ./` : s.arg;
+function draw(note) {
+  $("#df").innerHTML = last.layers.map(l => `<div class="${l.cached ? "hit" : "miss"}"><span><span class="op">${l.op}</span> ${escapeHtml(line(l))}</span><em>${l.cached ? "CACHED" : `ran ${l.time < 1 ? l.time.toFixed(1) : Math.round(l.time)}s`}</em></div>`).join("");
+  $("#btime").textContent = `build took ${last.time < 1 ? last.time.toFixed(1) : Math.round(last.time)} s`;
+  $("#hist").textContent = note || `builds so far: ${history.map(t => (t < 1 ? t.toFixed(1) : Math.round(t)) + "s").join(", ")}`;
+  $("#files").innerHTML = Object.keys(files).map(f => `<button data-f="${f}" class="${edited.has(f) ? "edited" : ""}"><span>${f}</span><small>${edited.has(f) ? "edited ✎" : ""}</small></button>`).join("");
+}
+$("#files").onclick = e => { const b = e.target.closest("[data-f]"); if (!b) return; const f = b.dataset.f; files = { ...files, [f]: files[f] + `\n// edit ${++edits}` }; edited.add(f); draw(`Edited ${f}. Now rebuild.`); };
+$("#build").onclick = () => { const b = build(DOCKERFILES[order], files, cache); cache = b.cache; last = b; history.push(b.time); edited.clear(); draw(); };
+
+// --- isolation panel
+const HOST = [[1, "systemd"], [412, "sshd"], [988, "postgres"], [3021, "dockerd"], [5120, "node src/server.js", true], [5134, "npm run worker", true], [6001, "bash"]];
+let view = "host";
+tabs($("#view"), { host: "the host", box: "inside the container" }, view, k => { view = k; ps(); });
+function ps() {
+  const rows = view === "host" ? HOST.map(([p, c, m]) => [p, c, m]) : HOST.filter(r => r[2]).map(([, c], i) => [i + 1, c, true]);
+  $("#ps").innerHTML = `<div><b>PID</b><b>COMMAND</b></div>` + rows.map(([p, c, m]) => `<div class="${m ? "mine" : ""}"><span>${p}</span><span>${c}</span></div>`).join("") +
+    (view === "box" ? `<div style="margin-top:4px;color:var(--muted)"><span></span><span>(nothing else exists, as far as it can tell)</span></div>` : "");
+}
+let spike = false;
+function mem() {
+  const limit = +$("#limit").value; $("#lv").textContent = limit + " MB";
+  const usage = Array.from({ length: 60 }, (_, t) => 180 + 20 * Math.sin(t / 3) + (spike && t > 20 ? Math.min(600, (t - 20) * 22) : 0));
+  const r = runWithLimit(usage, limit), shown = r.killed ? usage.slice(0, r.at + 1) : usage;
+  const svg = $("#mem"); svg.replaceChildren(); const X = t => 30 + t * 4.4, Y = v => 125 - v / 1000 * 115;
+  for (const v of [0, 500, 1000]) svg.append(svgEl("text", { x: 26, y: Y(v) + 4, "text-anchor": "end" }, v));
+  svg.append(svgEl("line", { x1: 30, x2: 295, y1: Y(limit), y2: Y(limit), stroke: "var(--red)", "stroke-dasharray": "5 4" }), svgEl("text", { x: 293, y: Y(limit) - 4, "text-anchor": "end", style: "fill:var(--red)" }, "limit"));
+  svg.append(svgEl("polyline", { points: shown.map((u, t) => `${X(t)},${Y(u)}`).join(" "), fill: "none", stroke: "var(--blue)", "stroke-width": 2.2 }));
+  if (r.killed) svg.append(svgEl("text", { x: X(r.at), y: Y(shown.at(-1)) - 6, "text-anchor": "middle", style: "fill:var(--red);font-weight:700" }, "💥"));
+  $("#oom").textContent = r.killed ? `OOMKilled at t=${r.at}: the kernel stopped the container to protect everything else on the host. An orchestrator would now restart it.` : spike ? "The spike fits under the limit." : "Normal load, well under the limit.";
+}
+$("#limit").oninput = mem;
+$("#load").onclick = () => { spike = !spike; $("#load").textContent = spike ? "Back to normal traffic" : "Send a traffic spike"; mem(); };
+fresh(); ps(); mem();
+</script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skip Lists</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .row input[type=number] { width: 6em; font-family: var(--mono); }
+  #sl { display: block; }
+  #sl rect { fill: var(--surface-2); stroke: var(--border); stroke-width: 1.2; }
+  #sl rect.hit { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2.2; }
+  #sl rect.found { fill: var(--green-soft); stroke: var(--green); stroke-width: 2.5; }
+  #sl text { font-family: var(--mono); font-size: 12px; text-anchor: middle; fill: var(--text); }
+  #sl line.lk { stroke: var(--muted); stroke-width: 1.2; }
+  #sl path.route { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linejoin: round; opacity: .85; }
+  .msg { font-size: 15px; min-height: 1.6em; }
+  input[type=range] { accent-color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Skip lists</h1>
+  <p class="lede">A sorted linked list is simple, but finding something means walking it node by node. A skip list adds "express lanes": each node flips coins to decide how many lanes it joins. Searches zoom along the top lanes and drop down as they near the target, which is fast on average, with no rebalancing ever.</p>
+
+  <div class="panel">
+    <div class="row">
+      <input id="k" type="number" value="42" aria-label="Key">
+      <button id="find" class="primary">Search</button><button id="ins">Insert</button><button id="del">Delete</button>
+      <button id="fill">Fill with 30 keys</button><button id="reset">Clear</button>
+      <label class="inline">promotion chance p <input type="range" id="p" min="0.2" max="0.8" step="0.05" value="0.5"> <b id="vp"></b></label>
+    </div>
+    <p class="msg" id="msg"></p>
+  </div>
+
+  <div class="panel"><div class="scroll-x"><svg id="sl" role="img" aria-label="Skip list levels"></svg></div>
+    <p class="status">Bottom row = every key, in order. Each row above holds a random subset. The orange route is the last search: right while the next key is smaller, otherwise down.</p></div>
+
+  <h2>How it works</h2>
+  <p><b>Coin flips build the lanes.</b> Every new key goes in the bottom list. Then flip a coin: heads, it also joins level 2. Heads again, level 3, and so on. With p = ½, about half the keys reach level 2, a quarter level 3, an eighth level 4. That's just like a balanced tree's levels, but arrived at by chance.</p>
+  <p><b>Searching.</b> Start at the top-left. Move right while the next key is still smaller than your target. When it isn't, drop down a level. Each level roughly halves the remaining distance, so a search takes about log₂(n) steps on average. Compare the step count with the number of keys.</p>
+  <p><b>Why use one instead of a balanced tree?</b> Inserting and deleting only touch a node's neighbours, with no rotations or rebalancing, which makes skip lists simple to write and friendly to concurrency (lock-free versions exist). Redis uses them for sorted sets, and LSM-tree storage engines use them for the in-memory <a href="../lsm/">memtable</a>.</p>
+  <p class="status">Guarantees are probabilistic: an unlucky run of coin flips could make a lane useless, but with many keys that becomes vanishingly unlikely. The p slider rebuilds the list. Higher p means more lanes and more memory.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl } from "../../shared/common.js";
+import { SkipList } from "./skiplist.js";
+chrome();
+
+let sl, last = null, seed = 1;
+function rebuild(keys = []) { sl = new SkipList({ p: +$("#p").value, maxLevel: 7, seed: seed++ }); for (const k of keys) sl.insert(k); last = null; render(); }
+function render() {
+  $("#vp").textContent = (+$("#p").value).toFixed(2);
+  const nodes = sl.nodes(), L = Math.max(1, sl.level), CW = 46, RH = 40, X0 = 60, W = X0 + (nodes.length + 1) * CW + 20, H = L * RH + 30;
+  const svg = $("#sl"); svg.replaceChildren(); svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const Y = lvl => H - 25 - lvl * RH, X = i => X0 + (i + 1) * CW, idx = new Map(nodes.map((n, i) => [n.key, i]));
+  for (let lvl = 0; lvl < L; lvl++) {
+    svg.append(svgEl("text", { x: 22, y: Y(lvl) + 4, style: "fill:var(--muted)" }, "L" + (lvl + 1)));
+    svg.append(svgEl("rect", { x: X0 - 14, y: Y(lvl) - 12, width: 28, height: 24, rx: 4 }), svgEl("text", { x: X0, y: Y(lvl) + 4 }, "−∞"));
+    let prev = X0;
+    nodes.forEach((n, i) => { if (n.height > lvl) { svg.append(svgEl("line", { x1: prev + 14, x2: X(i) - 16, y1: Y(lvl), y2: Y(lvl), class: "lk" })); prev = X(i); } });
+  }
+  const visited = new Set((last?.path ?? []).map(p => `${p.key}:${p.level}`));
+  nodes.forEach((n, i) => { for (let lvl = 0; lvl < n.height; lvl++) {
+    const found = last?.found && n.key === last.key && lvl === 0, hit = visited.has(`${n.key}:${lvl}`);
+    svg.append(svgEl("rect", { x: X(i) - 16, y: Y(lvl) - 12, width: 32, height: 24, rx: 4, class: found ? "found" : hit ? "hit" : "" }), svgEl("text", { x: X(i), y: Y(lvl) + 4 }, n.key));
+  } });
+  if (last) {
+    const pts = [[X0, Y(L - 1)]];
+    for (const p of last.path) pts.push([p.key === -Infinity ? X0 : X(idx.get(p.key)), Y(p.level)]);
+    svg.append(svgEl("path", { d: "M" + pts.map(p => p.join(" ")).join(" L"), class: "route" }));
+  }
+}
+const key = () => parseInt($("#k").value, 10);
+$("#find").onclick = () => { const k = key(); if (Number.isNaN(k)) return; const r = sl.search(k); last = { ...r, key: k };
+  $("#msg").innerHTML = `${r.found ? `Found <b>${k}</b>` : `<b>${k}</b> isn't there`} after <b>${r.steps}</b> steps, with ${sl.size} keys in the list${sl.size > 8 ? ` (a plain linked list would average ~${Math.round(sl.size / 2)})` : ""}.`; render(); };
+$("#ins").onclick = () => { const k = key(); if (Number.isNaN(k)) return; const ok = sl.insert(k); const h = sl.nodes().find(n => n.key === k)?.height; last = null; $("#msg").innerHTML = ok ? `Inserted <b>${k}</b>. Coin flips gave it height <b>${h}</b>.` : `${k} is already in the list.`; render(); };
+$("#del").onclick = () => { const k = key(); const ok = sl.remove(k); last = null; $("#msg").textContent = ok ? `Removed ${k}. Only its neighbours' pointers changed.` : `${k} isn't in the list.`; render(); };
+$("#fill").onclick = () => { const ks = new Set(sl.nodes().map(n => n.key)); let x = 7; while (ks.size < Math.min(99, sl.size + 30)) { x = (x * 1103515245 + 12345) % 2147483648; ks.add(1 + x % 99); } rebuild([...ks]); $("#msg").textContent = `${sl.size} keys. Search for one to see the route.`; };
+$("#reset").onclick = () => { rebuild(); $("#msg").textContent = "Empty."; };
+$("#p").oninput = () => rebuild(sl.nodes().map(n => n.key));
+rebuild([3, 9, 14, 21, 27, 33, 38, 42, 47, 55, 61, 68, 72, 80, 86, 93]);
+$("#find").onclick();
+</script>
+</body>
+</html>

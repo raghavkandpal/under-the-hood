@@ -1,16 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { CATALOG, AREAS, LEVELS, search } from "../catalog.js";
 
 const root = new URL("..", import.meta.url);
-const pages = readdirSync(root).filter(f => f.endsWith(".html") && f !== "index.html").map(f => f.replace(".html", ""));
+const dir = new URL("explainers/", root);
+const pages = readdirSync(dir).filter(d => existsSync(new URL(`${d}/index.html`, dir)));
 
 test("every catalog entry has a page and valid fields", () => {
   const ids = new Set();
   for (const c of CATALOG) {
     assert.ok(!ids.has(c.id), `duplicate ${c.id}`); ids.add(c.id);
-    assert.ok(pages.includes(c.id), `${c.id}.html missing`);
+    assert.ok(pages.includes(c.id), `explainers/${c.id}/index.html missing`);
     assert.ok(AREAS.some(a => a.id === c.area), `${c.id}: bad area`);
     assert.ok(LEVELS[c.level], `${c.id}: bad level`);
     for (const p of c.prereqs) assert.ok(CATALOG.some(x => x.id === p), `${c.id}: unknown prereq ${p}`);
@@ -19,8 +20,8 @@ test("every catalog entry has a page and valid fields", () => {
 
 test("every page is in the catalog and calls chrome()", () => {
   for (const p of pages) {
-    assert.ok(CATALOG.some(c => c.id === p), `${p}.html not in catalog`);
-    const html = readFileSync(new URL(`${p}.html`, root), "utf8");
+    assert.ok(CATALOG.some(c => c.id === p), `explainers/${p}/ not in catalog`);
+    const html = readFileSync(new URL(`${p}/index.html`, dir), "utf8");
     assert.match(html, /chrome\(\)/, `${p}.html doesn't call chrome()`);
     assert.match(html, /<title>[^<]{3,40}<\/title>/, `${p}.html title`);
   }

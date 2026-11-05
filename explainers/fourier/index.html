@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fourier Transform</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  svg.chart { width: 100%; display: block; }
+  svg.chart text { font-size: 10px; fill: var(--muted); font-family: var(--mono); }
+  .waves { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 16px; }
+  .wave { background: var(--surface-2); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+  .wave label { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); }
+  .wave input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=range] { accent-color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>The Fourier transform</h1>
+  <p class="lede">Any signal (a sound, a heartbeat, a stock chart) can be built by adding up simple sine waves. The Fourier transform runs that in reverse: hand it a messy signal and it tells you which waves, and how much of each, are inside. That's how equalisers, MP3s, noise cancelling and Wi-Fi all work.</p>
+
+  <h2>1. Mix some waves</h2>
+  <div class="panel">
+    <div class="waves" id="waves"></div>
+    <div class="controls" style="margin:10px 0 0"><label class="inline">Noise <input type="range" id="noise" min="0" max="1.5" step="0.05" value="0.3"> <b id="vnoise"></b></label></div>
+  </div>
+  <div class="panel">
+    <b>The signal</b> <span class="status">(what a microphone would record)</span>
+    <svg class="chart" id="time" viewBox="0 0 700 150" preserveAspectRatio="none"></svg>
+    <b>Its spectrum</b> <span class="status">(how much of each frequency is in it; click to set the filter cut-off)</span>
+    <svg class="chart" id="spec" viewBox="0 0 700 150" preserveAspectRatio="none" style="cursor:pointer"></svg>
+    <div class="controls" style="margin:6px 0 0">
+      <div class="tabs" id="ftype"><span class="status" style="align-self:center">Filter:</span><button data-f="none" aria-pressed="true">off</button><button data-f="low">low-pass (keep below)</button><button data-f="high">high-pass (keep above)</button></div>
+      <label class="inline">cut-off <input type="range" id="cut" min="1" max="64" value="12"> <b id="vcut"></b></label>
+    </div>
+    <p class="status" id="filterNote"></p>
+  </div>
+
+  <h2>2. Building a square wave from sines</h2>
+  <div class="panel">
+    <label class="inline">Number of harmonics <input type="range" id="harm" min="1" max="40" value="3"> <b id="vharm"></b></label>
+    <svg class="chart" id="square" viewBox="0 0 700 160" preserveAspectRatio="none"></svg>
+    <p class="status">A square wave is the odd harmonics added together, sin(x) + sin(3x)/3 + sin(5x)/5 + … More terms make sharper corners, but a small overshoot at each jump never goes away (the <i>Gibbs phenomenon</i>).</p>
+  </div>
+
+  <h2>What's going on</h2>
+  <p><b>Correlate with every frequency.</b> For each frequency, the transform asks: "how much does this signal look like a sine wave at that speed?" It multiplies the signal by the wave and adds up the result. A matching wave gives a big total, and anything else averages out to nearly zero. The answers, one per frequency, are the spectrum.</p>
+  <p><b>Noise spreads out, signals stand out.</b> Random noise contains a little of every frequency, so in the spectrum it's a low, flat carpet. Your three tones remain tall spikes. That's why filtering in the frequency domain works so well: zero out what you don't want and transform back. Turn the noise up, then apply a low-pass filter just above your highest tone.</p>
+  <p><b>The FFT</b> (Cooley–Tukey, 1965) computes all of this in <i>n log n</i> steps instead of <i>n²</i>, by splitting the signal into even and odd samples recursively. For a million samples that's about 50,000 times faster. Along with sorting, it's among the most important algorithms ever devised.</p>
+  <p><b>Where it's used:</b> MP3 and AAC throw away frequencies you can't hear, JPEG does a 2-D cousin (the DCT) on image blocks, Wi-Fi and 4G pack data onto many frequencies at once (OFDM), and audio equalisers boost or cut frequency bands.</p>
+  <p class="status">256 samples. The spectrum shows amplitude for frequencies 0–128 cycles per window. The FFT and its inverse are implemented on this page's own code (lib/fourier.js) and tested against a naive DFT.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl } from "../../shared/common.js";
+import { spectrum, filter, synth } from "./fourier.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const N = 256, COLS = ["#e0453a", "#2f6fe4", "#17a35a"];
+let waves = [{ freq: 3, amp: 1 }, { freq: 8, amp: 0.5 }, { freq: 21, amp: 0.3 }], ftype = "none";
+$("#waves").innerHTML = waves.map((w, i) => `<div class="wave" style="border-left:4px solid ${COLS[i]}"><label>frequency <b id="vf${i}"></b></label><input type="range" data-i="${i}" data-k="freq" min="1" max="60" value="${w.freq}"><label>amplitude <b id="va${i}"></b></label><input type="range" data-i="${i}" data-k="amp" min="0" max="1.5" step="0.05" value="${w.amp}"></div>`).join("");
+const line = (svg, ys, lo, hi, color, w = 2, op = 1) => { const pts = ys.map((y, i) => `${10 + i / (ys.length - 1) * 680},${140 - (y - lo) / (hi - lo) * 130}`).join(" "); svg.append(svgEl("polyline", { points: pts, fill: "none", stroke: color, "stroke-width": w, opacity: op, "vector-effect": "non-scaling-stroke" })); };
+function render() {
+  waves.forEach((w, i) => { $("#vf" + i).textContent = w.freq; $("#va" + i).textContent = w.amp.toFixed(2); });
+  const noise = +$("#noise").value, cut = +$("#cut").value; $("#vnoise").textContent = noise.toFixed(2); $("#vcut").textContent = cut;
+  const x = synth(N, waves, noise, mulberry(4)), keep = ftype === "low" ? f => f < cut : ftype === "high" ? f => f >= cut : () => true;
+  const y = ftype === "none" ? null : filter(x, keep), clean = synth(N, waves);
+  const t = $("#time"); t.replaceChildren();
+  const M = Math.max(1, ...x.map(Math.abs)) * 1.1;
+  line(t, clean, -M, M, "var(--muted)", 1, 0.5);
+  line(t, x, -M, M, "var(--blue)", y ? 1 : 1.8, y ? 0.35 : 1);
+  if (y) line(t, y, -M, M, "var(--accent)", 2.2);
+  t.append(svgEl("text", { x: 12, y: 12 }, y ? "blue = noisy input · orange = after filter · grey = the pure waves" : "blue = recorded signal · grey = the pure waves without noise"));
+  const s = spectrum(x).slice(0, 65), sv = $("#spec"); sv.replaceChildren();
+  const smx = Math.max(0.2, ...s), bw = 680 / s.length;
+  s.forEach((a, k) => {
+    const kept = keep(k), w = waves.findIndex(q => q.freq === k && q.amp > 0);
+    sv.append(svgEl("rect", { x: 10 + k * bw, y: 140 - a / smx * 125, width: Math.max(1, bw - 1.5), height: a / smx * 125, fill: w >= 0 ? COLS[w] : "var(--muted)", opacity: kept ? 0.9 : 0.15 }));
+  });
+  if (ftype !== "none") sv.append(svgEl("line", { x1: 10 + cut * bw, x2: 10 + cut * bw, y1: 5, y2: 145, stroke: "var(--accent)", "stroke-width": 2, "stroke-dasharray": "4 3", "vector-effect": "non-scaling-stroke" }));
+  for (const f of [0, 16, 32, 48, 64]) sv.append(svgEl("text", { x: 10 + f * bw, y: 150 }, f));
+  if (y) { const err = Math.sqrt(y.reduce((a, v, i) => a + (v - clean[i]) ** 2, 0) / N), err0 = Math.sqrt(x.reduce((a, v, i) => a + (v - clean[i]) ** 2, 0) / N);
+    $("#filterNote").textContent = `Distance from the pure waves: ${err0.toFixed(3)} before filtering, ${err.toFixed(3)} after. ${err < err0 * 0.6 ? "The filter removed most of the noise." : waves.some(w => w.amp > 0 && !keep(w.freq)) ? "The filter cut out one of your tones too." : ""}`; }
+  else $("#filterNote").textContent = "";
+  square();
+}
+function square() {
+  const H = +$("#harm").value; $("#vharm").textContent = H + (H > 1 ? ` (frequencies 1, 3, 5 … ${2 * H - 1})` : "");
+  const ys = Array.from({ length: 700 }, (_, i) => { const x = i / 700 * 4 * Math.PI; let s = 0; for (let h = 0; h < H; h++) { const k = 2 * h + 1; s += Math.sin(k * x) / k; } return s * 4 / Math.PI; });
+  const sq = $("#square"); sq.replaceChildren();
+  line(sq, Array.from({ length: 700 }, (_, i) => (Math.sin(i / 700 * 4 * Math.PI) >= 0 ? 1 : -1)), -1.4, 1.4, "var(--muted)", 1, 0.6);
+  line(sq, ys, -1.4, 1.4, "var(--accent)", 2.2);
+}
+$("#waves").addEventListener("input", e => { const t = e.target; waves[+t.dataset.i][t.dataset.k] = +t.value; render(); });
+for (const id of ["noise", "cut"]) $("#" + id).addEventListener("input", render);
+$("#harm").addEventListener("input", square);
+$("#ftype").onclick = e => { const b = e.target.closest("[data-f]"); if (!b) return; ftype = b.dataset.f; document.querySelectorAll("#ftype button").forEach(x => x.setAttribute("aria-pressed", x === b)); render(); };
+$("#spec").addEventListener("click", e => { const b = $("#spec").getBoundingClientRect(), k = Math.round(((e.clientX - b.left) / b.width * 700 - 10) / (680 / 65)); $("#cut").value = Math.max(1, Math.min(64, k)); if (ftype === "none") { ftype = "low"; document.querySelectorAll("#ftype button").forEach(x => x.setAttribute("aria-pressed", x.dataset.f === "low")); } render(); });
+render();
+</script>
+</body>
+</html>

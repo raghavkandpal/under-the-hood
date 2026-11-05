@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Diff Works</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  @media (max-width: 700px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  textarea { font-size: 13.5px; }
+  .udiff { font-family: var(--mono); font-size: 13px; white-space: pre-wrap; word-break: break-all; line-height: 1.6; }
+  .udiff .h { color: var(--blue); display: block; margin-top: 6px; }
+  .udiff .del { background: var(--red-soft); color: var(--red); display: block; }
+  .udiff .ins { background: var(--green-soft); color: var(--green); display: block; }
+  .udiff .ctx { color: var(--muted); display: block; }
+  .inline { font-family: var(--mono); font-size: 15px; line-height: 1.9; word-break: break-all; }
+  .inline del { background: var(--red-soft); color: var(--red); text-decoration: line-through; }
+  .inline ins { background: var(--green-soft); color: var(--green); text-decoration: none; }
+  #graph { display: block; }
+  #graph text { font-family: var(--mono); font-size: 11px; fill: var(--text); text-anchor: middle; }
+  .stats { --stat-min: 110px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>How diff works</h1>
+  <p class="lede">Every code review, <code>git diff</code> and "track changes" view answers the same question: what's the <i>smallest</i> set of deletions and insertions that turns the old version into the new one? The answer is a grid and a shortest path.</p>
+
+  <div class="panel">
+    <div class="controls tabs" style="margin:0 0 10px"><span class="status">Compare by:</span><button data-mode="chars" aria-pressed="true">Characters</button><button data-mode="lines">Lines</button><button data-mode="words">Words</button></div>
+    <div class="two">
+      <label class="status">Old<textarea id="a" rows="6" spellcheck="false">ABCABBA</textarea></label>
+      <label class="status">New<textarea id="b" rows="6" spellcheck="false">CBABAC</textarea></label>
+    </div>
+    <div class="controls" style="margin:8px 0 0"><span class="status">Examples:</span><button data-ex="classic">Classic letters</button><button data-ex="code">A code change</button><button data-ex="prose">A sentence edit</button></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel"><b>The diff</b><div id="out" style="margin-top:8px"></div></div>
+
+  <div class="panel" id="graphPanel">
+    <b>The edit graph</b> <span class="status">old runs down the side, new across the top. Moving right inserts, moving down deletes, and a diagonal (only where the two match) keeps a free character. The diff is the path with the most diagonals.</span>
+    <div class="scroll-x" style="margin-top:8px"><svg id="graph" role="img" aria-label="Edit graph"></svg></div>
+  </div>
+
+  <h2>What's going on</h2>
+  <p><b>Longest common subsequence.</b> Find the longest sequence of items that appears in both versions in the same order. Those stay put, and everything else is a deletion (from old) or an insertion (into new). Fewer kept items means a bigger, noisier diff.</p>
+  <p><b>Dynamic programming.</b> Fill a table where each cell holds the best answer for the remaining parts of both inputs, built from its neighbours: <code>if a[i] = b[j] then 1 + diag else max(right, down)</code>. Then walk from the top-left, taking diagonals when allowed. It's <i>O(n·m)</i>, fine for a page of text, slow for two 100,000-line files.</p>
+  <p><b>What git actually does.</b> Git uses Myers' algorithm (1986), which finds the same shortest edit path but explores only as far as needed, in <i>O((n+m)·D)</i> time where D is the size of the diff. Small changes to huge files are fast. Variants like "patience" and "histogram" diff anchor on unique lines first, which often produces diffs people find easier to read, even when they aren't the strict minimum.</p>
+  <p><b>Granularity matters.</b> Switch between characters, words and lines on the same text. Code review tools diff by line, then highlight words within changed lines, for exactly this reason.</p>
+  <p class="status">Ties are broken by preferring deletions before insertions, as most tools do. The edit graph is drawn only when both sides are short enough to fit.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, escapeHtml, statTile } from "../../shared/common.js";
+import { diff, lcsTable, stats, hunks } from "./diff.js";
+chrome();
+
+const EX = {
+  classic: ["ABCABBA", "CBABAC"],
+  code: ["function greet(name) {\n  const msg = \"Hello, \" + name;\n  console.log(msg);\n  return msg;\n}", "function greet(name, excited) {\n  const msg = \"Hello, \" + name;\n  if (excited) msg += \"!\";\n  console.log(msg);\n  return msg;\n}"],
+  prose: ["The quick brown fox jumps over the lazy dog.", "The quick red fox leaped over the very lazy dog!"],
+};
+let mode = "chars";
+const split = s => mode === "lines" ? s.split("\n") : mode === "words" ? s.split(/(\s+)/).filter(x => x.length) : [...s];
+function render() {
+  const A = split($("#a").value), B = split($("#b").value), s = diff(A, B), st = stats(s);
+  $("#stats").innerHTML = [[st.same, "kept (the common subsequence)"], [st.del, "deleted"], [st.ins, "inserted"], [st.del + st.ins, "edit distance"]].map(statTile).join("");
+  const vis = x => escapeHtml(x === "\n" ? "↵" : x);
+  if (mode === "lines") {
+    const hs = hunks(s, 2);
+    $("#out").innerHTML = `<div class="udiff">${hs.length ? hs.map(h => `<span class="h">${h.header}</span>` + h.lines.map(l => l.op === "=" ? `<span class="ctx"> ${escapeHtml(l.a)}</span>` : l.op === "-" ? `<span class="del">-${escapeHtml(l.a)}</span>` : `<span class="ins">+${escapeHtml(l.b)}</span>`).join("")).join("") : `<span class="ctx">No differences.</span>`}</div>`;
+  } else {
+    $("#out").innerHTML = `<div class="inline">${s.map(x => x.op === "=" ? escapeHtml(x.a) : x.op === "-" ? `<del>${vis(x.a)}</del>` : `<ins>${vis(x.b)}</ins>`).join("")}</div>`;
+  }
+  graph(A, B, s);
+}
+function graph(A, B, s) {
+  const svg = $("#graph"); svg.replaceChildren();
+  const fits = A.length <= 40 && B.length <= 40 && A.length && B.length;
+  $("#graphPanel").hidden = !fits; if (!fits) return;
+  const C = Math.max(16, Math.min(34, Math.floor(620 / Math.max(A.length, B.length)))), P = 40;
+  const W = P + B.length * C + 12, H = P + A.length * C + 12, X = j => P + j * C, Y = i => P + i * C;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const lab = t => t === "\n" ? "↵" : t === " " ? "␣" : t.length > 3 ? t.slice(0, 3) + "…" : t;
+  B.forEach((t, j) => svg.append(svgEl("text", { x: X(j) + C / 2, y: P - 10 }, lab(t))));
+  A.forEach((t, i) => svg.append(svgEl("text", { x: P - 16, y: Y(i) + C / 2 + 4 }, lab(t))));
+  for (let i = 0; i <= A.length; i++) svg.append(svgEl("line", { x1: X(0), x2: X(B.length), y1: Y(i), y2: Y(i), stroke: "var(--border)" }));
+  for (let j = 0; j <= B.length; j++) svg.append(svgEl("line", { x1: X(j), x2: X(j), y1: Y(0), y2: Y(A.length), stroke: "var(--border)" }));
+  A.forEach((a, i) => B.forEach((b, j) => { if (a === b) svg.append(svgEl("line", { x1: X(j), y1: Y(i), x2: X(j + 1), y2: Y(i + 1), stroke: "var(--muted)", "stroke-dasharray": "3 3", opacity: 0.7 })); }));
+  let i = 0, j = 0, d = `M${X(0)} ${Y(0)}`;
+  for (const st of s) { if (st.op === "=") { i++; j++; } else if (st.op === "-") i++; else j++; d += ` L${X(j)} ${Y(i)}`; }
+  svg.append(svgEl("path", { d, fill: "none", stroke: "var(--accent)", "stroke-width": 3.5, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+  i = 0; j = 0;
+  for (const st of s) { const x0 = X(j), y0 = Y(i); if (st.op === "=") { i++; j++; } else if (st.op === "-") i++; else j++;
+    if (st.op !== "=") svg.append(svgEl("circle", { cx: (x0 + X(j)) / 2, cy: (y0 + Y(i)) / 2, r: 4, fill: st.op === "-" ? "var(--red)" : "var(--green)" })); }
+}
+document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { mode = b.dataset.mode; document.querySelectorAll("[data-mode]").forEach(x => x.setAttribute("aria-pressed", x === b)); render(); });
+document.querySelectorAll("[data-ex]").forEach(b => b.onclick = () => { const [a, c] = EX[b.dataset.ex]; $("#a").value = a; $("#b").value = c; const m = b.dataset.ex === "code" ? "lines" : b.dataset.ex === "prose" ? "words" : "chars"; document.querySelector(`[data-mode="${m}"]`).click(); });
+$("#a").addEventListener("input", render); $("#b").addEventListener("input", render);
+render();
+</script>
+</body>
+</html>

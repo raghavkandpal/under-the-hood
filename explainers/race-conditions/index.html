@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Race Conditions</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .three { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  @media (max-width: 760px) { .three { grid-template-columns: minmax(0, 1fr); } }
+  .th h3 { margin: 0 0 6px; font-size: 15px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .code { font-family: var(--mono); font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
+  .code div { padding: 3px 8px; border-radius: 5px; }
+  .code div.done { color: var(--muted); text-decoration: line-through; opacity: .6; }
+  .code div.next { background: var(--accent-soft); outline: 2px solid var(--accent); }
+  .code div.blocked { background: var(--red-soft); outline: 2px solid var(--red); }
+  .regs { font-family: var(--mono); font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .mem { font-family: var(--mono); font-size: 14px; }
+  .mem div { display: flex; justify-content: space-between; padding: 5px 8px; background: var(--surface-2); border-radius: 6px; margin-bottom: 4px; }
+  .mem div.changed { background: var(--blue-soft); }
+  .log { font-family: var(--mono); font-size: 12.5px; max-height: 180px; overflow: auto; }
+  .log .t0 { color: var(--blue); } .log .t1 { color: var(--accent); }
+  .outcome { font-weight: 700; font-size: 15px; min-height: 1.5em; }
+  .ok { color: var(--green); } .bad { color: var(--red); }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Race conditions &amp; locks</h1>
+  <p class="lede">Two threads each add 1 to a shared counter. It starts at 0, so it should end at 2. Sometimes it ends at 1. You're the operating system here: <b>you choose which thread runs next</b>, one instruction at a time.</p>
+
+  <div class="panel"><div class="tabs" id="tabs"></div><p class="status" id="goal" style="margin:8px 0 0"></p></div>
+
+  <div class="three">
+    <div class="panel th" id="t0"></div>
+    <div class="panel th" id="t1"></div>
+    <div class="panel"><b>Shared memory</b><div class="mem" id="mem" style="margin-top:6px"></div><b style="display:block;margin-top:8px">Locks</b><div class="mem" id="locks" style="margin-top:6px"></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="controls" style="margin:0"><button id="rand">🎲 Random schedule</button><button id="bad" class="primary">Show me a bad schedule</button><button id="reset">Reset</button></div>
+    <p class="outcome" id="outcome"></p>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="panel scroll-x">
+    <b>Every possible interleaving</b> <span class="status">(the machine tries them all)</span>
+    <table class="data" id="all" style="margin-top:6px"></table>
+  </div>
+
+  <h2>What's going on</h2>
+  <p><b><code>count++</code> is three steps.</b> Load the value into a register, add 1, store it back. If thread 2 loads <i>before</i> thread 1 stores, both read 0, both write 1, and one increment vanishes: a <b>lost update</b>. Of the 20 possible orderings, only 2 are correct: the ones where one thread finishes completely before the other starts. Real threads switch at unpredictable moments, so the bug shows up rarely, randomly, and usually not on the developer's machine.</p>
+  <p><b>A lock (mutex)</b> makes the three steps <i>atomic</i> as far as other threads can tell. Only one thread can hold it, and the other blocks (red) until it's released. Switch to "count++ inside a lock": every interleaving now gives 2.</p>
+  <p><b>Locks bring their own trap: deadlock.</b> Thread 1 takes A then wants B. Thread 2 takes B then wants A. If each grabs its first lock before the other's second, they wait forever. The cure is to always acquire locks in the same global order, so a cycle can't form. Compare "two locks, opposite order" with "same order".</p>
+  <p class="status">Real CPUs make this harder still: caches and compiler reordering mean threads can even see each other's writes out of order without proper synchronisation. That's what memory models and atomic instructions are about.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml } from "../../shared/common.js";
+import { PROGRAMS, Machine, explore, fmt } from "./concurrency.js";
+chrome();
+
+let key = "race", m, prevShared;
+$("#tabs").innerHTML = Object.entries(PROGRAMS).map(([k, p]) => `<button data-k="${k}" aria-pressed="${k === key}">${p.label}</button>`).join("");
+function reset() { m = new Machine(PROGRAMS[key]); prevShared = { ...m.shared }; render(); table(); $("#goal").textContent = "Goal: " + PROGRAMS[key].goal + "."; }
+function render() {
+  for (const t of m.threads) {
+    const blocked = !m.done(t) && !m.canRun(t.id);
+    $("#t" + t.id).innerHTML = `<h3>Thread ${t.id + 1}<button data-run="${t.id}" class="${t.id ? "" : "primary"}" ${m.canRun(t.id) ? "" : "disabled"}>Run 1 step ▶</button></h3>
+      <div class="code">${t.code.map((ins, i) => `<div class="${i < t.pc ? "done" : i === t.pc ? (blocked ? "blocked" : "next") : ""}">${escapeHtml(fmt(ins))}${i === t.pc && blocked ? "  ⏸ waiting for lock" : ""}</div>`).join("")}</div>
+      <div class="regs">registers: ${Object.keys(t.regs).length ? Object.entries(t.regs).map(([k, v]) => `${k} = ${v}`).join(", ") : "—"}${m.done(t) ? " · finished" : ""}</div>`;
+  }
+  $("#mem").innerHTML = Object.entries(m.shared).map(([k, v]) => `<div class="${prevShared[k] !== v ? "changed" : ""}"><span>${k}</span><b>${v}</b></div>`).join("");
+  const ls = [...new Set(PROGRAMS[key].threads.flat().filter(i => i[0] === "lock").map(i => i[1]))];
+  $("#locks").innerHTML = ls.length ? ls.map(L => `<div><span>${L}</span><span>${m.locks[L] != null ? "held by thread " + (m.locks[L] + 1) : "free"}</span></div>`).join("") : `<div><span class="status">none</span></div>`;
+  $("#log").innerHTML = m.trace.map((s, i) => `<span class="t${s.id}">${i + 1}. thread ${s.id + 1}: ${escapeHtml(fmt(s.ins))}</span>`).join("<br>");
+  $("#outcome").innerHTML = m.deadlocked ? `<span class="bad">💀 Deadlock.</span> Each thread holds a lock the other is waiting for. Neither can ever continue.`
+    : m.finished ? (PROGRAMS[key].expect(m.shared) ? `<span class="ok">✓ Correct:</span> ${Object.entries(m.shared).map(([k, v]) => `${k} = ${v}`).join(", ")}.` : `<span class="bad">✗ Lost update:</span> count = ${m.shared.count}, but two increments ran. Both threads read the old value before either wrote.`) : "";
+}
+function table() {
+  const r = explore(PROGRAMS[key]);
+  $("#all").innerHTML = `<tr><th>Outcome</th><th>Interleavings</th><th>Share</th></tr>` + r.outcomes.map(o => {
+    const label = o.k === "deadlock" ? "💀 deadlock" : Object.entries(JSON.parse(o.k)).map(([k, v]) => `${k} = ${v}`).join(", ");
+    const good = o.k !== "deadlock" && PROGRAMS[key].expect(JSON.parse(o.k));
+    return `<tr><td class="${good ? "ok" : "bad"}">${label}</td><td class="num">${o.n}</td><td class="num">${Math.round(o.n / r.schedules * 100)}%</td></tr>`;
+  }).join("") + `<tr><td class="status">total</td><td class="num">${r.schedules}</td><td></td></tr>`;
+}
+document.querySelector(".three").addEventListener("click", e => { const b = e.target.closest("[data-run]"); if (!b) return; prevShared = { ...m.shared }; m.step(+b.dataset.run); render(); });
+$("#rand").onclick = () => { reset(); while (!m.finished && !m.deadlocked) { const r = m.runnable(); m.step(r[Math.floor(Math.random() * r.length)]); } render(); };
+$("#bad").onclick = () => { reset(); const sched = key === "deadlock" ? [0, 1] : [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]; for (const id of sched) { if (m.finished || m.deadlocked) break; if (!m.step(id)) m.step(1 - id); } render(); };
+$("#reset").onclick = reset;
+$("#tabs").onclick = e => { const b = e.target.closest("[data-k]"); if (!b) return; key = b.dataset.k; document.querySelectorAll("#tabs button").forEach(x => x.setAttribute("aria-pressed", x === b)); reset(); };
+reset();
+</script>
+</body>
+</html>

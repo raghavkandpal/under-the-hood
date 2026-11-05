@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PageRank</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+  @media (max-width: 820px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  #web { width: 100%; display: block; user-select: none; }
+  #web .pg circle { fill: var(--blue-soft); stroke: var(--blue); stroke-width: 2; cursor: pointer; }
+  #web .pg.sel circle { stroke: var(--accent); stroke-width: 4; }
+  #web .pg.surfer circle { fill: var(--accent-soft); }
+  #web .pg text { text-anchor: middle; font-size: 13px; font-weight: 700; fill: var(--text); pointer-events: none; }
+  #web .pg text.r { font-size: 10px; font-weight: 400; fill: var(--muted); font-family: var(--mono); }
+  .bars { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+  .bars .b { display: grid; grid-template-columns: 70px 1fr 50px; gap: 8px; align-items: center; }
+  .bars .track { height: 14px; background: var(--surface-2); border-radius: 3px; position: relative; overflow: hidden; }
+  .bars .pr { position: absolute; inset: 0 auto 0 0; background: var(--blue); opacity: .5; }
+  .bars .sv { position: absolute; inset: 4px auto 4px 0; background: var(--accent); border-radius: 2px; }
+  .bars .num { font-family: var(--mono); text-align: right; }
+  input[type=range] { accent-color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>PageRank</h1>
+  <p class="lede">How did Google decide which page to show first? Imagine someone clicking links at random, forever. Pages they land on often are important. A page is important if important pages link to it. That circular idea turns out to have a clean answer.</p>
+
+  <div class="panel">
+    <div class="controls tabs" style="margin:0"><span class="status">Web:</span><button data-p="web" aria-pressed="true">A small web</button><button data-p="farm">Link farm</button><button data-p="trap">A trap</button></div>
+    <div class="controls" style="margin:10px 0 0">
+      <label class="inline">Damping (chance of clicking a link vs. jumping) <input type="range" id="d" min="0.5" max="0.99" step="0.01" value="0.85"> <b id="vd"></b></label>
+      <button id="surf" class="primary">▶ Release a random surfer</button>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="panel"><svg id="web" viewBox="-230 -210 460 420" role="img" aria-label="Pages and links"></svg>
+      <p class="status">Bigger circle = higher rank. Click one page, then another, to add or remove a link between them.</p></div>
+    <div class="panel"><b>Rank of each page</b>
+      <div class="bars" id="bars" style="margin-top:8px"></div>
+      <p class="status"><span style="color:var(--blue)">■</span> PageRank (computed) · <span style="color:var(--accent)">■</span> share of the surfer's visits so far</p>
+      <p class="status" id="iters"></p></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The random surfer.</b> Start on any page. With probability <i>d</i> (usually 0.85) click a random link on it. Otherwise get bored and jump to a random page anywhere. Do this forever, and a page's rank is the fraction of time the surfer spends there. Release a surfer and its orange visit counts slowly settle onto the blue bars.</p>
+  <p><b>The equation.</b> Each page passes its rank, split evenly, to the pages it links to: <code>rank(p) = (1−d)/N + d · Σ rank(q) / links(q)</code>, summed over pages <i>q</i> that link to <i>p</i>. Start everyone equal and apply it repeatedly. This <i>power iteration</i> converges in a few dozen steps, even for billions of pages.</p>
+  <p><b>Why the jump matters.</b> Without it, a surfer who walks into a group of pages that only link to each other never leaves, and they soak up all the rank. Try "A trap" and push damping to 0.99. The jump also makes sure the answer is unique.</p>
+  <p><b>Gaming it.</b> Links from unimportant pages are worth little. A "link farm" of throwaway pages all pointing at one site does lift it, though, which is why modern search engines use hundreds of other signals and actively detect such patterns.</p>
+  <p class="status">This is the original 1998 formulation by Brin and Page. Pages with no outgoing links spread their rank evenly over all pages. The same maths (the stationary distribution of a Markov chain) ranks nodes in citation networks, social graphs and protein networks.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, sleep } from "../../shared/common.js";
+import { pagerank } from "./pagerank.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const PRESETS = {
+  web: { names: ["Home", "News", "Blog", "Shop", "About", "Wiki", "Forum"], links: [[0, 1], [0, 2], [0, 3], [1, 0], [1, 5], [2, 0], [2, 5], [2, 6], [3, 0], [4, 0], [5, 0], [5, 1], [6, 2], [6, 5]] },
+  farm: { names: ["Home", "News", "Wiki", "Spam", "Fake1", "Fake2", "Fake3"], links: [[0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1], [3, 0], [4, 3], [5, 3], [6, 3], [3, 4], [3, 5], [3, 6]] },
+  trap: { names: ["A", "B", "C", "D", "E", "Loop1", "Loop2"], links: [[0, 1], [1, 2], [2, 0], [2, 3], [3, 4], [4, 0], [4, 5], [5, 6], [6, 5]] },
+};
+let P, links, sel = null, visits, surfing = false, surferAt = null;
+const pos = i => { const a = -Math.PI / 2 + i * 2 * Math.PI / P.names.length; return [165 * Math.cos(a), 165 * Math.sin(a)]; };
+function load(k) { P = PRESETS[k]; links = P.links.map(l => l.slice()); visits = new Array(P.names.length).fill(0); sel = null; render(); }
+function render() {
+  const d = +$("#d").value; $("#vd").textContent = d.toFixed(2);
+  const { rank, history } = pagerank(P.names.length, links, { damping: d });
+  const svg = $("#web"); svg.replaceChildren();
+  const defs = svgEl("defs"), mk = svgEl("marker", { id: "pa", viewBox: "0 0 10 10", refX: 10, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" });
+  mk.append(svgEl("path", { d: "M0 0L10 5L0 10z", fill: "var(--muted)" })); defs.append(mk); svg.append(defs);
+  const R = i => 14 + Math.sqrt(rank[i]) * 70;
+  for (const [a, b] of links) {
+    const [x1, y1] = pos(a), [x2, y2] = pos(b), dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
+    const two = links.some(([c, e]) => c === b && e === a), off = two ? 7 : 0, nx = -uy * off, ny = ux * off;
+    svg.append(svgEl("line", { x1: x1 + ux * R(a) + nx, y1: y1 + uy * R(a) + ny, x2: x2 - ux * (R(b) + 3) + nx, y2: y2 - uy * (R(b) + 3) + ny, stroke: "var(--muted)", "stroke-width": 1.4, "marker-end": "url(#pa)", opacity: 0.75 }));
+  }
+  P.names.forEach((nm, i) => {
+    const [x, y] = pos(i), g = svgEl("g", { class: `pg${sel === i ? " sel" : ""}${surferAt === i ? " surfer" : ""}`, transform: `translate(${x},${y})`, "data-i": i });
+    g.append(svgEl("circle", { r: R(i) })); g.append(svgEl("text", { y: 2 }, nm)); g.append(svgEl("text", { y: 15, class: "r" }, (rank[i] * 100).toFixed(1) + "%"));
+    svg.append(g);
+  });
+  const tot = visits.reduce((a, b) => a + b, 0), mx = Math.max(...rank, ...(tot ? visits.map(v => v / tot) : [0]));
+  $("#bars").innerHTML = P.names.map((nm, i) => ({ nm, i, r: rank[i] })).sort((a, b) => b.r - a.r).map(({ nm, i, r }) => `<div class="b"><span>${nm}</span><div class="track"><div class="pr" style="width:${r / mx * 100}%"></div><div class="sv" style="width:${tot ? visits[i] / tot / mx * 100 : 0}%"></div></div><span class="num">${(r * 100).toFixed(1)}%</span></div>`).join("");
+  $("#iters").textContent = `Power iteration converged in ${history.length - 1} steps.` + (tot ? ` Surfer: ${tot.toLocaleString()} clicks so far.` : "");
+}
+$("#web").addEventListener("click", e => {
+  const g = e.target.closest("[data-i]"); if (!g) { sel = null; render(); return; }
+  const i = +g.dataset.i;
+  if (sel == null) sel = i;
+  else if (sel === i) sel = null;
+  else { const k = links.findIndex(([a, b]) => a === sel && b === i); if (k >= 0) links.splice(k, 1); else links.push([sel, i]); sel = null; visits.fill(0); }
+  render();
+});
+$("#surf").onclick = async () => {
+  if (surfing) { surfing = false; return; }
+  surfing = true; $("#surf").textContent = "■ Stop the surfer"; const r = mulberry((Math.random() * 1e9) | 0);
+  let at = 0, n = 0;
+  while (surfing) {
+    const d = +$("#d").value, out = links.filter(([a]) => a === at).map(([, b]) => b);
+    for (let k = 0; k < (n < 30 ? 1 : 25); k++) { visits[at]++; at = r() > d || !out.length ? Math.floor(r() * P.names.length) : out[Math.floor(r() * out.length)]; n++; }
+    surferAt = at; render(); await sleep(n < 30 ? 350 : 40);
+  }
+  surferAt = null; $("#surf").textContent = "▶ Release a random surfer"; render();
+};
+$("#d").oninput = render;
+document.querySelectorAll("[data-p]").forEach(b => b.onclick = () => { surfing = false; document.querySelectorAll("[data-p]").forEach(x => x.setAttribute("aria-pressed", x === b)); load(b.dataset.p); });
+load("web");
+</script>
+</body>
+</html>

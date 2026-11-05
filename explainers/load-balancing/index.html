@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Load Balancing</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 16px; }
+  .grid label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .grid label b { color: var(--text); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .res { display: grid; grid-template-columns: 170px 1fr 64px 64px; gap: 6px 10px; align-items: center; font-size: 13.5px; }
+  .res .h { color: var(--muted); font-size: 12px; }
+  .res .track { height: 16px; background: var(--surface-2); border-radius: 4px; position: relative; overflow: hidden; }
+  .res .p50 { position: absolute; inset: 0 auto 0 0; background: var(--blue); opacity: .55; }
+  .res .p99 { position: absolute; inset: 4px auto 4px 0; background: var(--red); border-radius: 2px; }
+  .res .num { font-family: var(--mono); text-align: right; }
+  .res .best { font-weight: 700; color: var(--green); }
+  .heat { display: grid; gap: 1px; margin-top: 6px; }
+  .heat div { height: 10px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Load balancing</h1>
+  <p class="lede">A load balancer hands each incoming request to one of many servers. The obvious strategies spread requests evenly, but "evenly" in number isn't evenly in <i>work</i>, and the unlucky requests pay for it in tail latency.</p>
+
+  <div class="panel">
+    <div class="grid">
+      <label>Busyness (utilisation) <b id="vload"></b><input type="range" id="load" min="0.3" max="0.97" step="0.01" value="0.85"></label>
+      <label>Servers <b id="vsrv"></b><input type="range" id="srv" min="2" max="20" value="8"></label>
+      <label>Slow servers (40% speed) <b id="vslow"></b><input type="range" id="slow" min="0" max="4" value="0"></label>
+    </div>
+    <div class="controls" style="margin:10px 0 0"><label class="inline"><input type="checkbox" id="heavy"> heavy-tailed requests (most tiny, a few huge)</label><button id="reroll">🎲 Re-run</button></div>
+  </div>
+
+  <div class="panel">
+    <div class="res" id="res"></div>
+    <p class="status" style="margin:6px 0 0"><span style="color:var(--blue)">■</span> median response time · <span style="color:var(--red)">■</span> 99th percentile, the slowest 1 in 100 requests. Units are average request lengths.</p>
+  </div>
+
+  <div class="panel">
+    <div class="tabs" id="tabs"></div>
+    <p class="status" style="margin:6px 0 2px">Requests waiting at each server over time (rows = servers, darker = longer queue):</p>
+    <div class="heat" id="heat"></div>
+  </div>
+
+  <h2>Four strategies</h2>
+  <p><b>Random</b> needs no state at all, but by pure chance some servers get a run of requests while others sit idle. That variation shows up directly in the p99.</p>
+  <p><b>Round robin</b> gives each server exactly its turn, so request <i>counts</i> are perfectly even. But requests aren't equal. A server stuck on a long one keeps getting new requests queued behind it. Tick "heavy-tailed" to see how bad that gets.</p>
+  <p><b>Least connections</b> sends each request to the server with the fewest in flight, so it adapts to slow requests and slow machines. It's the best here, but it needs an up-to-date view of every server, which is costly with many balancers and thousands of servers.</p>
+  <p><b>Power of two choices</b> picks two servers at random and sends the request to the less busy one. That single extra look gets most of the benefit of checking every server. In theory, the worst queue shrinks from about <i>log n / log log n</i> to <i>log log n</i>. It's simple, scalable, and widely used (Nginx's "random two", Envoy, many service meshes).</p>
+  <p class="status">Each run sends 20,000 requests with random (Poisson) arrivals. Request sizes are exponential, or 95% tiny and 5% about 14× the average when heavy-tailed. Every server processes one request at a time, first come first served. The first 10% of requests are discarded as warm-up.</p>
+</main>
+<script type="module">
+import { chrome, $ } from "../../shared/common.js";
+import { STRATEGIES, simulate } from "./lb.js";
+chrome();
+
+let seed = 1, show = "random", results = {};
+$("#tabs").innerHTML = `<span class="status" style="align-self:center">Show:</span>` + Object.entries(STRATEGIES).map(([k, s]) => `<button data-k="${k}" aria-pressed="${k === show}">${s.label}</button>`).join("");
+function run() {
+  const o = { servers: +$("#srv").value, load: +$("#load").value, heavy: $("#heavy").checked, slow: Math.min(+$("#slow").value, +$("#srv").value - 1), seed };
+  $("#vload").textContent = Math.round(o.load * 100) + "%"; $("#vsrv").textContent = o.servers; $("#vslow").textContent = o.slow;
+  const effective = o.slow ? o.load * o.servers / (o.servers - o.slow + o.slow * 0.4) : o.load;
+  results = Object.fromEntries(Object.keys(STRATEGIES).map(k => [k, simulate({ strategy: k, ...o })]));
+  const mx = Math.max(...Object.values(results).map(r => r.p99)), best = Math.min(...Object.values(results).map(r => r.p99));
+  $("#res").innerHTML = `<span class="h">strategy</span><span></span><span class="h" style="text-align:right">median</span><span class="h" style="text-align:right">p99</span>` + Object.entries(STRATEGIES).map(([k, s]) => {
+    const r = results[k];
+    return `<span class="${r.p99 === best ? "best" : ""}">${s.label}${r.p99 === best ? " ★" : ""}</span><div class="track"><div class="p50" style="width:${r.p50 / mx * 100}%"></div><div class="p99" style="width:${r.p99 / mx * 100}%"></div></div><span class="num">${r.p50.toFixed(1)}</span><span class="num">${r.p99.toFixed(1)}</span>`;
+  }).join("") + (effective >= 1 ? `<span class="status" style="grid-column:1/-1;color:var(--red)">With the slow servers, total capacity is below the incoming load, so queues grow without limit whatever the strategy.</span>` : "");
+  heat();
+}
+function heat() {
+  const snaps = results[show].snaps, S = snaps[0].length, mx = Math.max(3, ...snaps.flat());
+  $("#heat").style.gridTemplateColumns = `repeat(${snaps.length}, 1fr)`;
+  let html = ""; for (let s = 0; s < S; s++) for (const snap of snaps) html += `<div style="background:rgba(224,69,58,${Math.min(1, snap[s] / mx).toFixed(2)})"></div>`;
+  $("#heat").innerHTML = html;
+}
+for (const id of ["load", "srv", "slow"]) $("#" + id).addEventListener("input", run);
+$("#heavy").onchange = run; $("#reroll").onclick = () => { seed++; run(); };
+$("#tabs").onclick = e => { const b = e.target.closest("[data-k]"); if (!b) return; show = b.dataset.k; document.querySelectorAll("#tabs button").forEach(x => x.setAttribute("aria-pressed", x === b)); heat(); };
+run();
+</script>
+</body>
+</html>

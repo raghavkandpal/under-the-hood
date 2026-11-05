@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Password Hashing</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  table.data td.mono { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+  table.data td.dup { background: var(--red-soft); }
+  table.data tr.you td { background: var(--accent-soft); }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; font-weight: 600; }
+  .tag.bad { background: var(--red-soft); color: var(--red); }
+  .tag.ok { background: var(--green-soft); color: var(--green); }
+  .stats { --stat-min: 130px; }
+  input[type=range] { accent-color: var(--accent); }
+  .row input[type=text] { flex: 1 1 200px; font-family: var(--mono); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Password hashing</h1>
+  <p class="lede">Websites get breached. What matters then is what the attacker finds in the database. Here's a fictional site's user table stored four ways, and an attacker with a list of common passwords. Everything below uses your browser's real cryptography.</p>
+
+  <div class="panel">
+    <div class="row"><label class="status" for="mine">Add your own (made-up!) password as user “you”. It stays in this tab:</label></div>
+    <div class="row"><input id="mine" type="text" value="dragon1" spellcheck="false" autocomplete="off" aria-label="Your example password"></div>
+    <p class="status" style="margin:6px 0 0">Don't type a real password, even though nothing leaves this page.</p>
+  </div>
+
+  <div class="panel">
+    <div class="tabs" id="tabs"></div>
+    <p class="status" id="about" style="margin:8px 0"></p>
+    <label class="inline" id="iterWrap">PBKDF2 iterations <input type="range" id="iters" min="3" max="5.3" step="0.1" value="4"> <b id="viters"></b></label>
+    <h3 style="font-size:15px;margin:14px 0 6px">What the attacker sees after the breach</h3>
+    <div class="scroll-x"><table class="data" id="db"></table></div>
+    <div class="controls" style="margin:12px 0 0"><button id="attack" class="primary">⚔ Run dictionary attack</button><span class="status" id="progress"></span></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>What each layer buys you</h2>
+  <p><b>Plaintext</b> is game over. No attack is even needed.</p>
+  <p><b>Hashing</b> is one-way, but the attacker doesn't reverse it. They hash guesses and compare. Without a salt, one hash of "sunshine" matches <i>every</i> user with that password (see the red rows), and the attacker can hash the whole dictionary once, or download a precomputed table, then look everyone up instantly.</p>
+  <p><b>A salt</b> is a random value stored next to each hash and mixed in before hashing. It's not secret. Its job is to make every user's hash unique, so each guess has to be redone per user and precomputed tables become useless.</p>
+  <p><b>A slow hash</b> is the real defence. SHA-256 was built for speed, and a modern GPU computes billions per second. Password-hashing functions (PBKDF2, bcrypt, scrypt, Argon2) are deliberately expensive, tuned so a login takes milliseconds but an attacker's billions of guesses take years. Argon2 and scrypt also use lots of memory, which blunts GPUs.</p>
+  <p><b>And still:</b> no hashing scheme saves a password that's on the list. "dragon1" falls in every mode, just more slowly. The long passphrase never falls. Length and unpredictability beat clever substitutions, and a password manager beats both.</p>
+  <p class="status">Toy scale: a ~100-word dictionary where real attackers use billions of candidates plus mutation rules. The GPU figure is a rough order of magnitude for unsalted SHA-256 on a single high-end card. The browser's PBKDF2 is the real algorithm, and real deployments use 600,000+ iterations or Argon2.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml, statTile } from "../../shared/common.js";
+import { SCHEMES, store, attack, randomSalt, DICTIONARY } from "./pwhash.js";
+chrome();
+
+const USERS = [
+  ["ana", "sunshine"], ["bo", "123456"], ["chen", "correct-horse-battery-orbit-42"], ["dee", "sunshine"],
+  ["eli", "Letmein"], ["fay", "q8#Lr!v2Wm@9zT"], ["gus", "password1"], ["hal", "monkey!"],
+];
+let scheme = "sha", rows = [], running = false, stopFlag = false, lastResult = null;
+const iters = () => Math.round(10 ** +$("#iters").value);
+const salts = USERS.map(() => randomSalt()), mySalt = randomSalt();
+
+$("#tabs").innerHTML = Object.entries(SCHEMES).map(([k, s]) => `<button data-s="${k}" aria-pressed="${k === scheme}">${s.label}</button>`).join("");
+async function build() {
+  const all = [...USERS, ["you", $("#mine").value]];
+  rows = await Promise.all(all.map(async ([name, pw], i) => {
+    const salt = i < USERS.length ? salts[i] : mySalt;
+    return { name, pw, salt, stored: await store(scheme, pw, salt, iters()) };
+  }));
+  lastResult = null; render();
+}
+function render() {
+  $("#about").textContent = SCHEMES[scheme].about;
+  $("#iterWrap").style.display = scheme === "pbkdf2" ? "" : "none";
+  $("#viters").textContent = iters().toLocaleString();
+  const counts = new Map(); rows.forEach(r => counts.set(r.stored, (counts.get(r.stored) || 0) + 1));
+  const showSalt = scheme === "salted" || scheme === "pbkdf2";
+  $("#db").innerHTML = `<tr><th>User</th>${showSalt ? "<th>Salt</th>" : ""}<th>Stored value</th><th>Attack result</th></tr>` + rows.map(r => {
+    const c = lastResult?.cracked.get(r.name);
+    const res = !lastResult ? "" : c != null ? `<span class="tag bad">cracked: ${escapeHtml(c)}</span>` : `<span class="tag ok">survived</span>`;
+    return `<tr class="${r.name === "you" ? "you" : ""}"><td>${r.name}</td>${showSalt ? `<td class="mono">${r.salt}</td>` : ""}<td class="mono ${counts.get(r.stored) > 1 ? "dup" : ""}">${escapeHtml(scheme === "plain" ? r.stored : r.stored.slice(0, 32) + "…")}</td><td>${res}</td></tr>`;
+  }).join("");
+}
+async function runAttack() {
+  if (running) { stopFlag = true; return; }
+  running = true; stopFlag = false; $("#attack").textContent = "■ Stop";
+  const users = rows.map(({ name, salt, stored }) => ({ name, salt, stored }));
+  const r = await attack(scheme, users, DICTIONARY, {
+    iterations: iters(), shouldStop: () => stopFlag,
+    onProgress: (g, cr) => { $("#progress").textContent = `${g.toLocaleString()} guesses so far, ${cr.size} cracked…`; },
+  });
+  await new Promise(requestAnimationFrame);
+  lastResult = r; running = false; $("#attack").textContent = "⚔ Run dictionary attack";
+  const perSec = r.guesses ? r.guesses / (r.ms / 1000) : Infinity;
+  $("#progress").textContent = r.stopped ? "Stopped." : `Done in ${(r.ms / 1000).toFixed(2)} s.`;
+  const fmt = s => !Number.isFinite(s) ? "instant" : s < 1 ? "under a second" : s < 3600 ? `${Math.round(s / 60) || 1} min` : s < 86400 * 365 ? `${(s / 86400).toFixed(1)} days` : `${(s / 86400 / 365).toExponential(1)} years`;
+  const gpu = { plain: Infinity, sha: 1e10, salted: 1e10, pbkdf2: 1e10 / (iters() * 2) }[scheme];
+  $("#stats").innerHTML = [
+    [`${r.cracked.size}/${rows.length}`, "accounts cracked"],
+    [r.guesses.toLocaleString(), "hashes computed"],
+    [Number.isFinite(perSec) ? Math.round(perSec).toLocaleString() + "/s" : "—", "guesses per second, this tab"],
+    [fmt(1e9 / gpu * (scheme === "sha" ? 1 : rows.length)), "1 billion-word list, one GPU (rough)"],
+  ].map(statTile).join("");
+  render();
+}
+$("#tabs").onclick = e => { const b = e.target.closest("[data-s]"); if (!b || running) return; scheme = b.dataset.s; document.querySelectorAll("#tabs button").forEach(x => x.setAttribute("aria-pressed", x === b)); $("#stats").innerHTML = ""; $("#progress").textContent = ""; build(); };
+$("#iters").oninput = () => { $("#viters").textContent = iters().toLocaleString(); };
+$("#iters").onchange = () => { if (!running) build(); };
+let deb; $("#mine").addEventListener("input", () => { clearTimeout(deb); deb = setTimeout(() => { if (!running) build(); }, 250); });
+$("#attack").onclick = runAttack;
+build();
+</script>
+</body>
+</html>

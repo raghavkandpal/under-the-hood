@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Query Planners</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .sql { font-family: var(--mono); font-size: 14px; background: var(--surface-2); padding: 8px 12px; border-radius: 8px; margin-top: 8px; }
+  .sql b { color: var(--accent); }
+  pre.explain { font-family: var(--mono); font-size: 12.5px; background: #1e1e1e; color: #d4d4d4; padding: 8px 12px; border-radius: 8px; margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  pre.explain .warn { color: #ff8a7a; }
+  #chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  #chart text { font-size: 11px; fill: var(--muted); }
+  .verdict { padding: 8px 12px; border-radius: 10px; margin-top: 10px; font-weight: 600; }
+  .verdict.good { background: var(--green-soft); color: var(--green); }
+  .verdict.bad { background: var(--red-soft); color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Query planners &amp; indexes</h1>
+  <p class="lede">You don't tell a database <i>how</i> to find your rows, only <i>which</i> rows you want. A planner guesses how many rows will match and picks a strategy. Guess right and the query takes milliseconds. Guess wrong and the same query takes minutes, with nothing in your code changed.</p>
+
+  <div class="panel">
+    <div class="sql">SELECT * FROM products WHERE price &lt; <b id="xv"></b>;</div>
+    <div class="row" style="margin-top:8px">
+      <label class="inline">price threshold <input type="range" id="x" min="0" max="3.3" step="0.01" value="0.7"></label>
+      <label class="inline">storage <select id="disk"><option value="4">spinning disk (random read = 4×)</option><option value="1.1">SSD (random read ≈ 1.1×)</option></select></label>
+      <label class="inline"><input type="checkbox" id="clustered"> table stored in price order</label>
+      <label class="inline"><input type="checkbox" id="stale"> statistics are stale (collected before a big sale)</label>
+    </div>
+    <pre class="explain" id="explain"></pre>
+    <div id="verdict"></div>
+    <svg id="chart" viewBox="0 0 600 240" role="img" aria-label="Cost of each plan versus fraction of rows matched"></svg>
+    <div class="stats" id="stats" style="--stat-min:140px"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Two ways to answer.</b> A <i>sequential scan</i> reads the whole table, page after page, which is cheap per page because disks and caches love reading in order. An <i>index scan</i> walks a <a href="../btree/">B-tree</a> straight to the matching prices, then fetches each row from wherever it lives in the table, often a random page every time. For a handful of rows the index wins enormously. Past a surprisingly small fraction of the table, all those random reads cost more than just reading everything.</p>
+  <p><b>The crossover</b> is around half a percent of rows on a spinning disk here. On an SSD random reads are nearly as cheap as sequential ones, so the index stays worth it for longer. If the table is physically stored in price order (clustered), matching rows sit next to each other and the index wins almost everywhere.</p>
+  <p><b>Estimates come from statistics.</b> The planner can't count matches without running the query, so it keeps a histogram per column: bucket boundaries that each hold the same number of rows. “Price &lt; 5” falls in the first bucket, so it estimates a share of that. Statistics are refreshed periodically (<code>ANALYZE</code>), but data can change faster. Tick “stale” and lower the threshold to about 5: the planner expects almost nothing to match, picks the index, then fetches tens of thousands of rows one random read at a time.</p>
+  <p class="status">Real planners also weigh joins (<a href="../sql-joins/">nested loop, hash, merge</a>), sort order, caching and multi-column indexes, where column order decides which queries can use them. <code>EXPLAIN ANALYZE</code> shows estimated vs actual rows; a big gap is the first thing to look for. Costs use Postgres's default units. Table: 1,000,000 rows, 100 per page.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { DEFAULTS, seqCost, indexCost, choosePlan, crossover, prices, histogram, estimateLess, actualLess } from "./query-planner.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const rnd = mulberry(2), BEFORE = prices(50_000, rnd), AFTER = prices(50_000, rnd, { sale: true });
+const H_FRESH = histogram(AFTER, 100), H_STALE = histogram(BEFORE, 100) /* Postgres keeps 100 buckets by default */, N = DEFAULTS.rows;
+const fmt = n => Math.round(n).toLocaleString(), ms = c => c * 0.01; // 1 cost unit ≈ 10 µs, for a rough feel
+const fmtT = c => { const t = ms(c); return t < 1000 ? Math.round(t) + " ms" : (t / 1000).toFixed(1) + " s"; };
+
+function render() {
+  const x = Math.round(10 ** +$("#x").value), o = { ...DEFAULTS, randomPage: +$("#disk").value }, clustered = $("#clustered").checked, stale = $("#stale").checked;
+  $("#xv").textContent = x;
+  const est = estimateLess(stale ? H_STALE : H_FRESH, x) * N, real = actualLess(AFTER, x) * N;
+  const choice = choosePlan(est, o, clustered), best = choosePlan(real, o, clustered);
+  const realCost = p => (p === "seq" ? seqCost(o) : indexCost(real, o, clustered));
+  const off = Math.max(est, 1) / Math.max(real, 1);
+  $("#explain").innerHTML = (choice.plan === "index"
+    ? `Index Scan using products_price_idx on products${clustered ? " (clustered)" : ""}\n  Index Cond: (price &lt; ${x})`
+    : `Seq Scan on products\n  Filter: (price &lt; ${x})`) +
+    `\n  estimated rows=${fmt(est)}  cost=${fmt(choice[choice.plan])}\n  <span class="${off > 4 || off < 0.25 ? "warn" : ""}">actual rows=${fmt(real)}  cost=${fmt(realCost(choice.plan))}${off > 4 || off < 0.25 ? `   ← estimate off by ${off < 1 ? Math.round(1 / off) : Math.round(off)}×` : ""}</span>`;
+  const lost = realCost(choice.plan) / realCost(best.plan);
+  $("#verdict").innerHTML = choice.plan === best.plan
+    ? `<div class="verdict good">Good choice: the ${choice.plan === "index" ? "index scan" : "full scan"} really is the cheaper plan here (≈ ${fmtT(realCost(choice.plan))}).</div>`
+    : `<div class="verdict bad">Bad choice: ${best.plan === "index" ? "an index scan" : "a full scan"} would have taken ≈ ${fmtT(realCost(best.plan))}; this plan takes ≈ ${fmtT(realCost(choice.plan))}, ${lost.toFixed(1)}× slower.</div>`;
+  const cx = crossover(o, clustered);
+  $("#stats").innerHTML = [[(real / N * 100).toFixed(2) + "%", "of rows actually match"], [(est / N * 100).toFixed(2) + "%", "estimated by the planner"], [(cx * 100).toFixed(cx < 0.1 ? 2 : 0) + "%", "crossover: index stops paying"]].map(statTile).join("");
+  chart(o, clustered, real / N, est / N);
+}
+function chart(o, clustered, realFrac, estFrac) {
+  const svg = $("#chart"); svg.replaceChildren();
+  const L = 50, R = 590, T = 10, B = 200, f0 = 1e-5, f1 = 1, X = f => L + (R - L) * (Math.log10(Math.max(f, f0)) - Math.log10(f0)) / (Math.log10(f1) - Math.log10(f0));
+  const cmax = Math.log10(indexCost(N, o, false) * 1.2), cmin = Math.log10(10), Y = c => B - (B - T) * (Math.log10(Math.max(c, 10)) - cmin) / (cmax - cmin);
+  for (const c of [1e2, 1e3, 1e4, 1e5, 1e6]) if (Math.log10(c) <= cmax) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(c), y2: Y(c), stroke: "var(--border)" }), svgEl("text", { x: L - 5, y: Y(c) + 4, "text-anchor": "end" }, c >= 1e6 ? "1M" : c >= 1e3 ? c / 1e3 + "k" : c));
+  for (const f of [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]) svg.append(svgEl("text", { x: X(f), y: B + 16, "text-anchor": "middle" }, f >= 0.01 ? f * 100 + "%" : (f * 100).toFixed(f < 1e-4 ? 3 : 2) + "%"));
+  svg.append(svgEl("text", { x: (L + R) / 2, y: 236, "text-anchor": "middle" }, "fraction of rows matching (log)  ·  y: plan cost (log)"));
+  const pts = []; for (let k = 0; k <= 100; k++) { const f = 10 ** (Math.log10(f0) + k / 100 * (Math.log10(f1) - Math.log10(f0))); pts.push([X(f), Y(indexCost(f * N, o, clustered))]); }
+  svg.append(svgEl("polyline", { points: pts.map(p => p.join(",")).join(" "), fill: "none", stroke: "var(--blue)", "stroke-width": 2.5 }));
+  svg.append(svgEl("line", { x1: L, x2: R, y1: Y(seqCost(o)), y2: Y(seqCost(o)), stroke: "var(--accent)", "stroke-width": 2.5 }));
+  svg.append(svgEl("text", { x: R - 4, y: Y(seqCost(o)) - 6, "text-anchor": "end", style: "fill:var(--accent);font-weight:700" }, "full scan"), svgEl("text", { x: X(3e-5), y: pts[8][1] - 8, style: "fill:var(--blue);font-weight:700" }, "index scan"));
+  const mark = (f, col, lab, dy) => { svg.append(svgEl("line", { x1: X(f), x2: X(f), y1: T, y2: B, stroke: col, "stroke-dasharray": "4 3", "stroke-width": 1.5 }), svgEl("text", { x: Math.min(X(f) + 4, R - 60), y: T + dy, style: `fill:${col};font-weight:700` }, lab)); };
+  mark(realFrac, "var(--text)", "actual", 12); if (Math.abs(Math.log10(Math.max(estFrac, f0)) - Math.log10(Math.max(realFrac, f0))) > 0.05) mark(estFrac, "var(--red)", "estimated", 26);
+}
+["#x", "#disk", "#clustered", "#stale"].forEach(s => ($(s).oninput = $(s).onchange = render));
+render();
+</script>
+</body>
+</html>

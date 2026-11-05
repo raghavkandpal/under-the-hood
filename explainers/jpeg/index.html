@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How JPEG Works</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  @media (max-width: 700px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  canvas.img { width: 100%; image-rendering: pixelated; display: block; border-radius: 8px; cursor: crosshair; }
+  .grids { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 700px) { .grids { grid-template-columns: minmax(0, 1fr); } }
+  .g8 { display: grid; grid-template-columns: repeat(8, 1fr); gap: 1px; font-family: var(--mono); font-size: 9.5px; }
+  .g8 div { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 2px; }
+  input[type=range] { accent-color: var(--accent); }
+  canvas#basis { width: 100%; max-width: 320px; image-rendering: pixelated; display: block; }
+</style>
+</head>
+<body>
+<main>
+  <h1>How JPEG works</h1>
+  <p class="lede">A photo saved as JPEG is often a tenth of its raw size, and you barely notice. The trick: chop the image into 8×8 tiles, describe each tile as a mix of simple wave patterns, then quietly throw away the fine detail your eyes are bad at seeing.</p>
+
+  <div class="panel">
+    <div class="controls" style="margin:0"><label class="inline">Quality <input type="range" id="q" min="1" max="100" value="40"> <b id="vq"></b></label>
+      <label class="inline">or your own image <input type="file" id="file" accept="image/*"></label></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="two">
+    <div class="panel"><b>Original</b> <span class="status">(hover to pick a tile)</span><canvas class="img" id="orig"></canvas></div>
+    <div class="panel"><b>After JPEG</b><canvas class="img" id="comp"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <b>One 8×8 tile, step by step</b>
+    <div class="grids" style="margin-top:8px">
+      <div><span class="status">1. pixel values</span><div class="g8" id="gpx"></div></div>
+      <div><span class="status">2. DCT: how much of each pattern</span><div class="g8" id="gdct"></div></div>
+      <div><span class="status">3. quantised: what's actually stored</span><div class="g8" id="gq"></div></div>
+    </div>
+    <p class="status" id="tileNote"></p>
+  </div>
+
+  <div class="panel"><b>The 64 patterns</b> <span class="status">(every tile is a weighted sum of these; top-left is flat, bottom-right is the finest checkerboard)</span><canvas id="basis" width="64" height="64"></canvas></div>
+
+  <h2>How it works</h2>
+  <p><b>1. Tiles of waves.</b> Each 8×8 tile goes through the <b>discrete cosine transform</b>, a cousin of the <a href="../fourier/">Fourier transform</a>. Instead of 64 brightness values you get 64 coefficients, one per pattern. For smooth photos most of the energy lands in the few top-left (low-frequency) coefficients.</p>
+  <p><b>2. Quantise: the only lossy step.</b> Each coefficient is divided by a number from a table and rounded. The table has small numbers top-left and big ones bottom-right, because human vision is far more sensitive to gentle gradients than to fine texture. Lower the quality and the divisors grow, so most coefficients round to zero.</p>
+  <p><b>3. Pack the zeros.</b> Coefficients are read in a zig-zag from low to high frequency, so the zeros bunch up at the end and compress to almost nothing (run-length plus Huffman coding).</p>
+  <p><b>The artefacts you know.</b> Drop the quality to 5. Tiles turn into flat blocks (blocking), and sharp edges like text sprout ripples (ringing), because a hard edge needs high-frequency patterns that got thrown away. That's why JPEG suits photos, and PNG suits screenshots and text.</p>
+  <p class="status">Brightness only. Real JPEG also converts colour to luma plus two chroma channels and stores chroma at lower resolution, since we see colour detail even less than brightness detail. The size shown is an estimate from the non-zero coefficients.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile } from "../../shared/common.js";
+import { dct, qtable, compress } from "./jpeg.js";
+chrome();
+
+const W = 160, H = 120;
+let img = new Float32Array(W * H), tile = [5, 4];
+for (const c of [$("#orig"), $("#comp")]) { c.width = W; c.height = H; }
+function testImage() {
+  const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
+  const grd = g.createRadialGradient(50, 50, 5, 60, 60, 110); grd.addColorStop(0, "#eee"); grd.addColorStop(1, "#333"); g.fillStyle = grd; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#111"; g.font = "bold 30px sans-serif"; g.fillText("JPEG", 76, 52);
+  for (let i = 0; i < 12; i++) { g.strokeStyle = i % 2 ? "#fff" : "#000"; g.lineWidth = 1; g.beginPath(); g.moveTo(10 + i * 2, 80); g.lineTo(10 + i * 2, 115); g.stroke(); }
+  g.fillStyle = "#777"; g.beginPath(); g.arc(120, 95, 18, 0, 7); g.fill();
+  load(g.getImageData(0, 0, W, H));
+}
+function load(d) { for (let i = 0; i < W * H; i++) img[i] = 0.299 * d.data[i * 4] + 0.587 * d.data[i * 4 + 1] + 0.114 * d.data[i * 4 + 2]; }
+function paint(cv, arr) { const g = cv.getContext("2d"), d = g.createImageData(W, H); for (let i = 0; i < W * H; i++) { d.data[i * 4] = d.data[i * 4 + 1] = d.data[i * 4 + 2] = arr[i]; d.data[i * 4 + 3] = 255; } g.putImageData(d, 0, 0); const [tx, ty] = tile; g.strokeStyle = "#e08a00"; g.strokeRect(tx * 8 - 0.5, ty * 8 - 0.5, 9, 9); }
+const cell = (v, bg, fg = "") => `<div style="background:${bg};${fg}">${v}</div>`;
+function render() {
+  const q = +$("#q").value; $("#vq").textContent = q;
+  const r = compress(img, W, H, q); paint($("#orig"), img); paint($("#comp"), r.out);
+  $("#stats").innerHTML = [[(W * H / 1000).toFixed(1) + " KB", "raw (1 byte per pixel)"], ["~" + (r.bytes / 1000).toFixed(1) + " KB", "JPEG estimate"], [Math.round(W * H / Math.max(1, r.bytes)) + "×", "smaller"], [`${r.nonzero.toLocaleString()} / ${(W * H).toLocaleString()}`, "coefficients kept"], [Number.isFinite(r.psnr) ? r.psnr.toFixed(1) + " dB" : "∞", "quality (PSNR; 35+ looks clean)"]].map(statTile).join("");
+  const [tx, ty] = tile, b = Array.from({ length: 8 }, (_, y) => Array.from({ length: 8 }, (_, x) => img[(ty * 8 + y) * W + tx * 8 + x]));
+  // dct() returns Float64Array rows; convert to plain arrays so .flat() works
+  const F = dct(b.map(r => r.map(v => v - 128))).map(r => [...r]), Q = qtable(q), qq = F.map((r, v) => r.map((c, u) => Math.round(c / Q[v][u])));
+  $("#gpx").innerHTML = b.flat().map(v => cell(Math.round(v), `rgb(${v},${v},${v})`, `color:${v > 128 ? "#000" : "#fff"}`)).join("");
+  const mx = Math.max(1, ...F.flat().map(Math.abs));
+  $("#gdct").innerHTML = F.flat().map(v => cell(Math.round(v), `rgba(${v >= 0 ? "47,111,228" : "224,69,58"},${Math.min(1, Math.abs(v) / mx * 1.5 + 0.05)})`)).join("");
+  $("#gq").innerHTML = qq.flat().map(v => cell(v || "", v ? "var(--accent-soft)" : "var(--surface-2)")).join("");
+  const kept = qq.flat().filter(Boolean).length;
+  $("#tileNote").textContent = `This tile keeps ${kept} of 64 numbers at quality ${q}. Everything blank was rounded to zero and costs almost nothing to store.`;
+}
+function basis() {
+  const g = $("#basis").getContext("2d"), d = g.createImageData(64, 64);
+  for (let v = 0; v < 8; v++) for (let u = 0; u < 8; u++) for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    const val = Math.cos((2 * x + 1) * u * Math.PI / 16) * Math.cos((2 * y + 1) * v * Math.PI / 16), p = ((v * 8 + y) * 64 + u * 8 + x) * 4, c = 128 + 127 * val;
+    d.data[p] = d.data[p + 1] = d.data[p + 2] = c; d.data[p + 3] = 255;
+  }
+  g.putImageData(d, 0, 0);
+}
+for (const c of [$("#orig"), $("#comp")]) c.addEventListener("pointermove", e => { const b = c.getBoundingClientRect(); const t = [Math.min(W / 8 - 1, Math.floor((e.clientX - b.left) / b.width * W / 8)), Math.min(H / 8 - 1, Math.floor((e.clientY - b.top) / b.height * H / 8))]; if (t[0] !== tile[0] || t[1] !== tile[1]) { tile = t; render(); } });
+$("#q").oninput = render;
+$("#file").onchange = e => { const f = e.target.files[0]; if (!f) return; const url = URL.createObjectURL(f), im = new Image(); im.onload = () => { const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d"), s = Math.max(W / im.width, H / im.height); g.drawImage(im, (W - im.width * s) / 2, (H - im.height * s) / 2, im.width * s, im.height * s); load(g.getImageData(0, 0, W, H)); URL.revokeObjectURL(url); render(); }; im.src = url; };
+testImage(); basis(); render();
+</script>
+</body>
+</html>
