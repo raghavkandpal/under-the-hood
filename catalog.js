@@ -205,6 +205,8 @@ export const CATALOG = [
     blurb: "How “chat with your documents” works: chunk, embed, retrieve, paste into the prompt. And why it fails when retrieval does.", prereqs: ["embeddings", "knn"] },
   { id: "speculative-decoding", title: "Speculative decoding", area: "ml", level: "deep", tags: ["llm inference", "speculative decoding", "draft model", "latency", "sampling"],
     blurb: "A small model guesses, the big one checks five guesses in one pass: 2–3× faster text with exactly the same output.", prereqs: ["kv-cache", "sampling"] },
+  { id: "clock-sync", title: "Clock synchronisation", area: "distributed", level: "core", tags: ["ntp", "time", "clock drift", "latency", "ptp", "distributed systems"],
+    blurb: "How NTP sets your clock over a network it can't see into: four timestamps, half the round trip, and the error you can't remove.", prereqs: ["vector-clocks"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
