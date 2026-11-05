@@ -187,6 +187,8 @@ export const CATALOG = [
     blurb: "Why setTimeout(0) waits and promises cut in line: step through the call stack, task queue and microtask queue.", prereqs: [] },
   { id: "git", title: "Git internals", area: "tools", level: "core", tags: ["version control", "content addressing", "sha-1", "merkle"],
     blurb: "Run commits, branches and merges and see the blobs, trees, commits and refs they really create.", prereqs: ["hashtable"] },
+  { id: "sql-injection", title: "SQL injection", area: "security", level: "intro", tags: ["sql injection", "owasp", "parameterised queries", "web security", "input validation"],
+    blurb: "Type a quote mark into a login form and rewrite the database's question. Then fix it with one line.", prereqs: ["sql-joins"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
