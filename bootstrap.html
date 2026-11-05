@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bootstrap Intervals</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 6px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  .verdict { padding: 8px 12px; border-radius: 10px; margin-top: 8px; font-weight: 600; }
+  .verdict.good { background: var(--green-soft); color: var(--green); } .verdict.bad { background: var(--red-soft); color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Bootstrap confidence intervals</h1>
+  <p class="lede">You surveyed 40 people and the median income came out at 31k. How sure can you be? There's no simple textbook formula for a median's error bar. The bootstrap gets one anyway, with no maths: pretend your sample <i>is</i> the population, draw thousands of fake samples from it, and see how much the answer wobbles.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="pop"></div></div>
+    <div class="row" style="margin-top:6px"><div class="tabs" id="stat"></div>
+      <label class="inline">sample size n <input type="range" id="n" min="5" max="200" value="40"> <b id="nv"></b></label>
+      <button id="draw">New sample</button><button id="one" class="primary">Show one resample</button>
+    </div>
+    <svg class="chart" id="sample" viewBox="0 0 600 90" role="img" aria-label="Your sample"></svg>
+    <p class="status" id="sampNote" style="margin:0"></p>
+    <svg class="chart" id="hist" viewBox="0 0 600 200" role="img" aria-label="Bootstrap distribution"></svg>
+    <div class="stats" id="stats" style="--stat-min:140px"></div>
+  </div>
+
+  <div class="panel">
+    <b>Does it work? Repeat the whole thing 200 times</b> <span class="status">New sample from the population each time, bootstrap it, and check whether its 95% interval contains the truth.</span>
+    <div class="row" style="margin-top:6px"><button id="cov" class="primary">Run 200 experiments</button></div>
+    <svg class="chart" id="forest" viewBox="0 0 600 220" role="img" aria-label="Intervals from repeated experiments"></svg>
+    <div id="covv"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The idea.</b> If we could survey the population again and again, we'd see directly how much the median varies from sample to sample. We can't. But our sample is our best picture of the population, so we resample <i>it</i>: draw n values with replacement (some people picked twice, some not at all), compute the statistic, and repeat a few thousand times. The middle 95% of those results is the bootstrap confidence interval.</p>
+  <p><b>Why it's useful.</b> It works the same way for a median, a 90th percentile, a ratio, a correlation or a model's accuracy, where the textbook formulas are messy or don't exist. For the mean of bell-shaped data it agrees with the classic t-interval.</p>
+  <p><b>Where it breaks.</b> The bootstrap can only reshuffle what you saw. With a tiny sample, or data with an extreme tail, the rare huge values that drive the true mean are usually missing from your sample, so every resample misses them too. Its intervals come out too narrow and too low. Try “startup outcomes” with the mean: the 95% interval catches the truth far less than 95% of the time, even at n = 200, while the median holds up. The fix is more data, or a statistic that isn't ruled by outliers.</p>
+  <p class="status">Related: the <a href="clt.html">central limit theorem</a> (why means become bell-shaped), <a href="monte-carlo.html">Monte Carlo</a> (the same “simulate it many times” spirit), and <a href="abtest.html">A/B tests</a>, where bootstrapping a metric's difference is common practice. Percentile intervals are the simplest kind; BCa intervals correct some of the bias.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "./common.js";
+import { POPS, STATS, draw, resample, bootstrap, ci, coverage } from "./lib/bootstrap.js";
+import { mulberry } from "./lib/autograd.js";
+chrome();
+
+let pop = "skewed", stat = "median", xs, boots, rnd = mulberry(11), picked = null;
+tabs($("#pop"), Object.fromEntries(Object.entries(POPS).map(([k, p]) => [k, p.name])), pop, k => { pop = k; newSample(); });
+tabs($("#stat"), { mean: "Mean", median: "Median" }, stat, k => { stat = k; picked = null; analyse(); });
+const logScale = () => pop !== "normal";
+function axis() {
+  const lo = pop === "normal" ? 140 : pop === "skewed" ? 3 : 0.01, hi = pop === "normal" ? 200 : pop === "skewed" ? 300 : 400;
+  return v => logScale() ? 20 + 560 * (Math.log(Math.max(v, lo)) - Math.log(lo)) / (Math.log(hi) - Math.log(lo)) : 20 + 560 * (v - lo) / (hi - lo);
+}
+const fmt = v => (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
+function newSample() { $("#nv").textContent = $("#n").value; xs = draw(pop, +$("#n").value, rnd); picked = null; analyse(); }
+function analyse() { boots = bootstrap(xs, stat, 2000, rnd); drawSample(); drawHist(); $("#covv").innerHTML = ""; $("#forest").replaceChildren(); }
+function drawSample() {
+  const X = axis(), svg = $("#sample"); svg.replaceChildren();
+  svg.append(svgEl("line", { x1: 20, x2: 580, y1: 60, y2: 60, stroke: "var(--border)" }));
+  xs.forEach((v, i) => { const c = picked ? picked.counts[i] : 1, y = 60 - 10 - (i % 4) * 8;
+    svg.append(svgEl("circle", { cx: X(v), cy: y, r: 4 + (picked ? Math.min(c, 4) * 1.2 : 0), fill: picked && c === 0 ? "none" : "var(--blue)", stroke: "var(--blue)", opacity: picked && c === 0 ? 0.35 : 0.8 }));
+    if (picked && c > 1) svg.append(svgEl("text", { x: X(v), y: y - 8, "text-anchor": "middle", style: "fill:var(--accent);font-weight:700" }, "×" + c)); });
+  const s = STATS[stat](xs), truth = POPS[pop][stat];
+  svg.append(svgEl("line", { x1: X(s), x2: X(s), y1: 15, y2: 66, stroke: "var(--accent)", "stroke-width": 2.5 }), svgEl("text", { x: X(s), y: 80, "text-anchor": "middle", style: "fill:var(--accent);font-weight:700" }, `your ${stat}: ${fmt(s)}`));
+  if (picked) svg.append(svgEl("line", { x1: X(picked.stat), x2: X(picked.stat), y1: 15, y2: 66, stroke: "var(--green)", "stroke-width": 2, "stroke-dasharray": "4 3" }));
+  $("#sampNote").textContent = picked ? `One resample: ${xs.length} picks with replacement. ${picked.counts.filter(c => c === 0).length} originals were left out (hollow), others picked twice or more. Its ${stat}: ${fmt(picked.stat)} (green).` : `Your one sample of ${xs.length}${logScale() ? " (log scale)" : ""}. In real life, this is all you get.`;
+}
+function drawHist() {
+  const X = axis(), svg = $("#hist"), bins = 60, xs2 = boots.map(X), lo = 20, hi = 580, counts = new Array(bins).fill(0);
+  for (const x of xs2) counts[Math.min(bins - 1, Math.max(0, Math.floor((x - lo) / (hi - lo) * bins)))]++;
+  const M = Math.max(...counts), [a, b] = ci(boots), truth = POPS[pop][stat]; svg.replaceChildren();
+  svg.append(svgEl("rect", { x: X(a), y: 10, width: Math.max(1, X(b) - X(a)), height: 150, fill: "var(--accent-soft)" }));
+  counts.forEach((c, i) => svg.append(svgEl("rect", { x: lo + i * (hi - lo) / bins, y: 160 - c / M * 140, width: (hi - lo) / bins - 1, height: c / M * 140, fill: "var(--accent)", opacity: 0.8 })));
+  svg.append(svgEl("line", { x1: X(truth), x2: X(truth), y1: 5, y2: 165, stroke: "var(--text)", "stroke-dasharray": "5 4", "stroke-width": 1.5 }), svgEl("text", { x: X(truth), y: 180, "text-anchor": "middle", style: "fill:var(--text)" }, `true ${stat} ${fmt(truth)} (normally unknown)`));
+  svg.append(svgEl("text", { x: X(a), y: 196, "text-anchor": "middle" }, fmt(a)), svgEl("text", { x: X(b), y: 196, "text-anchor": "middle" }, fmt(b)));
+  $("#stats").innerHTML = [[fmt(STATS[stat](xs)), `${stat} of your sample`], [`${fmt(a)} – ${fmt(b)}`, "bootstrap 95% interval"], [a <= truth && truth <= b ? "yes ✓" : "no ✗", "contains the truth this time?"], ["2,000", "resamples"]].map(statTile).join("");
+}
+function runCoverage() {
+  const r2 = mulberry(Date.now() & 0xffff), n = +$("#n").value, truth = POPS[pop][stat], rows = [];
+  for (let t = 0; t < 200; t++) { const s = draw(pop, n, r2), [a, b] = ci(bootstrap(s, stat, 400, r2)); rows.push([a, b]); }
+  const rate = rows.filter(([a, b]) => a <= truth && truth <= b).length / rows.length, X = axis(), svg = $("#forest"); svg.replaceChildren();
+  rows.slice(0, 50).forEach(([a, b], i) => { const hit = a <= truth && truth <= b; svg.append(svgEl("line", { x1: X(a), x2: Math.max(X(b), X(a) + 2), y1: 10 + i * 4, y2: 10 + i * 4, stroke: hit ? "var(--blue)" : "var(--red)", "stroke-width": 2.5 })); });
+  svg.append(svgEl("line", { x1: X(truth), x2: X(truth), y1: 4, y2: 212, stroke: "var(--text)", "stroke-dasharray": "5 4" }));
+  $("#covv").innerHTML = `<div class="verdict ${rate >= 0.9 ? "good" : "bad"}">${Math.round(rate * 100)}% of the 200 intervals contain the true ${stat} (target: 95%). ${rate >= 0.9 ? "The bootstrap is doing its job." : "Far too few: the intervals are overconfident. Red lines missed the truth."} Showing the first 50.</div>`;
+}
+$("#n").oninput = () => { $("#nv").textContent = $("#n").value; };
+$("#n").onchange = newSample;
+$("#draw").onclick = newSample;
+$("#one").onclick = () => { const r = resample(xs, rnd); picked = { counts: r.counts, stat: STATS[stat](r.out) }; drawSample(); };
+$("#cov").onclick = runCoverage;
+newSample();
+</script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clock Synchronisation</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 10px; align-items: start; }
+  @media (max-width: 680px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  svg.chart { width: 100%; height: auto; display: block; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  svg.chart text.lab { fill: var(--text); font-family: var(--mono); font-size: 11.5px; }
+  .calc { font-family: var(--mono); font-size: 13px; display: grid; gap: 4px; }
+  .calc div { background: var(--surface-2); border-radius: 6px; padding: 4px 8px; overflow-wrap: anywhere; }
+  .verdict { padding: 8px 12px; border-radius: 10px; margin-top: 8px; font-weight: 600; }
+  .verdict.good { background: var(--green-soft); color: var(--green); } .verdict.warn { background: var(--accent-soft); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Clock synchronisation</h1>
+  <p class="lede">Every computer's clock drifts, a few seconds a week for a cheap crystal. Logs from different machines stop lining up, certificates look expired, and “which write happened first?” gets the wrong answer. Fixing a clock means asking a better one for the time, over a network whose delay you can't see. NTP's trick is to ask, time the round trip, and split the difference.</p>
+
+  <div class="panel">
+    <b>One exchange</b>
+    <div class="row" style="margin-top:6px">
+      <label class="inline">your clock is off by <input type="range" id="off" min="-400" max="400" step="10" value="250"> <b id="offv"></b></label>
+      <label class="inline">delay there <input type="range" id="out" min="5" max="120" value="30"> <b id="outv"></b></label>
+      <label class="inline">delay back <input type="range" id="back" min="5" max="120" value="30"> <b id="backv"></b></label>
+    </div>
+    <div class="two">
+      <svg class="chart" id="seq" viewBox="0 0 320 250" role="img" aria-label="Request and response timeline"></svg>
+      <div><div class="calc" id="calc"></div><div id="v1"></div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <b>Many exchanges</b> <span class="status">Network delay varies. Each dot is one exchange.</span>
+    <div class="row" style="margin-top:6px">
+      <button id="more" class="primary">+ 8 exchanges</button><button id="clear">Clear</button>
+      <label class="inline">jitter <input type="range" id="jit" min="0" max="120" value="60"> <b id="jitv"></b></label>
+      <label class="inline">path asymmetry <input type="range" id="asym" min="0" max="60" value="0"> <b id="asymv"></b></label>
+    </div>
+    <svg class="chart" id="wedge" viewBox="0 0 560 230" role="img" aria-label="Estimated offset versus round-trip delay" style="margin-top:8px"></svg>
+    <div class="stats" id="stats" style="--stat-min:150px"></div>
+  </div>
+
+  <div class="panel">
+    <b>Between syncs, the clock drifts again</b>
+    <div class="row" style="margin-top:6px">
+      <label class="inline">crystal accuracy <input type="range" id="ppm" min="1" max="100" value="20"> <b id="ppmv"></b> ppm</label>
+      <label class="inline">sync every <select id="int"><option value="16">16 s</option><option value="64" selected>64 s</option><option value="256">256 s</option><option value="1024">1024 s</option></select></label>
+    </div>
+    <svg class="chart" id="drift" viewBox="0 0 560 170" role="img" aria-label="Clock error over time" style="margin-top:8px"></svg>
+    <p class="status" id="driftNote" style="margin:4px 0 0"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Four timestamps.</b> Your computer notes when it sends a request (t1, by its own clock). The server notes when it arrives (t2) and when it replies (t3), by <i>its</i> clock. You note when the reply lands (t4). The round trip spent on the network is δ = (t4 − t1) − (t3 − t2), with the server's processing time removed. Assuming the trip took equally long each way, the server's clock is ahead of yours by θ = ((t2 − t1) + (t3 − t4)) / 2.</p>
+  <p><b>The unavoidable error.</b> Nothing can tell how the round trip was split. If the request took 40 ms and the reply 10 ms, the estimate is off by 15 ms, half the difference. That's the fundamental limit: the error is never more than half the round trip, so a nearby server and a fast network give tighter time.</p>
+  <p><b>Filtering.</b> Most delay is queueing in routers, which only ever <i>adds</i> time, randomly. Samples with long round trips are the least trustworthy. Plot offset against delay and the points form a wedge whose tip, the shortest round trip, sits closest to the truth. NTP keeps the lowest-delay sample out of the last eight rather than averaging. Averaging can't fix a consistently asymmetric path, though: no client-side trick can see it.</p>
+  <p><b>Drift and discipline.</b> A typical crystal is off by 10–100 parts per million, up to about 9 seconds a day. NTP measures the drift rate and gently speeds up or slows down the clock rather than jumping, because time going backwards breaks software. Leap seconds are usually “smeared” across a day for the same reason.</p>
+  <p class="status">Data centres use PTP with hardware timestamps for sub-microsecond accuracy, and Google's Spanner uses GPS and atomic clocks with an explicit uncertainty interval, waiting it out before committing. When you can't trust clocks at all, use logical time: <a href="vector-clocks.html">vector clocks</a>.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "./common.js";
+import { exchange, estimate, sample, driftSeries } from "./lib/clock-sync.js";
+import { mulberry } from "./lib/autograd.js";
+chrome();
+
+const ms = v => `${v >= 0 ? "+" : ""}${Math.round(v * 10) / 10} ms`;
+function one() {
+  const off = +$("#off").value, out = +$("#out").value, back = +$("#back").value;
+  $("#offv").textContent = ms(off); $("#outv").textContent = out + " ms"; $("#backv").textContent = back + " ms";
+  const T0 = 1000, x = exchange({ trueTime: T0, clientOffset: off, out, back, serverWork: 10 }), e = estimate(x), err = -e.offset - off;
+  const svg = $("#seq"); svg.replaceChildren();
+  const Y = t => 30 + (t - T0) / (out + back + 10) * 190, CX = 60, SX = 260;
+  svg.append(svgEl("line", { x1: CX, x2: CX, y1: 20, y2: 235, stroke: "var(--border)", "stroke-width": 3 }), svgEl("line", { x1: SX, x2: SX, y1: 20, y2: 235, stroke: "var(--border)", "stroke-width": 3 }));
+  svg.append(svgEl("text", { x: CX, y: 14, "text-anchor": "middle", class: "lab" }, "you"), svgEl("text", { x: SX, y: 14, "text-anchor": "middle", class: "lab" }, "time server"));
+  const arrow = (x1, y1, x2, y2, col) => { svg.append(svgEl("line", { x1, y1, x2, y2, stroke: col, "stroke-width": 2 })); const a = Math.atan2(y2 - y1, x2 - x1); svg.append(svgEl("path", { d: `M${x2} ${y2} l${-8 * Math.cos(a - 0.4)} ${-8 * Math.sin(a - 0.4)} M${x2} ${y2} l${-8 * Math.cos(a + 0.4)} ${-8 * Math.sin(a + 0.4)}`, stroke: col, "stroke-width": 2, fill: "none" })); };
+  arrow(CX, Y(T0), SX, Y(T0 + out), "var(--accent)"); arrow(SX, Y(T0 + out + 10), CX, Y(T0 + out + 10 + back), "var(--blue)");
+  const lab = (x, y, s, anchor) => svg.append(svgEl("text", { x, y: y + 4, "text-anchor": anchor, class: "lab" }, s));
+  lab(CX - 6, Y(T0), `t1=${x.t1}`, "end"); lab(SX + 6, Y(T0 + out), `t2=${x.t2}`, "start"); lab(SX + 6, Y(T0 + out + 10), `t3=${x.t3}`, "start"); lab(CX - 6, Y(T0 + out + 10 + back), `t4=${x.t4}`, "end");
+  $("#calc").innerHTML = `<div>round trip δ = (t4 − t1) − (t3 − t2) = ${x.t4 - x.t1} − ${x.t3 - x.t2} = <b>${e.delay} ms</b></div>
+    <div>server ahead by θ = ((t2 − t1) + (t3 − t4)) / 2 = (${x.t2 - x.t1} + ${x.t3 - x.t4}) / 2 = <b>${ms(e.offset)}</b></div>
+    <div>so your clock is off by <b>${ms(-e.offset)}</b>. The truth is ${ms(off)}.</div>`;
+  $("#v1").innerHTML = Math.abs(err) < 0.05 ? `<div class="verdict good">Exact: the two trips took equally long, so splitting the round trip in half was right.</div>`
+    : `<div class="verdict warn">Off by ${Math.abs(err)} ms, which is half of the ${Math.abs(out - back)} ms difference between the two trips. The maximum possible error is δ/2 = ${e.delay / 2} ms.</div>`;
+}
+let pts = [], rnd = mulberry(7);
+const TRUE = 250;
+function more() { const r = sample(8, { clientOffset: TRUE, jitter: +$("#jit").value, asym: +$("#asym").value, rnd }); pts.push(...r.samples); wedge(); }
+function wedge() {
+  $("#jitv").textContent = $("#jit").value + " ms"; $("#asymv").textContent = $("#asym").value + " ms";
+  const svg = $("#wedge"); svg.replaceChildren(); const L = 50, R = 550, T = 10, B = 195, maxD = Math.max(120, ...pts.map(p => p.delay)), X = d => L + (R - L) * d / maxD, Y = e => (T + B) / 2 - e * 1.1;
+  for (const e of [-60, -30, 0, 30, 60]) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(e), y2: Y(e), stroke: e ? "var(--border)" : "var(--green)", "stroke-width": e ? 1 : 2 }), svgEl("text", { x: L - 5, y: Y(e) + 4, "text-anchor": "end" }, (e > 0 ? "+" : "") + e));
+  svg.append(svgEl("path", { d: `M${X(0)} ${Y(0)} L${X(maxD)} ${Y(maxD / 2)} M${X(0)} ${Y(0)} L${X(maxD)} ${Y(-maxD / 2)}`, stroke: "var(--muted)", "stroke-dasharray": "4 3", fill: "none" }));
+  svg.append(svgEl("text", { x: (L + R) / 2, y: 222, "text-anchor": "middle" }, "round-trip delay (ms) →   ·   y: error of the estimate (ms)   ·   dashed: ±δ/2 bound"));
+  const best = pts.length ? pts.reduce((a, b) => (b.delay < a.delay ? b : a)) : null;
+  for (const p of pts) svg.append(svgEl("circle", { cx: X(p.delay), cy: Y(p.error), r: p === best ? 6 : 3.5, fill: p === best ? "var(--accent)" : "var(--blue)", opacity: p === best ? 1 : 0.6 }));
+  const avg = pts.length ? pts.reduce((s, p) => s + p.error, 0) / pts.length : 0;
+  $("#stats").innerHTML = [[pts.length, "exchanges"], [best ? ms(best.error) : "–", "error, lowest-delay sample"], [pts.length ? ms(avg) : "–", "error, plain average"], [best ? best.delay.toFixed(1) + " ms" : "–", "its round trip"]].map(statTile).join("");
+}
+function drift() {
+  const ppm = +$("#ppm").value, int = +$("#int").value, S = 1100, d = driftSeries(S, { ppm, interval: int, residual: 0.5 }); $("#ppmv").textContent = ppm;
+  const svg = $("#drift"); svg.replaceChildren(); const L = 50, R = 550, T = 10, B = 140, M = Math.max(2, ...d), X = t => L + (R - L) * t / S, Y = v => B - (B - T) * v / M;
+  for (const v of [0, M / 2, M]) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(v), y2: Y(v), stroke: "var(--border)" }), svgEl("text", { x: L - 5, y: Y(v) + 4, "text-anchor": "end" }, v.toFixed(v < 10 ? 1 : 0)));
+  svg.append(svgEl("polyline", { points: d.map((v, t) => `${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": 2 }));
+  for (const t of [0, 256, 512, 768, 1024]) svg.append(svgEl("text", { x: X(t), y: B + 15, "text-anchor": "middle" }, t + "s"));
+  svg.append(svgEl("text", { x: (L + R) / 2, y: 168, "text-anchor": "middle" }, "time →   ·   y: clock error (ms)"));
+  $("#driftNote").textContent = `${ppm} ppm is ${(ppm * 86.4 / 1000).toFixed(1)} s a day if never corrected. Syncing every ${int} s keeps the error under ${(ppm * int / 1000 + 0.5).toFixed(1)} ms.`;
+}
+["#off", "#out", "#back"].forEach(s => ($(s).oninput = one));
+$("#more").onclick = more; $("#clear").onclick = () => { pts = []; wedge(); };
+$("#jit").oninput = $("#asym").oninput = () => { pts = []; wedge(); };
+$("#ppm").oninput = $("#int").onchange = drift;
+one(); more(); drift();
+</script>
+</body>
+</html>

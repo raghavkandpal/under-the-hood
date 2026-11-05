@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spatial Indexes</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  #cv { width: 100%; max-width: 520px; aspect-ratio: 1; display: block; margin: 10px auto 0; border-radius: 10px; border: 1.5px solid var(--border); cursor: crosshair; touch-action: none; background: var(--surface); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Spatial indexes</h1>
+  <p class="lede">“Restaurants within 1 km”, “which enemies are near the player”, “which map tiles are on screen”. With a million points, checking each one on every query is far too slow. A <i>quadtree</i> carves space into boxes that split wherever things get crowded, so a query only looks inside the few boxes it overlaps.</p>
+
+  <div class="panel">
+    <div class="row">
+      <div class="tabs" id="view"></div>
+      <label class="inline">data <select id="kind"><option value="clustered">clustered (cities)</option><option value="uniform">uniform</option></select></label>
+      <label class="inline">points <select id="n"><option>500</option><option selected>3000</option><option>15000</option></select></label>
+      <label class="inline">box capacity <input type="range" id="cap" min="1" max="32" value="8"> <b id="capv"></b></label>
+    </div>
+    <canvas id="cv" aria-label="Points, index boxes and the query rectangle"></canvas>
+    <p class="status" style="text-align:center;margin:4px 0 0">Drag on the map to draw a search rectangle. Click without dragging to add a point.</p>
+    <div class="stats" id="stats" style="--stat-min:130px"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Split when crowded.</b> Start with one box covering everything. When a box holds more points than its capacity, cut it into four equal quarters and hand its points down. Busy areas end up with tiny boxes many levels deep, and empty areas stay as one big box. The tree adapts to the data.</p>
+  <p><b>Querying.</b> To find everything in a rectangle, start at the top. Any box that doesn't touch the rectangle is skipped along with everything inside it. Only points in the leaf boxes it overlaps are actually checked. For a small search area, that's a handful of boxes out of thousands, roughly logarithmic in the number of points.</p>
+  <p><b>Why not a simple grid?</b> A fixed grid works well when points are spread evenly. Real data clusters: most of a map's restaurants are in a few cities, so one grid cell can hold thousands while most hold none. Switch to the grid view on clustered data and compare “points checked”.</p>
+  <p class="status">Relatives: k-d trees (split on alternating axes, good for nearest-neighbour search), R-trees (boxes around shapes, used by PostGIS and SQLite), and geohashes and S2 cells, which turn 2-D positions into sortable 1-D keys that an ordinary <a href="btree.html">B-tree</a> can index. Games use the same idea for collision detection.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs } from "./common.js";
+import { buildTree, gridQuery, scan, makePoints } from "./lib/quadtree.js";
+import { mulberry } from "./lib/autograd.js";
+chrome();
+
+let view = "tree", pts, tree, rect = { x: 0.3, y: 0.3, w: 0.18, h: 0.14 }, drag = null;
+tabs($("#view"), { tree: "Quadtree", grid: "Fixed 8×8 grid" }, view, k => { view = k; draw(); });
+const cv = $("#cv"), ctx = cv.getContext("2d"), css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function data() {
+  pts = makePoints(+$("#n").value, $("#kind").value, mulberry(+$("#n").value + ($("#kind").value === "uniform" ? 1 : 2)));
+  const c = pts[0]; rect = { x: Math.max(0, c.x - 0.03), y: Math.max(0, c.y - 0.03), w: 0.06, h: 0.06 }; // a small search in a busy area
+  rebuild();
+}
+function rebuild() { $("#capv").textContent = $("#cap").value; tree = buildTree(pts, +$("#cap").value); draw(); }
+function draw() {
+  const S = cv.width = cv.clientWidth * devicePixelRatio; cv.height = S; ctx.clearRect(0, 0, S, S);
+  const q = tree.query(rect), g = gridQuery(pts, rect, 8), visited = new Set(q.visited.map(b => `${b.x},${b.y},${b.w}`));
+  ctx.lineWidth = devicePixelRatio;
+  if (view === "tree") for (const n of tree.nodes()) { if (!n.leaf) continue; const hit = visited.has(`${n.x},${n.y},${n.w}`); if (hit) { ctx.fillStyle = css("--accent-soft"); ctx.fillRect(n.x * S, n.y * S, n.w * S, n.h * S); } ctx.strokeStyle = css("--border"); ctx.strokeRect(n.x * S, n.y * S, n.w * S, n.h * S); }
+  else for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) { const c = { x: i / 8, y: j / 8 }, hit = c.x < rect.x + rect.w && rect.x < c.x + 1 / 8 && c.y < rect.y + rect.h && rect.y < c.y + 1 / 8; if (hit) { ctx.fillStyle = css("--accent-soft"); ctx.fillRect(c.x * S, c.y * S, S / 8, S / 8); } ctx.strokeStyle = css("--border"); ctx.strokeRect(c.x * S, c.y * S, S / 8, S / 8); }
+  const found = new Set(q.points), r = Math.max(1.2, 2.4 - pts.length / 8000) * devicePixelRatio;
+  for (const p of pts) { ctx.fillStyle = found.has(p) ? css("--accent") : css("--blue"); ctx.globalAlpha = found.has(p) ? 1 : 0.55; ctx.beginPath(); ctx.arc(p.x * S, p.y * S, found.has(p) ? r * 1.4 : r, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1; ctx.strokeStyle = css("--text"); ctx.lineWidth = 2 * devicePixelRatio; ctx.setLineDash([6, 4]); ctx.strokeRect(rect.x * S, rect.y * S, rect.w * S, rect.h * S); ctx.setLineDash([]);
+  const depth = Math.max(...tree.nodes().map(n => n.depth)), leaves = tree.nodes().filter(n => n.leaf).length;
+  $("#stats").innerHTML = [[q.points.length, "points found"], [pts.length.toLocaleString(), "checked by a full scan"],
+    [q.checked.toLocaleString(), `checked by the quadtree (${q.visited.length} boxes visited)`], [g.checked.toLocaleString(), `checked by the grid (busiest cell: ${g.maxCell})`], [`${leaves} / ${depth}`, "tree boxes / deepest level"]].map(statTile).join("");
+}
+const at = e => { const b = cv.getBoundingClientRect(); return { x: Math.min(0.999, Math.max(0, (e.clientX - b.left) / b.width)), y: Math.min(0.999, Math.max(0, (e.clientY - b.top) / b.height)) }; };
+cv.addEventListener("pointerdown", e => { drag = { start: at(e), moved: false }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointermove", e => { if (!drag) return; const p = at(e), s = drag.start; if (Math.abs(p.x - s.x) + Math.abs(p.y - s.y) > 0.01) drag.moved = true; if (drag.moved) { rect = { x: Math.min(s.x, p.x), y: Math.min(s.y, p.y), w: Math.abs(p.x - s.x), h: Math.abs(p.y - s.y) }; draw(); } });
+cv.addEventListener("pointerup", e => { if (drag && !drag.moved) { const p = at(e); pts.push(p); tree.insert(p); draw(); } drag = null; });
+$("#kind").onchange = $("#n").onchange = data;
+$("#cap").oninput = rebuild;
+addEventListener("resize", draw);
+data();
+</script>
+</body>
+</html>

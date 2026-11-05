@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Constraint Solving</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .board { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); width: 100%; max-width: 360px; aspect-ratio: 1; margin: 10px auto 0; border: 2.5px solid var(--text); border-radius: 6px; overflow: hidden; }
+  .board div { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: clamp(13px, 4.2vw, 20px); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--surface); transition: background .15s; }
+  .board div:nth-child(9n+3), .board div:nth-child(9n+6) { border-right: 2.5px solid var(--text); }
+  .board div:nth-child(n+19):nth-child(-n+27), .board div:nth-child(n+46):nth-child(-n+54) { border-bottom: 2.5px solid var(--text); }
+  .board div.given { font-weight: 700; color: var(--text); background: var(--surface-2); }
+  .board div.guess { color: var(--accent); font-weight: 700; }
+  .board div.force { color: var(--green); font-weight: 700; }
+  .board div.hot { background: var(--accent-soft); }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+  table.data tr.cur td { background: var(--accent-soft); font-weight: 700; }
+  .key { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; font-size: 13px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Constraint solving</h1>
+  <p class="lede">A Sudoku with 24 clues has 57 empty cells. Trying every way to fill them is 9<sup>57</sup>, about 10<sup>54</sup> combinations, more than there are atoms in the Earth. A good solver finishes in a few guesses, and the trick isn't speed. It's reasoning about what's <i>forced</i> before guessing anything.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="strat"></div></div>
+    <div class="row" style="margin-top:8px">
+      <button id="solve" class="primary">▶ Solve, step by step</button><button id="instant">Jump to the answer</button><button id="new">New puzzle</button><button id="clear">Clear</button>
+      <label class="inline">speed <input type="range" id="speed" min="0" max="4" step="1" value="2"></label>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="key"><span><b>5</b> clue</span><span style="color:var(--green);font-weight:700">5 forced by logic</span><span style="color:var(--accent);font-weight:700">5 a guess</span></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel scroll-x"><b>Same puzzle, every strategy</b><table class="data" id="cmp" style="margin-top:6px"></table></div>
+
+  <h2>How it works</h2>
+  <p><b>Backtracking.</b> Fill the first empty cell with the first digit that doesn't clash, move on, and when you hit a dead end, undo the most recent choice and try the next digit. It always finds the answer, eventually. On a hard puzzle it makes hundreds of thousands of guesses, because a wrong choice early on is only discovered much later.</p>
+  <p><b>Pick the most constrained cell</b> (“minimum remaining values”). Instead of the next cell in reading order, fill the one with the fewest legal digits. If it has one, there's nothing to guess. If it has two, a wrong guess fails fast. Choosing well what to decide next is most of the battle.</p>
+  <p><b>Propagation.</b> After every placement, apply the rules exhaustively: a cell with one candidate left must take it, and a digit that fits in only one cell of a row, column or box must go there. Each forced move creates more. Most published puzzles fall to this alone, with zero guesses. When it does need a guess, a contradiction shows up immediately.</p>
+  <p><b>The bigger picture.</b> Sudoku is a <i>constraint satisfaction problem</i>, and the same search-plus-propagation engine (SAT and constraint solvers) schedules exams and airline crews, checks chip designs, picks compatible package versions, and verifies software. These problems are NP-complete in general, so no trick works every time, but reasoning first and guessing cleverly makes huge real instances solvable.</p>
+  <p class="status">Puzzles are generated here: fill a random complete grid, then remove clues one at a time, keeping each removal only if the puzzle still has exactly one solution. Related: <a href="dynamic-programming.html">dynamic programming</a>, the other way to avoid redoing work.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs } from "./common.js";
+import { solve, generate } from "./lib/sat-sudoku.js";
+chrome();
+
+const STRATS = { plain: { label: "Plain backtracking", o: {} }, mrv: { label: "Most constrained cell first", o: { mrv: true } }, smart: { label: "Propagation + smart choice", o: { propagate: true, mrv: true } } };
+let strat = "plain", seed = 1, puzzle, run = 0;
+tabs($("#strat"), Object.fromEntries(Object.entries(STRATS).map(([k, v]) => [k, v.label])), strat, k => { strat = k; reset(); });
+$("#board").innerHTML = Array.from({ length: 81 }, () => "<div></div>").join("");
+const cells = [...document.querySelectorAll("#board div")];
+function paint(g, kinds, hot = -1) { cells.forEach((c, i) => { c.textContent = g[i] || ""; c.className = puzzle[i] ? "given" : kinds[i] || ""; if (i === hot) c.classList.add("hot"); }); }
+function stats(r, shown) {
+  $("#stats").innerHTML = [[r ? r.guesses.toLocaleString() + (r.gaveUp ? "+" : "") : "–", "guesses"], [r ? r.backtracks.toLocaleString() : "–", "times it backed up"], [shown, "status"]].map(statTile).join("");
+}
+function reset() { run++; paint(puzzle, []); stats(null, "ready"); table(); }
+function load() { puzzle = generate(seed, 24).puzzle; reset(); }
+async function animate() {
+  const my = ++run, r = solve(puzzle, { ...STRATS[strat].o, trace: true }), g = [...puzzle], kinds = [];
+  const per = [1, 4, 20, 120, 800][+$("#speed").value];
+  for (let k = 0; k < r.trace.length; k += per) {
+    if (my !== run) return;
+    let hot = -1;
+    for (const e of r.trace.slice(k, k + per)) { if (e.t === "undo") { g[e.i] = 0; kinds[e.i] = ""; } else { g[e.i] = e.v; kinds[e.i] = e.t; } hot = e.i; }
+    paint(g, kinds, hot); stats({ guesses: r.trace.slice(0, k + per).filter(e => e.t === "guess").length, backtracks: 0 }, "solving…");
+    await new Promise(res => setTimeout(res, 30));
+  }
+  if (my !== run) return;
+  const truncated = r.trace.length >= 30000;
+  paint(r.solution, r.solution.map((v, i) => (kinds[i] || "guess")));
+  stats(r, truncated ? "solved (animation skipped to the end)" : "solved ✓");
+}
+function instant() { run++; const r = solve(puzzle, STRATS[strat].o); paint(r.solution || puzzle, []); stats(r, r.gaveUp ? "gave up" : "solved ✓"); }
+let cache = { seed: null, rows: {} };
+function table() {
+  if (cache.seed !== seed) { cache = { seed, rows: {} }; for (const [k, v] of Object.entries(STRATS)) { const t = performance.now(), r = solve(puzzle, v.o); cache.rows[k] = { r, ms: performance.now() - t }; } }
+  $("#cmp").innerHTML = `<tr><th>Strategy</th><th>Guesses</th><th>Backtracks</th><th>Time</th></tr>` + Object.entries(STRATS).map(([k, v]) => {
+    const { r, ms } = cache.rows[k];
+    return `<tr class="${k === strat ? "cur" : ""}"><td>${v.label}</td><td class="num">${r.guesses.toLocaleString()}${r.gaveUp ? "+" : ""}</td><td class="num">${r.backtracks.toLocaleString()}</td><td class="num">${ms < 1 ? "< 1 ms" : Math.round(ms) + " ms"}</td></tr>`;
+  }).join("");
+}
+$("#solve").onclick = animate;
+$("#instant").onclick = instant;
+$("#new").onclick = () => { seed++; load(); };
+$("#clear").onclick = reset;
+load();
+</script>
+</body>
+</html>

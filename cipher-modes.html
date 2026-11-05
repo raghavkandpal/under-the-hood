@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Block Cipher Modes</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+  @media (max-width: 640px) { .grid4, .grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  figure { margin: 0; }
+  canvas { width: 100%; aspect-ratio: 3 / 2; image-rendering: pixelated; border-radius: 8px; border: 1.5px solid var(--border); display: block; cursor: crosshair; }
+  figcaption { font-size: 13px; margin-top: 4px; }
+  figcaption small { display: block; color: var(--muted); }
+  .bad { color: var(--red); font-weight: 700; } .good { color: var(--green); font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Block cipher modes</h1>
+  <p class="lede">A block cipher like AES encrypts exactly one small block at a time. Real messages are longer, so a <i>mode</i> decides how the blocks are chained together. Pick the wrong mode and an encrypted image still shows its picture, even though every block is perfectly encrypted.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">key <input type="number" id="key" value="48879" min="1" max="999999" style="width:7em"></label>
+      <button id="newkey">New random key</button>
+    </div>
+    <div class="grid4">
+      <figure><canvas id="c-plain"></canvas><figcaption><b>Original</b><small>each pixel is one byte</small></figcaption></figure>
+      <figure><canvas id="c-ecb"></canvas><figcaption><b>ECB</b> <span id="r-ecb"></span><small>each block alone</small></figcaption></figure>
+      <figure><canvas id="c-cbc"></canvas><figcaption><b>CBC</b> <span id="r-cbc"></span><small>chained to the previous block</small></figcaption></figure>
+      <figure><canvas id="c-ctr"></canvas><figcaption><b>CTR</b> <span id="r-ctr"></span><small>encrypted counter, XORed in</small></figcaption></figure>
+    </div>
+    <p class="status" style="margin:6px 0 0">Ciphertext bytes are shown as colours. Percentages: how many blocks repeat an earlier one. Any repeat is information leaking out.</p>
+  </div>
+
+  <div class="panel">
+    <b>Tamper with the ciphertext</b> <span class="status">Click any pixel of an encrypted picture above to flip one bit there, then see what decrypts.</span>
+    <div class="grid3">
+      <figure><canvas id="d-ecb"></canvas><figcaption><b>ECB, decrypted</b><small id="t-ecb">no damage yet</small></figcaption></figure>
+      <figure><canvas id="d-cbc"></canvas><figcaption><b>CBC, decrypted</b><small id="t-cbc">no damage yet</small></figcaption></figure>
+      <figure><canvas id="d-ctr"></canvas><figcaption><b>CTR, decrypted</b><small id="t-ctr">no damage yet</small></figcaption></figure>
+    </div>
+  </div>
+
+  <div class="panel">
+    <b>Never reuse a nonce</b>
+    <div class="row" style="margin-top:6px"><label class="inline"><input type="checkbox" id="reuse" checked> encrypt both pictures with the same CTR nonce</label></div>
+    <div class="grid3">
+      <figure><canvas id="n-a"></canvas><figcaption><b>Secret picture A, encrypted</b></figcaption></figure>
+      <figure><canvas id="n-b"></canvas><figcaption><b>Secret picture B, encrypted</b></figcaption></figure>
+      <figure><canvas id="n-x"></canvas><figcaption><b>A ⊕ B ciphertexts</b><small id="n-msg"></small></figcaption></figure>
+    </div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>ECB</b> (electronic codebook) encrypts each block independently. Same key plus same block always gives the same ciphertext, so repeated plaintext stays repeated: big areas of one colour come out as one repeated pattern, and the outline survives. Real AES uses 16-byte blocks, but whole images, database fields and protocol headers repeat at that size too.</p>
+  <p><b>CBC</b> (cipher block chaining) XORs each block with the previous ciphertext block before encrypting, starting from a random IV. Every block now depends on everything before it, so repeats vanish. A flipped ciphertext bit scrambles its own block and flips the same bit in the next one, which is predictable enough that attackers have exploited it.</p>
+  <p><b>CTR</b> (counter) encrypts the numbers nonce+0, nonce+1, … to make a stream of random-looking bytes, then XORs that with the message. Blocks are independent, so it's parallel and fast. A flipped bit flips exactly one bit of the output, so you need a separate integrity check, a MAC, to notice tampering.</p>
+  <p><b>The nonce rule.</b> In CTR, reusing a nonce with the same key reuses the keystream, and XORing two ciphertexts cancels it out, leaving plaintext A ⊕ plaintext B. Both outlines appear. Real-world breaks of Wi-Fi encryption (WEP) and several messaging apps came from exactly this.</p>
+  <p class="status">Modern practice is <b>authenticated encryption</b>: AES-GCM or ChaCha20-Poly1305 combine CTR-style encryption with a tag that detects any tampering, as used in <a href="tls.html">TLS</a>. The cipher here is a toy 16-bit Feistel network so that one pixel pair is one block. Don't use it for anything.</p>
+</main>
+<script type="module">
+import { chrome, $ } from "./common.js";
+import { ecbEncrypt, ecbDecrypt, cbcEncrypt, cbcDecrypt, ctr, xor, flipBit, repeatedBlocks } from "./lib/cipher-modes.js";
+chrome();
+
+const W = 48, H = 32, PAL = ["#f3efe4", "#d9a520", "#3b3a36", "#6b4fd1"];
+function picture(kind) {
+  const px = new Uint8Array(W * H);
+  const set = (x, y, v) => { if (x >= 0 && x < W && y >= 0 && y < H) px[y * W + x] = v; };
+  if (kind === "lock") {
+    for (let y = 14; y < 30; y++) for (let x = 12; x < 36; x++) set(x, y, x === 12 || x === 35 || y === 14 || y === 29 ? 2 : 1);
+    for (let a = 0; a <= Math.PI; a += 0.01) for (let r = 7; r <= 9; r += 0.5) set(Math.round(24 + r * Math.cos(a)), Math.round(14 - r * Math.sin(a)), 2);
+    for (let y = 19; y < 26; y++) for (let x = 22; x < 26; x++) if (y < 22 || (x > 22 && x < 25)) set(x, y, 3);
+  } else {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const d = Math.hypot(x - 24, y - 16); if (d < 14) set(x, y, d > 12.5 ? 2 : 1); }
+    for (const ex of [19, 29]) for (let y = 10; y < 14; y++) for (let x = ex - 1; x <= ex + 1; x++) set(x, y, 2);
+    for (let a = 0.3; a < Math.PI - 0.3; a += 0.02) set(Math.round(24 + 8 * Math.cos(a)), Math.round(18 + 5 * Math.sin(a)), 3);
+  }
+  return px;
+}
+function draw(id, bytes, plain = false, mark = -1) {
+  const c = $(id); c.width = W; c.height = H; const ctx = c.getContext("2d"), img = ctx.createImageData(W, H);
+  for (let i = 0; i < W * H; i++) {
+    let r, g, b;
+    if (plain) { const hex = PAL[bytes[i] & 3] ; [r, g, b] = [1, 3, 5].map(k => parseInt(hex.slice(k, k + 2), 16)); if (bytes[i] > 3) [r, g, b] = [220, 40, 40]; }
+    else { const h = (bytes[i] * 137.5) % 360, f = n => { const k = (n + h / 30) % 12; return 255 * (0.5 - 0.42 * Math.max(-1, Math.min(k - 3, 9 - k, 1))); }; [r, g, b] = [f(0), f(8), f(4)]; }
+    img.data.set([r, g, b, 255], i * 4);
+  }
+  ctx.putImageData(img, 0, 0);
+  if (mark >= 0) { ctx.strokeStyle = "#e11"; ctx.lineWidth = 1; ctx.strokeRect((mark % W) - 1.5, Math.floor(mark / W) - 1.5, 4, 4); }
+}
+const LOCK = picture("lock"), SMILE = picture("smile");
+let key, enc = {};
+function render() {
+  key = Math.max(1, +$("#key").value | 0);
+  enc = { ecb: ecbEncrypt(LOCK, key), cbc: cbcEncrypt(LOCK, key, 0x5a5a), ctr: ctr(LOCK, key, 0x1234) };
+  draw("#c-plain", LOCK, true);
+  for (const m of ["ecb", "cbc", "ctr"]) { draw("#c-" + m, enc[m]); const r = repeatedBlocks(enc[m]); $("#r-" + m).innerHTML = `<span class="${r > 0.2 ? "bad" : "good"}">${Math.round(r * 100)}% repeats</span>`; }
+  tamper(-1); nonce();
+}
+const differs = (a, b) => a.reduce((n, v, i) => n + (v !== b[i]), 0);
+function tamper(i) {
+  const dec = { ecb: (b) => ecbDecrypt(b, key), cbc: (b) => cbcDecrypt(b, key, 0x5a5a), ctr: (b) => ctr(b, key, 0x1234) };
+  for (const m of ["ecb", "cbc", "ctr"]) {
+    const out = dec[m](i >= 0 ? flipBit(enc[m], i, 0) : enc[m]), n = differs(out, LOCK);
+    draw("#d-" + m, out, true, i);
+    $("#t-" + m).textContent = i < 0 ? "no damage yet" : `${n} pixel${n === 1 ? "" : "s"} changed (red = garbage byte)`;
+  }
+}
+function nonce() {
+  const a = ctr(LOCK, key, 0x1234), b = ctr(SMILE, key, $("#reuse").checked ? 0x1234 : 0x9876), x = xor(a, b);
+  draw("#n-a", a); draw("#n-b", b);
+  // show the XOR as a plain picture: 0 means "same", anything else marks a difference
+  draw("#n-x", Uint8Array.from(x, v => (v === 0 ? 0 : v < 4 ? 2 : 3)), true);
+  $("#n-msg").innerHTML = $("#reuse").checked ? `<span class="bad">The keystream cancelled out: both outlines are visible without the key.</span>` : `<span class="good">Different nonces: the XOR is noise.</span>`;
+}
+for (const m of ["ecb", "cbc", "ctr"]) $("#c-" + m).addEventListener("click", e => {
+  const r = e.target.getBoundingClientRect(), x = Math.floor((e.clientX - r.left) / r.width * W), y = Math.floor((e.clientY - r.top) / r.height * H);
+  tamper(y * W + x);
+});
+$("#key").oninput = render;
+$("#newkey").onclick = () => { $("#key").value = 1 + Math.floor(Math.random() * 999998); render(); };
+$("#reuse").onchange = nonce;
+render();
+</script>
+</body>
+</html>

@@ -34,6 +34,7 @@
   <div id="list"></div>
   <div id="mapWrap" class="panel" hidden>
     <p class="status" style="margin:0 0 6px">Arrows point from an explainer to the ones that build on it. Left to right is roughly the order to read them. Hover to highlight connections, click to open.</p>
+    <p class="status" id="mapNote" style="margin:0 0 6px;min-height:0"></p>
     <div class="scroll-x"><svg id="map" role="img" aria-label="Concept map of explainers and their prerequisites"></svg></div>
   </div>
   <p id="empty" hidden>Nothing matches yet.</p>
@@ -74,14 +75,14 @@
       }).join("");
     }
     document.getElementById("empty").hidden = items.length > 0;
-    const u = new URLSearchParams(); if (q.value.trim()) u.set("q", q.value.trim()); if (area !== "all") u.set("area", area);
+    const u = new URLSearchParams(); if (q.value.trim()) u.set("q", q.value.trim()); if (area !== "all") u.set("area", area); if (view === "map") u.set("view", "map");
     history.replaceState(null, "", u.toString() ? "?" + u : location.pathname);
+    if (view === "map") drawMap();
   }
+  let view = params.get("view") === "map" ? "map" : "cards";
   document.getElementById("chips").onclick = e => { const b = e.target.closest("[data-area]"); if (!b) return; area = b.dataset.area; chips(); render(); };
   q.addEventListener("input", render);
   addEventListener("keydown", e => { if (e.key === "/" && document.activeElement !== q) { e.preventDefault(); q.focus(); } });
-  chips(); render();
-
   // ---- concept map ----
   const svgNS = "http://www.w3.org/2000/svg", el = (t, a = {}, txt) => { const e = document.createElementNS(svgNS, t); for (const k in a) e.setAttribute(k, a[k]); if (txt != null) e.textContent = txt; return e; };
   const depth = new Map(), D = id => { if (depth.has(id)) return depth.get(id); const c = byId(id); const d = c.prereqs.length ? 1 + Math.max(...c.prereqs.map(D)) : 0; depth.set(id, d); return d; };
@@ -89,18 +90,23 @@
   function drawMap(hl = null) {
     const svg = document.getElementById("map"); svg.replaceChildren();
     const NW = 150, NH = 30, COLW = 240, ROWH = 40, BANDPAD = 14, LABELW = 200;
-    const maxD = Math.max(...depth.values());
+    // Search and category filters: draw only the matches, plus (faded) the prerequisites they build on.
+    const filtering = area !== "all" || q.value.trim() !== "";
+    const match = filtering ? new Set(search(q.value, CATALOG.filter(c => area === "all" || c.area === area)).map(c => c.id)) : null;
+    const context = match ? new Set(CATALOG.filter(c => match.has(c.id)).flatMap(c => c.prereqs).filter(id => !match.has(id))) : new Set();
+    const shown = CATALOG.filter(c => !match || match.has(c.id) || context.has(c.id)), isShown = new Set(shown.map(c => c.id));
+    const usedDepths = [...new Set(shown.map(c => depth.get(c.id)))].sort((a, b) => a - b), colOf = new Map(usedDepths.map((d, i) => [d, i]));
     let y = 10; const pos = new Map(), bands = [];
     for (const a of present) {
-      const items = CATALOG.filter(c => c.area === a.id);
-      const cols = Array.from({ length: maxD + 1 }, () => []);
-      items.forEach(c => cols[depth.get(c.id)].push(c));
+      const items = shown.filter(c => c.area === a.id); if (!items.length) continue;
+      const cols = usedDepths.map(() => []);
+      items.forEach(c => cols[colOf.get(depth.get(c.id))].push(c));
       const rows = Math.max(...cols.map(c => c.length));
       bands.push({ a, y, h: rows * ROWH + BANDPAD });
       cols.forEach((col, d) => col.sort((p, q) => p.title.localeCompare(q.title)).forEach((c, i) => pos.set(c.id, { x: LABELW + d * COLW + NW / 2, y: y + BANDPAD / 2 + i * ROWH + NH / 2 })));
       y += rows * ROWH + BANDPAD;
     }
-    const W = LABELW + (maxD + 1) * COLW, H = y + 4;
+    const W = LABELW + Math.max(1, usedDepths.length) * COLW, H = y + 4;
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
     const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
     bands.forEach((b, i) => { svg.append(el("rect", { x: 0, y: b.y, width: W, height: b.h, fill: i % 2 ? "transparent" : css("--surface-2"), rx: 6 })); svg.append(el("text", { x: 8, y: b.y + 18, "font-size": 12, "font-weight": 700, fill: css("--muted") }, b.a.title)); });
@@ -108,31 +114,34 @@
     // Edges leave and enter horizontally; the arrowhead is drawn as its own triangle pointing straight
     // into the target box, so it never tilts with the curve.
     const AH = 8;
-    for (const c of CATALOG) for (const p of c.prereqs) {
+    for (const c of shown) for (const p of c.prereqs) {
+      if (!isShown.has(p)) continue;
       const a = pos.get(p), b = pos.get(c.id), on = !hl || hl === c.id || hl === p;
       const x1 = a.x + NW / 2, x2 = b.x - NW / 2 - 1, end = x2 - AH, k = Math.max(24, (end - x1) * 0.5);
       const color = on && hl ? css("--accent") : css("--muted"), op = on ? 0.9 : 0.15;
       svg.append(el("path", { d: `M${x1} ${a.y} C ${x1 + k} ${a.y}, ${end - k} ${b.y}, ${end} ${b.y}`, fill: "none", stroke: color, "stroke-width": on && hl ? 2.5 : 1.3, opacity: op }));
       svg.append(el("path", { d: `M${end} ${b.y - 4.5} L${x2} ${b.y} L${end} ${b.y + 4.5} Z`, fill: color, opacity: op }));
     }
-    for (const c of CATALOG) {
-      const p = pos.get(c.id), dim = related && !related.has(c.id);
-      const g = el("a", { href: hrefOf(c), "data-id": c.id, opacity: dim ? 0.3 : 1 });
-      g.append(el("rect", { x: p.x - NW / 2, y: p.y - NH / 2, width: NW, height: NH, rx: 8, fill: css("--surface"), stroke: hl === c.id ? css("--accent") : css("--border"), "stroke-width": hl === c.id ? 2.5 : 1.5 }));
+    for (const c of shown) {
+      const p = pos.get(c.id), ctx = context.has(c.id), dim = related ? !related.has(c.id) : false;
+      const g = el("a", { href: hrefOf(c), "data-id": c.id, opacity: dim ? 0.3 : ctx ? 0.55 : 1 });
+      g.append(el("rect", { x: p.x - NW / 2, y: p.y - NH / 2, width: NW, height: NH, rx: 8, fill: css("--surface"), stroke: hl === c.id ? css("--accent") : css("--border"), "stroke-width": hl === c.id ? 2.5 : 1.5, "stroke-dasharray": ctx ? "4 3" : "" }));
       g.append(el("text", { x: p.x, y: p.y + 4, "text-anchor": "middle", "font-size": 12, fill: css("--text") }, c.title.length > 22 ? c.title.slice(0, 21) + "…" : c.title));
       svg.append(g);
     }
+    document.getElementById("mapNote").textContent = match && match.size ? `Showing ${match.size} matching explainer${match.size === 1 ? "" : "s"}${context.size ? `, plus ${context.size} they build on (dashed)` : ""}.` : "";
   }
   const mapSvg = document.getElementById("map");
   mapSvg.addEventListener("mouseover", e => { const a = e.target.closest("[data-id]"); if (a) drawMap(a.dataset.id); });
   mapSvg.addEventListener("mouseleave", () => drawMap());
-  document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => {
-    const map = b.dataset.view === "map";
-    document.querySelectorAll("[data-view]").forEach(x => x.setAttribute("aria-pressed", x === b));
+  function setView(v) {
+    view = v; const map = v === "map";
+    document.querySelectorAll("[data-view]").forEach(x => x.setAttribute("aria-pressed", x.dataset.view === v));
     document.getElementById("mapWrap").hidden = !map; document.getElementById("list").hidden = map;
-    document.querySelector(".finder").hidden = map; document.getElementById("empty").hidden = map || document.getElementById("empty").hidden;
-    if (map) drawMap();
-  });
+    render();
+  }
+  document.querySelectorAll("[data-view]").forEach(b => (b.onclick = () => setView(b.dataset.view)));
+  chips(); setView(view);
 </script>
 </body>
 </html>
