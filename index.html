@@ -31,6 +31,7 @@
     <div class="chips" id="chips"></div>
   </div>
   <div class="chips" style="margin:4px 0 8px"><span class="status" style="margin-right:4px">View:</span><button class="chip" data-view="cards" aria-pressed="true">Cards</button><button class="chip" data-view="map" aria-pressed="false">Concept map</button></div>
+  <section id="paths" hidden><h2>Learning paths</h2><p class="status" style="margin:0">Hand-picked reading orders. Each one starts from the basics and links every step to the next.</p><div class="pathcards" id="pathcards"></div></section>
   <div id="list"></div>
   <div id="mapWrap" class="panel" hidden>
     <p class="status" style="margin:0 0 6px">Arrows point from an explainer to the ones that build on it. Left to right is roughly the order to read them. Hover to highlight connections, click to open.</p>
@@ -40,8 +41,8 @@
   <p id="empty" hidden>Nothing matches yet.</p>
 </main>
 <script type="module">
-  import { chrome, escapeHtml } from "./shared/common.js";
-  import { CATALOG, AREAS, LEVELS, byId, hrefOf, search } from "./catalog.js";
+  import { chrome, escapeHtml, readSet, nextStep } from "./shared/common.js";
+  import { CATALOG, AREAS, LEVELS, PATHS, byId, hrefOf, search, topicOf } from "./catalog.js";
   chrome();
 
   const params = new URLSearchParams(location.search);
@@ -54,9 +55,10 @@
     document.getElementById("chips").innerHTML = [["all", "All"], ...present.map(a => [a.id, a.title])]
       .map(([id, t]) => `<button class="chip" data-area="${id}" aria-pressed="${id === area}">${escapeHtml(t)}</button>`).join("");
   }
-  const card = c => `
+  const read = readSet();
+  const card = (c, showTopic = false) => `
     <a class="card" href="${hrefOf(c)}">
-      <div class="meta"><span class="tag">${escapeHtml(AREAS.find(a => a.id === c.area).title)}</span><span class="lvl">${LEVELS[c.level]}</span></div>
+      <div class="meta"><span class="tag">${escapeHtml(showTopic ? `${AREAS.find(a => a.id === c.area).title} › ${topicOf(c).title}` : LEVELS[c.level])}</span>${read.has(c.id) ? `<span class="lvl done" title="You've opened this one">✓ read</span>` : showTopic ? `<span class="lvl">${LEVELS[c.level]}</span>` : ""}</div>
       <h3>${escapeHtml(c.title)}</h3>
       <p>${escapeHtml(c.blurb)}</p>
       ${c.prereqs.length ? `<div class="pre">Builds on: ${c.prereqs.map(id => escapeHtml(byId(id)?.title ?? id)).join(", ")}</div>` : ""}
@@ -67,16 +69,27 @@
     const items = search(q.value, CATALOG.filter(c => area === "all" || c.area === area));
     const list = document.getElementById("list");
     if (q.value.trim()) {
-      list.innerHTML = `<div class="cards">${items.map(card).join("")}</div>`;
+      list.innerHTML = `<div class="cards">${items.map(c => card(c, true)).join("")}</div>`;
     } else {
       list.innerHTML = present.filter(a => area === "all" || a.id === area).map(a => {
-        const cs = items.filter(c => c.area === a.id).sort((x, y) => order[x.level] - order[y.level]);
-        return cs.length ? `<section class="area"><h2>${escapeHtml(a.title)} <small>${cs.length}</small></h2><div class="cards">${cs.map(card).join("")}</div></section>` : "";
+        const cs = items.filter(c => c.area === a.id);
+        if (!cs.length) return "";
+        const topics = a.topics.map(t => { const ts = cs.filter(c => c.topic === t.id).sort((x, y) => order[x.level] - order[y.level]);
+          return ts.length ? `<h3 class="topic" id="topic-${t.id}">${escapeHtml(t.title)}</h3><div class="cards">${ts.map(c => card(c)).join("")}</div>` : ""; }).join("");
+        return `<section class="area" id="area-${a.id}"><h2>${escapeHtml(a.title)} <small>${cs.length}</small></h2>${topics}</section>`;
       }).join("");
     }
+    // learning paths: on the unfiltered cards view only
+    const showPaths = view === "cards" && !q.value.trim() && area === "all";
+    document.getElementById("paths").hidden = !showPaths;
+    if (showPaths) document.getElementById("pathcards").innerHTML = PATHS.map(p => {
+      const done = p.steps.filter(id => read.has(id)).length, next = byId(nextStep(p, read));
+      return `<a class="pathcard" id="path-${p.id}" href="${hrefOf(next)}?path=${p.id}"><h3>${escapeHtml(p.title)}</h3><p>${escapeHtml(p.blurb)}</p>
+        <div class="prog"><i style="width:${done / p.steps.length * 100}%"></i></div><small>${done ? `${done} of ${p.steps.length} read · continue: ${escapeHtml(next.title)}` : `${p.steps.length} steps · start: ${escapeHtml(next.title)}`}</small></a>`;
+    }).join("");
     document.getElementById("empty").hidden = items.length > 0;
     const u = new URLSearchParams(); if (q.value.trim()) u.set("q", q.value.trim()); if (area !== "all") u.set("area", area); if (view === "map") u.set("view", "map");
-    history.replaceState(null, "", u.toString() ? "?" + u : location.pathname);
+    history.replaceState(null, "", (u.toString() ? "?" + u : location.pathname) + location.hash);
     if (view === "map") drawMap();
   }
   let view = params.get("view") === "map" ? "map" : "cards";
@@ -142,6 +155,8 @@
   }
   document.querySelectorAll("[data-view]").forEach(b => (b.onclick = () => setView(b.dataset.view)));
   chips(); setView(view);
+  // anchors like #topic-memory or #path-llms point at content drawn above, so scroll to them by hand
+  if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
 </script>
 </body>
 </html>

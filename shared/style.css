@@ -137,3 +137,29 @@ label.inline { flex-wrap: wrap; max-width: 100%; min-width: 0; }
 .stat { background: var(--surface-2); border-radius: 10px; padding: 6px 10px; }
 .stat b { display: block; font-size: 18px; }
 .stat small { color: var(--muted); font-size: 12px; }
+
+/* ---------- Topics and learning paths ---------- */
+header.site .crumb { color: var(--muted); }
+.pathbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: -8px 0 20px; padding: 8px 12px; border: 1.5px solid var(--accent); border-radius: 12px; background: var(--accent-soft); font-size: 14px; }
+.pathbar .pathname { font-weight: 700; color: var(--text); text-decoration: none; }
+.pathbar .pathpos { color: var(--muted); }
+.pathbar .pathdots { display: flex; gap: 4px; flex-wrap: wrap; }
+.pathbar .pathdots a { width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--muted); }
+.pathbar .pathdots a.read { background: var(--muted); }
+.pathbar .pathdots a.here { background: var(--accent); border-color: var(--accent); }
+.pathbar .pathlinks { margin-left: auto; display: flex; gap: 12px; flex-wrap: wrap; }
+.pathbar .pathlinks a { color: var(--text); }
+.pathnext { display: block; margin: 32px 0 0; padding: 14px 18px; border-radius: 12px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 700; font-size: 17px; }
+.pathnext small { display: block; font-weight: 400; font-size: 13px; opacity: .85; }
+.pathsof { margin: -10px 0 18px; }
+.pathcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
+.pathcard { display: block; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); text-decoration: none; }
+.pathcard:hover { border-color: var(--accent); }
+.pathcard h3 { margin: 0 0 4px; font-size: 16px; }
+.pathcard p { margin: 0; font-size: 13.5px; color: var(--muted); }
+.pathcard .prog { height: 5px; border-radius: 3px; background: var(--surface-2); margin: 10px 0 6px; overflow: hidden; }
+.pathcard .prog i { display: block; height: 100%; background: var(--accent); }
+.pathcard small { font-size: 12.5px; color: var(--muted); }
+.area h3.topic { margin: 22px 0 0; font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.area h3.topic + .cards { margin-top: 10px; }
+.card .done { color: var(--green); font-weight: 700; }

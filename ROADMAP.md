@@ -1,18 +1,24 @@
 # Roadmap
 
-Plan for the next explainers, plus the working notes a new session needs. 99 explainers exist today.
+Plan for the next explainers, plus the working notes a new session needs. 99 explainers exist today, in 9 areas, 27 topics and 11 learning paths.
 
 ## Where the gaps are
 
-| Area | Count | Intro / Core / Deep | Gap |
-|---|---|---|---|
-| Systems | 17 | 6 / 7 / 4 | fine; file systems missing |
-| Distributed | 13 | 1 / 9 / 3 | time and clocks |
-| Security | 7 | 2 / 4 / 1 | **thinnest area**: web security, symmetric crypto |
-| Algorithms | 17 | 7 / 9 / 1 | **only one deep dive** |
-| ML & AI | 15 | 7 / 6 / 2 | retrieval, faster LLM inference |
-| Data | 11 | 5 / 6 / 0 | **no deep dive** |
-| Tools | 6 | 0 / 6 / 0 | **no intro**; containers, dependencies |
+Areas and topics as of the topics-and-paths change (99 explainers). Each explainer has an area and a topic in `catalog.js`; `PATHS` lists learning paths.
+
+| Area | Count | Intro / Core / Deep | Topics | Gap |
+|---|---|---|---|---|
+| Systems: hardware & OS | 11 | 5 / 5 / 1 | Numbers & text, Memory, Operating systems | processes & syscalls, I/O |
+| Networking & the web | 4 | 1 / 3 / 0 | How the network works | **thinnest area**: HTTP/2-3, CDNs, WebSockets, NAT, Wi-Fi |
+| Databases & storage | 7 | 0 / 4 / 3 | Storage engines, Queries, Transactions & durability | **no intro** (what an index is, normalisation) |
+| Distributed systems | 13 | 1 / 9 / 3 | Traffic & reliability, Spreading data, Agreement, Time & order | sharding, leader election |
+| Security & cryptography | 10 | 4 / 5 / 1 | Building blocks, Protocols, Attacks & defences | XSS/CSRF, zero-knowledge (Batch 2) |
+| Algorithms & data structures | 19 | 7 / 10 / 2 | Foundations, Data structures, Search & graphs, Compression & signals | balanced trees, string matching |
+| Machine learning & AI | 20 | 8 / 9 / 3 | Classic ML, Neural networks, Language models | fine-tuning/LoRA, evaluation |
+| Statistics & probability | 6 | 4 / 2 / 0 | Probability, Experiments & inference | **no deep dive**: regression, multiple testing |
+| Developer tools | 9 | 1 / 7 / 1 | Version control, Building & shipping, Compilers & runtimes, Everyday tools | dependency resolution (Batch 2), debuggers |
+
+New explainers: pick the topic when scaffolding (`npm run new -- <id> "<Title>" <area> <level> <topic>`), and add them to a learning path in `PATHS` if one fits. `tests/catalog.test.js` checks that path steps come after their prerequisites.
 
 ## Batch 1: fill the gaps ✅ done
 
