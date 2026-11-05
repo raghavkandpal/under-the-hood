@@ -189,6 +189,8 @@ export const CATALOG = [
     blurb: "Run commits, branches and merges and see the blobs, trees, commits and refs they really create.", prereqs: ["hashtable"] },
   { id: "sql-injection", title: "SQL injection", area: "security", level: "intro", tags: ["sql injection", "owasp", "parameterised queries", "web security", "input validation"],
     blurb: "Type a quote mark into a login form and rewrite the database's question. Then fix it with one line.", prereqs: ["sql-joins"] },
+  { id: "cipher-modes", title: "Block cipher modes", area: "security", level: "core", tags: ["encryption", "aes", "ecb", "cbc", "ctr", "nonce", "symmetric crypto"],
+    blurb: "Encrypt a picture and still see it: ECB vs CBC vs CTR, flipped bits, and why a reused nonce leaks everything.", prereqs: ["hash-functions"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
