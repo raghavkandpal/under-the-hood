@@ -11,8 +11,10 @@ distributed systems, data science and machine learning. Static site, no build st
 ## Layout
 
 ```
-index.html                 home page: search, area filters, cards / concept map (?q= ?area= ?view= are shareable)
-catalog.js                 the single list of explainers: area, level, tags, prerequisites
+index.html                 home page: learning paths, search, area filters, cards by topic / concept map
+                           (?q= ?area= ?view= and #topic-<id> / #path-<id> are shareable)
+catalog.js                 the single list of explainers (area, topic, level, tags, prerequisites),
+                           the areas with their topics, and PATHS (curated learning paths)
 explainers/<id>/
   index.html               the page, served at /explainers/<id>/ (UI and rendering only)
   <name>.js                its DOM-free simulation logic
@@ -25,7 +27,9 @@ tests/                     site-wide checks: catalog ↔ pages, links, prerequis
 scripts/new.js             scaffolds a new explainer
 ```
 
-- `catalog.js` drives the home page, search, header breadcrumb and "Keep exploring" links.
+- `catalog.js` drives the home page, search, the Area › Topic breadcrumb, "Keep exploring" links and learning-path
+  navigation. Opening a page with `?path=<id>` shows that path's progress bar and next step; which explainers a
+  reader has opened is remembered in their browser only.
 - Logic used by one explainer lives in its folder. It moves to `shared/` only once a second explainer needs it.
 - `shared/autograd.js` is a small reverse-mode autodiff engine plus MLP for the ML pages. `trainStepFast`
   is a hand-written array backprop used for speed, tested to match autograd exactly. `git.test.js` checks
@@ -35,15 +39,16 @@ scripts/new.js             scaffolds a new explainer
 ## Adding an explainer
 
 ```bash
-npm run new -- foo "Foo explained" algorithms core
+npm run new -- foo "Foo explained" algorithms core data-structures
 ```
 
-This creates `explainers/foo/` with `index.html`, `foo.js` and `foo.test.js`, plus a catalog entry, and
-refuses to overwrite anything that already exists. Then:
+This creates `explainers/foo/` with `index.html`, `foo.js` and `foo.test.js`, plus a catalog entry in that
+area and topic (the topic defaults to the area's first), and refuses to overwrite anything that already exists. Then:
 
 1. Write the logic in `foo.js` with no DOM access, and test it in `foo.test.js`.
 2. Fill in `index.html`: the interactive part, then the "How it works" text.
 3. Fill in the entry's tags, blurb and prereqs in `catalog.js`. `npm test` fails until the page and the entry agree.
+4. If it belongs in a learning path, add its id to that path's `steps` in `PATHS`, after its prerequisites.
 
 Shared building blocks, so pages only carry what's unique to them:
 - CSS in `shared/style.css`: `.panel`, `.controls`, `.row`, `.tabs` (pressed state), `.stats`/`.stat` tiles

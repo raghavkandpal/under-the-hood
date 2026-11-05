@@ -5,12 +5,14 @@
 import { existsSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { AREAS, LEVELS, CATALOG } from "../catalog.js";
 
-const [id, title, area = "algorithms", level = "core"] = process.argv.slice(2);
+const [id, title, area = "algorithms", level = "core", topicArg] = process.argv.slice(2);
 const fail = msg => { console.error("✗ " + msg); process.exit(1); };
-if (!id || !title) fail('usage: npm run new -- <id> "<Title>" <area> <level>');
+if (!id || !title) fail('usage: npm run new -- <id> "<Title>" <area> <level> [topic]');
 if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(id)) fail("id must be lowercase words joined by hyphens");
 if (!AREAS.some(a => a.id === area)) fail(`area must be one of: ${AREAS.map(a => a.id).join(", ")}`);
 if (!(level in LEVELS)) fail(`level must be one of: ${Object.keys(LEVELS).join(", ")}`);
+const topics = AREAS.find(a => a.id === area).topics, topic = topicArg ?? topics[0].id;
+if (!topics.some(t => t.id === topic)) fail(`topic must be one of ${area}'s topics: ${topics.map(t => t.id).join(", ")} (or add a new one to AREAS)`);
 if (CATALOG.some(e => e.id === id)) fail(`catalog already has "${id}"`);
 const dir = `explainers/${id}`, files = { page: `${dir}/index.html`, lib: `${dir}/${id}.js`, test: `${dir}/${id}.test.js` };
 if (existsSync(dir)) fail(`${dir}/ already exists, not overwriting`);
@@ -77,6 +79,6 @@ render();
 </html>
 `);
 const cat = readFileSync("catalog.js", "utf8"), start = cat.indexOf("export const CATALOG = ["), end = cat.indexOf("\n];", start);
-const entry = `  { id: "${id}", title: ${JSON.stringify(title)}, area: "${area}", level: "${level}", tags: [],\n    blurb: "TODO: one sentence for the home page card.", prereqs: [] },`;
+const entry = `  { id: "${id}", title: ${JSON.stringify(title)}, area: "${area}", topic: "${topic}", level: "${level}", tags: [],\n    blurb: "TODO: one sentence for the home page card.", prereqs: [] },`;
 writeFileSync("catalog.js", cat.slice(0, end) + "\n" + entry + cat.slice(end));
-console.log(`✓ created ${Object.values(files).join(", ")} and a catalog entry.\n  Next: write ${dir}/${id}.js + its test, fill in ${dir}/index.html, then tags/blurb/prereqs in catalog.js.`);
+console.log(`✓ created ${Object.values(files).join(", ")} and a catalog entry (topic: ${topic}${topicArg ? "" : `, the default; ${area} also has ${topics.slice(1).map(t => t.id).join(", ") || "no others"}`}).\n  Next: write ${dir}/${id}.js + its test, fill in ${dir}/index.html, then tags/blurb/prereqs in catalog.js.`);
