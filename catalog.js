@@ -195,6 +195,8 @@ export const CATALOG = [
     blurb: "How your authenticator app and the server agree on a 6-digit code without talking: a shared secret plus the clock.", prereqs: ["hash-functions"] },
   { id: "query-planner", title: "Query planners & indexes", area: "data", level: "deep", tags: ["query planner", "index", "explain", "statistics", "database performance", "sql"],
     blurb: "Index or full scan? Watch the planner guess from a histogram, and stale statistics turn a fast query slow.", prereqs: ["btree", "sql-joins"] },
+  { id: "sat-sudoku", title: "Constraint solving", area: "algorithms", level: "deep", tags: ["sudoku", "backtracking", "constraint propagation", "sat solver", "search", "np-complete"],
+    blurb: "Solve Sudoku three ways: blind backtracking makes hundreds of thousands of guesses, propagation plus smart choices almost none.", prereqs: ["dynamic-programming"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
