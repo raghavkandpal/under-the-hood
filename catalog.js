@@ -197,6 +197,8 @@ export const CATALOG = [
     blurb: "Index or full scan? Watch the planner guess from a histogram, and stale statistics turn a fast query slow.", prereqs: ["btree", "sql-joins"] },
   { id: "sat-sudoku", title: "Constraint solving", area: "algorithms", level: "deep", tags: ["sudoku", "backtracking", "constraint propagation", "sat solver", "search", "np-complete"],
     blurb: "Solve Sudoku three ways: blind backtracking makes hundreds of thousands of guesses, propagation plus smart choices almost none.", prereqs: ["dynamic-programming"] },
+  { id: "pipes", title: "Shell pipes", area: "tools", level: "intro", tags: ["unix", "shell", "pipes", "backpressure", "streaming", "sigpipe"],
+    blurb: "Why cat | grep | head is instant on a 10 GB file: programs running at once, tiny buffers, backpressure and SIGPIPE.", prereqs: [] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
