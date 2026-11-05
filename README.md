@@ -46,3 +46,5 @@ Shared building blocks, so pages only carry what's unique to them:
 - Colours come from CSS variables in `style.css`, so every page works in light and dark mode.
 - Pages must fit a 360px-wide phone with no sideways scroll. Wide tables and diagrams go in `.scroll-x`.
 - Simplifications are stated on each page (look for the small grey note at the bottom).
+
+See [ROADMAP.md](ROADMAP.md) for planned explainers and working notes.
