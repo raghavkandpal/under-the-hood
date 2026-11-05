@@ -1,6 +1,6 @@
 # Roadmap
 
-Plan for the next explainers, plus the working notes a new session needs. 86 explainers exist today.
+Plan for the next explainers, plus the working notes a new session needs. 93 explainers exist today.
 
 ## Where the gaps are
 
@@ -14,7 +14,9 @@ Plan for the next explainers, plus the working notes a new session needs. 86 exp
 | Data | 11 | 5 / 6 / 0 | **no deep dive** |
 | Tools | 6 | 0 / 6 / 0 | **no intro**; containers, dependencies |
 
-## Batch 1: fill the gaps (do these first, in order)
+## Batch 1: fill the gaps ✅ done
+
+All seven shipped on branch `explainers/batch-1`: sql-injection, cipher-modes, totp, query-planner, sat-sudoku, pipes, containers. The specs are kept below for reference.
 
 Each spec gives the hook, what the reader does, the logic to build and test in `lib/`, and the facts the tests must pin down. Prereqs are existing ids.
 
@@ -61,7 +63,7 @@ Each spec gives the hook, what the reader does, the logic to build and test in `
 - **lib/layers.js:** layer hashes chained from parent plus instruction plus input files, `rebuild(steps, changedFiles)`, and image size with layer sharing between two images.
 - **Tests:** changing a file only rebuilds layers from its first `COPY` down. Identical prefixes share layers. Moving dependency install before `COPY . .` makes source edits cheap.
 
-## Batch 2
+## Batch 2 (next)
 
 | id | Title | Area / level | Core idea to make interactive |
 |---|---|---|---|
