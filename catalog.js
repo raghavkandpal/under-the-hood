@@ -211,6 +211,8 @@ export const CATALOG = [
     blurb: "Names point to inodes, inodes point to blocks. Make hard links and symlinks, then cut the power mid-save.", prereqs: ["write-ahead-log"] },
   { id: "quadtree", title: "Spatial indexes", area: "algorithms", level: "core", tags: ["quadtree", "spatial index", "geospatial", "range query", "r-tree", "maps"],
     blurb: "Find everything near you without checking everything: a quadtree splits space where it's crowded. Drag a search box.", prereqs: ["big-o"] },
+  { id: "bootstrap", title: "Bootstrap confidence intervals", area: "data", level: "core", tags: ["bootstrap", "confidence interval", "resampling", "uncertainty", "statistics", "median"],
+    blurb: "Error bars for any statistic with no formulas: resample your own data thousands of times. And when that lies.", prereqs: ["clt"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
