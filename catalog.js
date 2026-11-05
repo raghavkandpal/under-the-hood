@@ -203,6 +203,8 @@ export const CATALOG = [
     blurb: "Why reordering two lines of a Dockerfile skips a 45-second reinstall on every edit, and what a container really is.", prereqs: ["build-systems"] },
   { id: "rag", title: "Retrieval-augmented generation", area: "ml", level: "core", tags: ["rag", "llm", "retrieval", "chunking", "vector search", "chat with documents"],
     blurb: "How “chat with your documents” works: chunk, embed, retrieve, paste into the prompt. And why it fails when retrieval does.", prereqs: ["embeddings", "knn"] },
+  { id: "speculative-decoding", title: "Speculative decoding", area: "ml", level: "deep", tags: ["llm inference", "speculative decoding", "draft model", "latency", "sampling"],
+    blurb: "A small model guesses, the big one checks five guesses in one pass: 2–3× faster text with exactly the same output.", prereqs: ["kv-cache", "sampling"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);

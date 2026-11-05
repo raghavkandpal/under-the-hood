@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speculative Decoding</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .text { font-family: var(--mono); font-size: 14px; line-height: 2; background: var(--surface-2); border-radius: 8px; padding: 6px 10px; margin-top: 10px; min-height: 2.4em; }
+  .text span { padding: 1px 2px; border-radius: 3px; }
+  .text .d { background: var(--green-soft); } .text .b { background: var(--blue-soft); }
+  .roundv { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; align-items: stretch; }
+  .tok { font-family: var(--mono); font-size: 13px; border: 1.5px solid var(--border); border-radius: 8px; padding: 4px 8px; text-align: center; min-width: 62px; }
+  .tok small { display: block; font-size: 10.5px; color: var(--muted); }
+  .tok.ok { border-color: var(--green); background: var(--green-soft); }
+  .tok.no { border-color: var(--red); background: var(--red-soft); text-decoration: line-through; }
+  .tok.fix { border-color: var(--blue); background: var(--blue-soft); }
+  .tok.skip { opacity: .35; }
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  .key { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .key i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin-right: 3px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Speculative decoding</h1>
+  <p class="lede">A big language model writes one token per pass, and each pass reads billions of weights from memory, mostly waiting rather than computing. Checking five tokens costs about the same as producing one. So let a small, fast model guess the next few tokens, and have the big one check all the guesses at once. Same output, often 2–3× faster.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">draft model quality <input type="range" id="q" min="0" max="1" step="0.05" value="0.8"> <b id="qv"></b></label>
+      <label class="inline">guesses per round k <input type="range" id="k" min="1" max="8" value="4"> <b id="kv"></b></label>
+      <label class="inline">draft cost <input type="range" id="c" min="0.01" max="0.4" step="0.01" value="0.05"> <b id="cv"></b> of a big pass</label>
+    </div>
+    <div class="row" style="margin-top:8px"><button id="step" class="primary">Next round ▶</button><button id="ten">10 rounds</button><button id="reset">Restart</button></div>
+    <div class="roundv" id="roundv"></div>
+    <div class="text" id="text"></div>
+    <div class="key"><span><i style="background:var(--green-soft);outline:1px solid var(--green)"></i>draft guess, accepted</span><span><i style="background:var(--red-soft);outline:1px solid var(--red)"></i>rejected</span><span><i style="background:var(--blue-soft);outline:1px solid var(--blue)"></i>chosen by the big model</span></div>
+    <div class="stats" id="stats" style="--stat-min:140px"></div>
+  </div>
+
+  <div class="panel"><b>Speed-up by number of guesses</b> <span class="status">(for the current draft quality and cost)</span><svg class="chart" id="curve" viewBox="0 0 560 200" role="img" aria-label="Speed-up versus k"></svg></div>
+
+  <div class="panel"><b>Is the output really unchanged?</b> <span class="status">The word after “cat”, sampled 20,000 times with speculative decoding, against the big model's own probabilities.</span>
+    <svg class="chart" id="exact" viewBox="0 0 560 170" role="img" aria-label="Sampled vs true distribution"></svg></div>
+
+  <h2>How it works</h2>
+  <p><b>Why it's free to check.</b> Generating text is limited by memory bandwidth: every token requires streaming the whole model's weights from GPU memory (see <a href="kv-cache.html">the KV cache</a>). Feeding the big model 5 candidate tokens at once reads the weights once and scores all 5 positions in parallel, so it costs barely more than scoring 1.</p>
+  <p><b>The round.</b> The draft model, perhaps 50× smaller, proposes k tokens one after another. The big model runs once over all of them. Going left to right, each guess is accepted with probability min(1, p/q), where p is the big model's probability for that token and q the draft's. At the first rejection, the big model picks a replacement from the probability the draft under-weighted (p − q, wherever that's positive), and the round ends. If all k pass, the same big pass also provides one bonus token.</p>
+  <p><b>Exact, not approximate.</b> That accept/replace rule is built so that every token's probability is exactly what the big model alone would give, however bad the draft. The bars in the last panel agree. A bad draft only costs speed, never quality.</p>
+  <p><b>Tuning.</b> More guesses per round helps only while they keep being accepted: with acceptance rate a, a round yields (1 − a<sup>k+1</sup>)/(1 − a) tokens on average, while each guess costs a draft pass. Lower the quality or raise the draft cost and the best k shrinks, sometimes to “don't bother”.</p>
+  <p class="status">The two “models” are tiny word-pair tables so every probability is visible. Real systems draft with a small sibling model, extra prediction heads (Medusa), or text copied from the prompt, a big win when editing code.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "./common.js";
+import { VOCAB, target, draft, round, acceptRate, expectedSpeedup } from "./lib/speculative-decoding.js";
+import { mulberry } from "./lib/autograd.js";
+chrome();
+
+let rnd, toks, src, rounds, cost, last;
+const P = () => ({ q: +$("#q").value, k: +$("#k").value, c: +$("#c").value });
+function reset() { rnd = mulberry(Date.now() & 0xffff); toks = ["the"]; src = ["b"]; rounds = 0; cost = 0; last = null; show(); }
+function step() {
+  const { q, k, c } = P(), r = round(toks.at(-1), k, q, rnd); rounds++; cost += k * c + 1; last = r;
+  r.out.forEach((t, i) => { toks.push(t); src.push(i < r.out.length - 1 ? "d" : "b"); }); // accepted guesses, then the big model's own token
+  show();
+}
+const avgAccept = q => VOCAB.reduce((a, w) => a + acceptRate(target(w), draft(w, q)), 0) / VOCAB.length;
+function show() {
+  const { q, k, c } = P(); $("#qv").textContent = q.toFixed(2); $("#kv").textContent = k; $("#cv").textContent = c.toFixed(2);
+  if (last) {
+    let stopped = false;
+    $("#roundv").innerHTML = last.proposed.map(d => { const cls = stopped ? "skip" : d.accepted ? "ok" : "no"; if (!d.accepted) stopped = true;
+      return `<div class="tok ${cls}">${d.tok}<small>${cls === "skip" ? "never checked" : `p ${d.p.toFixed(2)} · q ${d.q.toFixed(2)}`}</small></div>`; }).join("") +
+      `<div class="tok fix">${last.fixed.tok}<small>${last.fixed.from === "bonus" ? "bonus from the same pass" : "big model's pick"}</small></div>`;
+  } else $("#roundv").innerHTML = `<span class="status">Press “Next round”: the draft guesses ${k} words, then the big model checks them in one pass.</span>`;
+  $("#text").innerHTML = toks.map((t, i) => `<span class="${src[i]}">${t}</span>`).join(" ");
+  const n = toks.length - 1;
+  $("#stats").innerHTML = [[n, "words generated"], [rounds, "big-model passes"], [rounds ? (n / cost).toFixed(2) + "×" : "–", "speed-up so far"], [expectedSpeedup(avgAccept(q), k, c).toFixed(2) + "×", "expected speed-up"]].map(statTile).join("");
+  curve();
+}
+function curve() {
+  const { q, c } = P(), a = avgAccept(q), svg = $("#curve"); svg.replaceChildren();
+  const L = 40, R = 550, T = 10, B = 170, K = 12, vals = Array.from({ length: K }, (_, i) => expectedSpeedup(a, i + 1, c)), M = Math.max(4, ...vals);
+  const X = k => L + (R - L) * (k - 1) / (K - 1), Y = v => B - (B - T) * v / M;
+  for (const v of [0, 1, 2, 3, 4].filter(v => v <= M)) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(v), y2: Y(v), stroke: v === 1 ? "var(--muted)" : "var(--border)", "stroke-dasharray": v === 1 ? "4 3" : "" }), svgEl("text", { x: L - 5, y: Y(v) + 4, "text-anchor": "end" }, v + "×"));
+  svg.append(svgEl("polyline", { points: vals.map((v, i) => `${X(i + 1)},${Y(v)}`).join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": 2.5 }));
+  const best = vals.indexOf(Math.max(...vals));
+  vals.forEach((v, i) => svg.append(svgEl("circle", { cx: X(i + 1), cy: Y(v), r: i === best ? 5.5 : 3, fill: i + 1 === +$("#k").value ? "var(--text)" : "var(--accent)" }), svgEl("text", { x: X(i + 1), y: B + 15, "text-anchor": "middle" }, i + 1)));
+  svg.append(svgEl("text", { x: X(best + 1), y: Y(vals[best]) - 10, "text-anchor": "middle", style: "fill:var(--accent);font-weight:700" }, `best k = ${best + 1}`));
+  svg.append(svgEl("text", { x: (L + R) / 2, y: 198, "text-anchor": "middle" }, `guesses per round k  ·  average acceptance ${Math.round(a * 100)}%  ·  below 1× it's slower than not bothering`));
+}
+function exact() {
+  const q = +$("#q").value, r2 = mulberry(9), N = 20000, counts = new Array(VOCAB.length).fill(0);
+  for (let i = 0; i < N; i++) counts[VOCAB.indexOf(round("cat", 3, q, r2).out[0])]++;
+  const p = target("cat"), show = VOCAB.map((w, i) => i).filter(i => p[i] > 0 || counts[i] > 0), svg = $("#exact"); svg.replaceChildren();
+  const L = 30, B = 140, W = (530 - L) / show.length, Y = v => B - v * 200;
+  show.forEach((i, j) => { const x = L + j * W;
+    svg.append(svgEl("rect", { x: x + W * 0.15, y: Y(p[i]), width: W * 0.32, height: B - Y(p[i]), fill: "var(--blue)" }), svgEl("rect", { x: x + W * 0.5, y: Y(counts[i] / N), width: W * 0.32, height: B - Y(counts[i] / N), fill: "var(--accent)" }));
+    svg.append(svgEl("text", { x: x + W / 2, y: B + 15, "text-anchor": "middle" }, VOCAB[i])); });
+  svg.append(svgEl("text", { x: 530, y: 14, "text-anchor": "end", style: "fill:var(--blue)" }, "■ big model alone"), svgEl("text", { x: 530, y: 30, "text-anchor": "end", style: "fill:var(--accent)" }, `■ speculative, draft quality ${q.toFixed(2)}`));
+}
+$("#step").onclick = step;
+$("#ten").onclick = () => { for (let i = 0; i < 10; i++) step(); };
+$("#reset").onclick = reset;
+["#q", "#k", "#c"].forEach(s => ($(s).oninput = () => { show(); }));
+$("#q").onchange = exact;
+reset(); exact();
+</script>
+</body>
+</html>
