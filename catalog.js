@@ -201,6 +201,8 @@ export const CATALOG = [
     blurb: "Why cat | grep | head is instant on a 10 GB file: programs running at once, tiny buffers, backpressure and SIGPIPE.", prereqs: [] },
   { id: "containers", title: "Containers", area: "tools", level: "core", tags: ["docker", "containers", "image layers", "build cache", "namespaces", "cgroups"],
     blurb: "Why reordering two lines of a Dockerfile skips a 45-second reinstall on every edit, and what a container really is.", prereqs: ["build-systems"] },
+  { id: "rag", title: "Retrieval-augmented generation", area: "ml", level: "core", tags: ["rag", "llm", "retrieval", "chunking", "vector search", "chat with documents"],
+    blurb: "How “chat with your documents” works: chunk, embed, retrieve, paste into the prompt. And why it fails when retrieval does.", prereqs: ["embeddings", "knn"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
