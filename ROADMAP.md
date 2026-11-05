@@ -1,6 +1,6 @@
 # Roadmap
 
-Plan for the next explainers, plus the working notes a new session needs. 93 explainers exist today.
+Plan for the next explainers, plus the working notes a new session needs. 99 explainers exist today.
 
 ## Where the gaps are
 
@@ -63,7 +63,9 @@ Each spec gives the hook, what the reader does, the logic to build and test in `
 - **lib/layers.js:** layer hashes chained from parent plus instruction plus input files, `rebuild(steps, changedFiles)`, and image size with layer sharing between two images.
 - **Tests:** changing a file only rebuilds layers from its first `COPY` down. Identical prefixes share layers. Moving dependency install before `COPY . .` makes source edits cheap.
 
-## Batch 2 (next)
+## Batch 2 (in progress)
+
+Done on `explainers/batch-1`: rag, speculative-decoding, clock-sync, file-systems, quadtree, bootstrap. **Remaining: `zero-knowledge`, `dependency-resolution`.**
 
 | id | Title | Area / level | Core idea to make interactive |
 |---|---|---|---|
