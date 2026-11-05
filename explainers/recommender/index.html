@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recommender Systems</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  table.rt { border-collapse: separate; border-spacing: 3px; font-size: 12.5px; }
+  table.rt th { font-weight: 600; color: var(--muted); padding: 2px 4px; }
+  table.rt th.it { writing-mode: vertical-rl; transform: rotate(180deg); text-align: left; height: 110px; }
+  table.rt td { width: 38px; height: 32px; text-align: center; border-radius: 6px; cursor: pointer; font-family: var(--mono); }
+  table.rt td.obs { font-weight: 800; color: #fff; }
+  table.rt td.pred { background: var(--surface-2); color: var(--muted); font-style: italic; }
+  table.rt td.pred.good { outline: 2px solid var(--green); }
+  table.rt td.pred.bad { outline: 2px solid var(--red); }
+  #space { width: 100%; display: block; }
+  #space text { font-family: var(--sans); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Recommender systems</h1>
+  <p class="lede">You've rated a few films. So has everyone else, and each person has seen only a handful. How can a site guess how much <i>you'd</i> like one you've never watched? By learning a hidden "taste" vector for every person and every film from the ratings that do exist.</p>
+
+  <div class="panel">
+    <div class="controls" style="margin:0"><button id="train" class="primary">▶ Train</button><button id="reset">New users</button><label class="inline"><input type="checkbox" id="truth"> check guesses against the hidden true ratings</label></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="two">
+    <div class="panel scroll-x"><b>Ratings</b> <span class="status">bold = given by the user · grey = the model's guess · click a cell to set or clear a rating</span><table class="rt" id="rt" style="margin-top:8px"></table></div>
+    <div class="panel"><b>The learned taste space</b><svg id="space" viewBox="-1.6 -1.6 4.1 3.2" role="img" aria-label="Users and films in latent space"></svg><p class="status">Films (■) and people (●) as 2-D vectors. A predicted rating is roughly how far a person's arrow points along a film's.</p></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The ratings table is mostly empty.</b> Real services have millions of users and items, and each user rates a tiny fraction. The job is to fill in the blanks.</p>
+  <p><b>Assume taste has few dimensions.</b> Give each person a short vector <b>p</b> ("likes sci-fi 0.9, likes drama 0.2") and each film a vector <b>q</b> ("is sci-fi 0.8, is drama 0.1"). Predict a rating as average + user bias + film bias + <b>p · q</b>. Nobody tells the model what the dimensions mean. It finds them by nudging every vector to reduce the error on known ratings, which is <a href="../gradient-descent/">gradient descent</a> again.</p>
+  <p><b>Collaborative filtering.</b> If Ana and Bo agreed on everything they both watched, Ana's high rating for a film Bo hasn't seen pushes Bo's predicted rating up. In the taste space, the films separate into groups without ever being told their genres.</p>
+  <p><b>Limits.</b> A brand-new user or film has no ratings, so no vector (the <i>cold-start</i> problem), so real systems blend in content features. Optimising only for predicted ratings also tends to recommend what's already popular. This technique was the core of the winning Netflix Prize entries (2006–2009).</p>
+  <p class="status">8 fictional people and 8 fictional films. Ratings come from hidden tastes plus noise, so the guesses can be checked. 2 latent dimensions, trained with SGD and L2 regularisation.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, escapeHtml, sleep, statTile } from "../../shared/common.js";
+import { makeRatings, MF, heldOutRMSE, USERS, ITEMS } from "./mf.js";
+chrome();
+
+let R, mask, m, seed = 1, epochs = 0, busy = false;
+const COL = v => `hsl(${(v - 1) / 4 * 120} 60% 42%)`;
+function reset() { ({ R, mask } = makeRatings(seed++)); m = new MF(USERS.length, ITEMS.length, 2, seed); epochs = 0; render(); }
+function render() {
+  const truth = $("#truth").checked;
+  $("#rt").innerHTML = `<tr><th></th>${ITEMS.map(it => `<th class="it">${escapeHtml(it.name)}</th>`).join("")}</tr>` + USERS.map((u, ui) => `<tr><th style="text-align:right">${u}</th>${ITEMS.map((_, ii) => {
+    if (mask[ui][ii]) return `<td class="obs" data-u="${ui}" data-i="${ii}" style="background:${COL(R[ui][ii])}">${R[ui][ii]}</td>`;
+    const p = Math.max(1, Math.min(5, m.predict(ui, ii))), err = Math.abs(p - R[ui][ii]);
+    return `<td class="pred${truth && epochs ? (err < 0.75 ? " good" : err > 1.5 ? " bad" : "") : ""}" data-u="${ui}" data-i="${ii}" title="${truth ? "true rating " + R[ui][ii] : "predicted"}">${epochs ? p.toFixed(1) : "?"}${truth ? `<br><small>${R[ui][ii]}</small>` : ""}</td>`;
+  }).join("")}</tr>`).join("");
+  const svg = $("#space"); svg.replaceChildren();
+  svg.append(svgEl("line", { x1: -1.6, x2: 1.6, y1: 0, y2: 0, stroke: "var(--border)", "stroke-width": 0.01 }), svgEl("line", { y1: -1.6, y2: 1.6, x1: 0, x2: 0, stroke: "var(--border)", "stroke-width": 0.01 }));
+  const s = 0.9;
+  m.Q.forEach((q, i) => { const sci = ITEMS[i].g[0] > ITEMS[i].g[1] + 0.2, dra = ITEMS[i].g[1] > ITEMS[i].g[0] + 0.2, col = sci ? "var(--blue)" : dra ? "var(--accent)" : "var(--green)";
+    svg.append(svgEl("rect", { x: q[0] * s - 0.05, y: -q[1] * s - 0.05, width: 0.1, height: 0.1, fill: col }), svgEl("text", { x: q[0] * s + 0.08, y: -q[1] * s + 0.03, fill: col, "font-size": 0.11 }, ITEMS[i].name)); });
+  m.P.forEach((p, u) => svg.append(svgEl("circle", { cx: p[0] * s, cy: -p[1] * s, r: 0.045, fill: "var(--text)", opacity: 0.6 }), svgEl("text", { x: p[0] * s + 0.06, y: -p[1] * s - 0.05, fill: "var(--muted)", "font-size": 0.09 }, USERS[u])));
+  const tr = (() => { let se = 0, n = 0; R.forEach((row, u) => row.forEach((v, i) => { if (mask[u][i]) { se += (v - m.predict(u, i)) ** 2; n++; } })); return Math.sqrt(se / n); })();
+  const ho = heldOutRMSE(R, mask, (u, i) => m.predict(u, i)), base = heldOutRMSE(R, mask, () => m.mu);
+  $("#stats").innerHTML = [[epochs, "training passes"], [tr.toFixed(2), "error on known ratings"], [epochs ? ho.toFixed(2) : "—", "error on hidden ratings"], [base.toFixed(2), "hidden error if you just guess the average"]].map(statTile).join("");
+}
+$("#train").onclick = async () => {
+  if (busy) return; busy = true; m.fit(R, mask, 0);
+  for (let k = 0; k < 30; k++) { for (let j = 0; j < 10; j++) m.epoch(R, mask); epochs += 10; render(); await sleep(40); }
+  busy = false;
+};
+$("#rt").onclick = e => { const c = e.target.closest("[data-u]"); if (!c || busy) return; const u = +c.dataset.u, i = +c.dataset.i;
+  if (mask[u][i]) { if (R[u][i] < 5) R[u][i]++; else mask[u][i] = false; } else { mask[u][i] = true; R[u][i] = 1; } render(); };
+$("#truth").onchange = render; $("#reset").onclick = reset;
+reset();
+</script>
+</body>
+</html>

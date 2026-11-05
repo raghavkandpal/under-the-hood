@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bayes' Theorem</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .icons { display: grid; grid-template-columns: repeat(50, 1fr); gap: 2px; }
+  .ic { aspect-ratio: 1; border-radius: 2px; background: var(--surface-2); transition: opacity .2s, background .2s; }
+  .ic.tp { background: #c0392b; }
+  .ic.fn { background: transparent; box-shadow: inset 0 0 0 1.5px #c0392b; }
+  .ic.fp { background: #e8a33d; }
+  .ic.fade { opacity: .12; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; margin-top: 8px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 16px; }
+  .grid label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .grid label b { color: var(--text); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .answer { font-size: 18px; line-height: 1.5; margin: 6px 0 0; }
+  .answer .big { font-size: 34px; font-weight: 800; color: var(--accent); display: block; }
+  table.ct { border-collapse: collapse; font-size: 14px; margin-top: 10px; }
+  table.ct th, table.ct td { border: 1px solid var(--border); padding: 6px 12px; text-align: right; font-variant-numeric: tabular-nums; }
+  table.ct th { color: var(--muted); font-weight: 600; text-align: left; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Bayes' theorem</h1>
+  <p class="lede">A test is "90% accurate" and comes back positive. How likely is it that you really have what it tests for? Most people say about 90%. The real answer can be under 10%, and the reason is the most useful idea in probability.</p>
+
+  <div class="panel">
+    <div class="controls" style="margin:0 0 10px"><label class="inline">Scenario <select id="scen"></select></label>
+      <label class="inline"><input type="checkbox" id="onlyPos"> show only the positives</label></div>
+    <div class="grid">
+      <label>How common it is (base rate) <b id="vprior"></b><input type="range" id="prior" min="-4" max="-0.001" step="any"></label>
+      <label>Catches true cases (sensitivity) <b id="vsens"></b><input type="range" id="sens" min="0.5" max="1" step="0.01"></label>
+      <label>False alarms on everyone else <b id="vfpr"></b><input type="range" id="fpr" min="0" max="0.3" step="0.005"></label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <b id="popTitle">1,000 people</b>
+    <div class="icons" id="icons" style="margin-top:8px"></div>
+    <div class="legend">
+      <span><i style="background:#c0392b"></i>real case, caught</span>
+      <span><i style="box-shadow:inset 0 0 0 1.5px #c0392b"></i>real case, missed</span>
+      <span><i style="background:#e8a33d"></i>false alarm</span>
+      <span><i style="background:var(--surface-2)"></i>correctly cleared</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <p class="answer" id="answer"></p>
+    <table class="ct" id="ct"></table>
+    <div class="controls" style="margin:12px 0 0"><button id="again" class="primary">Test the positives again</button><button id="resetPrior">Reset base rate</button><span class="status" id="againNote"></span></div>
+  </div>
+
+  <h2>Why the intuition fails</h2>
+  <p><b>Count, don't calculate.</b> Out of 1,000 people with a 1% base rate, 10 really have it and 990 don't. The test catches 9 of the 10. But it also falsely flags 9% of the 990, about 89 people. So of 98 positives, only 9 are real. A positive result moved you from 1% to about 9%. That's a big jump, but far from 90%.</p>
+  <p><b>The base rate is the hidden half of the evidence.</b> Bayes' theorem says <code>P(real | positive) = P(positive | real) × P(real) / P(positive)</code>. The test's accuracy is only the first term. When the thing is rare, the many false alarms from the huge "not real" group swamp the few true hits.</p>
+  <p><b>Evidence accumulates.</b> Press "test the positives again". Today's posterior becomes tomorrow's prior. A second independent positive pushes 9% to about 50%, and a third to around 90%. That's why screening is usually followed by a different, more specific test.</p>
+  <p><b>It's everywhere:</b> spam filters (where spam is common, so flags are mostly right), fraud alerts and airport scanners (where the thing is so rare that almost every alarm is false), and machine-learning classifiers judged by "accuracy" on imbalanced data.</p>
+  <p class="status">An educational illustration, not medical guidance. Sensitivity is P(positive | real) and the false-alarm rate is P(positive | not real), i.e. 1 − specificity. The test repeats assume each test is independent, which real repeat tests often aren't.</p>
+</main>
+<script type="module">
+import { chrome, $ } from "../../shared/common.js";
+import { posterior, counts, SCENARIOS } from "./bayes.js";
+chrome();
+
+$("#scen").innerHTML = Object.entries(SCENARIOS).map(([k, s]) => `<option value="${k}">${s.label}</option>`).join("");
+let S = SCENARIOS.screening, prior0, round = 0;
+const prior = () => 10 ** +$("#prior").value;
+const pct = x => x >= 0.1 ? (x * 100).toFixed(0) + "%" : x >= 0.01 ? (x * 100).toFixed(1) + "%" : (x * 100).toFixed(2) + "%";
+function load(k) { S = SCENARIOS[k]; $("#prior").value = Math.log10(S.prior); $("#sens").value = S.sens; $("#fpr").value = S.fpr; prior0 = S.prior; round = 0; $("#againNote").textContent = ""; render(); }
+function render() {
+  const p = prior(), se = +$("#sens").value, f = +$("#fpr").value;
+  $("#vprior").textContent = `${pct(p)} (1 in ${Math.round(1 / p).toLocaleString()})`; $("#vsens").textContent = pct(se); $("#vfpr").textContent = pct(f);
+  const N = 1000, c = counts(N, p, se, f), post = posterior(p, se, f);
+  // lay out: real cases first (spread so they're visible), then false alarms, then the rest, shuffled deterministically
+  const cells = [...Array(c.tp).fill("tp"), ...Array(c.fn).fill("fn"), ...Array(c.fp).fill("fp"), ...Array(c.tn).fill("tn")];
+  let x = 7; for (let i = cells.length - 1; i > 0; i--) { x = (Math.imul(x, 1664525) + 1013904223) >>> 0; const j = x % (i + 1); [cells[i], cells[j]] = [cells[j], cells[i]]; }
+  const only = $("#onlyPos").checked;
+  $("#icons").innerHTML = cells.map(t => `<div class="ic ${t}${only && (t === "tn" || t === "fn") ? " fade" : ""}"></div>`).join("");
+  $("#popTitle").textContent = `1,000 ${S.label === "Spam filter" ? "emails" : S.label === "Card-fraud alert" ? "card payments" : S.label === "Airport scanner" ? "passengers" : "people"}${round ? ` (after ${round} extra test${round > 1 ? "s" : ""}, so the base rate is now ${pct(p)})` : ""}`;
+  $("#answer").innerHTML = `<span class="big">${pct(post)}</span> of those who ${S.test} really ${S.thing}. That's <b>${c.tp}</b> real out of <b>${c.tp + c.fp}</b> positives. The other ${c.fp} are false alarms${c.fp > c.tp ? `, which <b>outnumber</b> the real cases ${(c.fp / Math.max(1, c.tp)).toFixed(1)} to 1` : ""}.`;
+  $("#ct").innerHTML = `<tr><th></th><th>Positive</th><th>Negative</th><th>Total</th></tr><tr><th>Really ${S.thing.replace(/^(have|are|carry) /, "")}</th><td>${c.tp}</td><td>${c.fn}</td><td>${c.sick}</td></tr><tr><th>Not</th><td>${c.fp}</td><td>${c.tn}</td><td>${c.well}</td></tr><tr><th>Total</th><td>${c.tp + c.fp}</td><td>${c.fn + c.tn}</td><td>1,000</td></tr>`;
+}
+$("#again").onclick = () => {
+  const p = prior(), post = posterior(p, +$("#sens").value, +$("#fpr").value);
+  if (post >= 0.9999) return;
+  round++; $("#prior").value = Math.min(-0.001, Math.log10(post));
+  $("#againNote").textContent = `Only the positives are tested again, so the new base rate is ${pct(prior())}.`;
+  render();
+};
+$("#resetPrior").onclick = () => { $("#prior").value = Math.log10(prior0); round = 0; $("#againNote").textContent = ""; render(); };
+for (const id of ["prior", "sens", "fpr"]) $("#" + id).addEventListener("input", () => { if (id === "prior") round = 0; render(); });
+$("#onlyPos").onchange = render;
+$("#scen").onchange = e => load(e.target.value);
+load("screening");
+</script>
+</body>
+</html>

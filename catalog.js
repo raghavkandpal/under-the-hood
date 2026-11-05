@@ -1,5 +1,5 @@
 // The single source of truth for what explainers exist and how they relate.
-// Fields: id (also the page file name), title, area, level, tags, blurb, prereqs (ids this builds on).
+// Fields: id (also the folder name: explainers/<id>/), title, area, level, tags, blurb, prereqs (ids this builds on).
 // Add an entry here and the home page, search, nav and "related" links pick it up.
 
 export const AREAS = [
@@ -216,7 +216,8 @@ export const CATALOG = [
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
-export const hrefOf = c => `${c.id}.html`;
+/** Path of an explainer relative to the site root. Pages link with linkTo() from shared/common.js, which resolves it. */
+export const hrefOf = c => `explainers/${c.id}/`;
 
 /** Explainers that list `id` as a prerequisite. */
 export const unlocks = id => CATALOG.filter(c => c.prereqs.includes(id));

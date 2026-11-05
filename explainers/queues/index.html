@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Queues &amp; Little's Law</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 820px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  svg.chart { width: 100%; display: block; }
+  svg.chart text { font-size: 10px; fill: var(--muted); font-family: var(--mono); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 16px; }
+  .grid label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .grid label b { color: var(--text); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .warn { color: var(--red); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Queues &amp; Little's law</h1>
+  <p class="lede">Why does a server at 90% CPU feel slow when 70% felt fine? Why do airports use one long snaking line instead of a line per desk? Queueing theory answers both. The answers are counter-intuitive, and they apply to every system that serves requests.</p>
+
+  <div class="panel">
+    <div class="grid">
+      <label>Arrivals per minute (λ) <b id="vl"></b><input type="range" id="lambda" min="0.1" max="5.9" step="0.05" value="0.8"></label>
+      <label>Each server handles per minute (μ) <b id="vm"></b><input type="range" id="mu" min="0.5" max="3" step="0.1" value="1"></label>
+      <label>Servers <b id="vc"></b><input type="range" id="c" min="1" max="6" value="1"></label>
+    </div>
+    <div class="controls" style="margin:12px 0 0">
+      <label class="inline"><input type="checkbox" id="pooled" checked> one shared line (vs. a separate line per server)</label>
+      <button id="rerun">🎲 Re-run</button>
+    </div>
+    <div class="stats" id="stats"></div>
+    <p id="verdict" style="margin:10px 0 0"></p>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <b>People in the system over time</b> <span class="status">(simulated)</span>
+      <svg class="chart" id="trace" viewBox="0 0 400 180" preserveAspectRatio="none"></svg>
+      <p class="status">Even with steady average rates, randomness alone produces long jams.</p>
+    </div>
+    <div class="panel">
+      <b>Average time in system vs. how busy the servers are</b>
+      <svg class="chart" id="curve" viewBox="0 0 400 180" preserveAspectRatio="none"></svg>
+      <p class="status">Line = theory for this setup, dot = this simulation. Notice the cliff near 100%.</p>
+    </div>
+  </div>
+
+  <h2>Three results worth knowing</h2>
+  <p><b>1. Utilisation is a trap.</b> For one server with random arrivals, the average time in the system is <code>1 / (μ − λ)</code>. At 50% busy, a request spends about 2× its service time in the system. At 90% it's 10×, and at 99% it's 100×. Push the arrival slider toward the limit and watch the curve go vertical. That's why systems are run with headroom, and why "the database is only at 85%" is not reassuring.</p>
+  <p><b>2. Little's law: L = λ × W.</b> The average number of things in a system equals the arrival rate times the average time each spends there. It holds for almost any stable system: queues, warehouses, open bug tickets, requests in flight. If 10 requests arrive per second and each takes 0.3 s, about 3 are in progress at any moment. The "L vs λW" stat checks it live.</p>
+  <p><b>3. Pool your queues.</b> With three servers and three separate lines, one line can be stuck behind a slow customer while another server sits idle. One shared line never wastes a free server. Untick "one shared line" at the same load and the wait jumps several times over. It's the same reason a thread pool with one work queue beats pinning tasks to threads.</p>
+  <p class="status">Arrivals are random (Poisson) and service times are exponential, the classic M/M/c model. Theory uses the Erlang C formula. Each run simulates 20,000 customers and discards the first 10% as warm-up.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { simulate, theoryW } from "./queue.js";
+chrome();
+
+let seed = 1;
+const v = id => +$("#" + id).value;
+const fmt = m => !Number.isFinite(m) ? "∞" : m < 1 ? `${Math.round(m * 60)} s` : m < 120 ? `${m.toFixed(1)} min` : `${(m / 60).toFixed(1)} h`;
+function render() {
+  const lambda = v("lambda"), mu = v("mu"), c = v("c"), pooled = $("#pooled").checked, util = lambda / (c * mu);
+  $("#vl").textContent = lambda.toFixed(2); $("#vm").textContent = mu.toFixed(1) + ` (${fmt(1 / mu)} each)`; $("#vc").textContent = c;
+  if (util >= 1) {
+    $("#stats").innerHTML = [[Math.round(util * 100) + "%", "utilisation"]].map(statTile).join("");
+    $("#verdict").innerHTML = `<span class="warn">Overloaded:</span> work arrives faster than ${c} server${c > 1 ? "s" : ""} can finish it, so the line grows forever. Add a server or slow the arrivals.`;
+    drawCurve(lambda, mu, c, null); $("#trace").replaceChildren(); return;
+  }
+  const s = simulate({ lambda, mu, servers: c, pooled, n: 20000, seed });
+  const other = simulate({ lambda, mu, servers: c, pooled: !pooled, n: 20000, seed });
+  $("#stats").innerHTML = [[Math.round(util * 100) + "%", "utilisation"], [fmt(s.Wq), "average wait in line"], [fmt(s.W), "average time in system"], [s.L.toFixed(2), "average people inside (L)"], [`${s.L.toFixed(2)} ≈ ${(s.lambdaEff * s.W).toFixed(2)}`, "Little's law: L vs λ·W"]]
+    .map(statTile).join("");
+  $("#verdict").innerHTML = c > 1 ? (pooled ? `With separate lines instead, the average wait would be <b>${fmt(other.Wq)}</b>, ${(other.Wq / Math.max(1e-9, s.Wq)).toFixed(1)}× longer.` : `<span class="warn">Separate lines:</span> one shared line would cut the average wait to <b>${fmt(other.Wq)}</b>.`)
+    : util > 0.85 ? `<span class="warn">At ${Math.round(util * 100)}% busy,</span> customers spend ${(s.W * mu).toFixed(0)}× the service time in the system.`
+    : util > 0.6 ? `Getting busy: time in system is already ${(s.W * mu).toFixed(1)}× the service time, and it climbs steeply from here.`
+    : `Comfortable headroom: time in system is ${(s.W * mu).toFixed(1)}× the service time.`;
+  const svg = $("#trace"); svg.replaceChildren();
+  const mx = Math.max(4, ...s.trace.map(p => p.n)), t0 = s.trace[0].t, t1 = s.trace.at(-1).t;
+  svg.append(svgEl("polyline", { points: s.trace.map(p => `${10 + (p.t - t0) / (t1 - t0) * 385},${170 - p.n / mx * 160}`).join(" "), fill: "none", stroke: "var(--blue)", "stroke-width": 1.5, "vector-effect": "non-scaling-stroke" }));
+  svg.append(svgEl("text", { x: 2, y: 12 }, mx), svgEl("text", { x: 2, y: 176 }, "0"));
+  drawCurve(lambda, mu, c, s);
+}
+function drawCurve(lambda, mu, c, s) {
+  const svg = $("#curve"); svg.replaceChildren();
+  const cap = 25 / mu, X = u => 20 + u * 370, Y = w => 170 - Math.min(cap, w) / cap * 160;
+  const pts = []; for (let i = 1; i < 100; i++) { const u = i / 100; pts.push(`${X(u)},${Y(theoryW(u * c * mu, mu, c))}`); }
+  svg.append(svgEl("polyline", { points: pts.join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": 2.5, "vector-effect": "non-scaling-stroke" }));
+  for (const u of [0.5, 0.9]) svg.append(svgEl("line", { x1: X(u), x2: X(u), y1: 10, y2: 170, stroke: "var(--border)", "stroke-dasharray": "3 3", "vector-effect": "non-scaling-stroke" }), svgEl("text", { x: X(u) + 2, y: 166 }, Math.round(u * 100) + "%"));
+  svg.append(svgEl("text", { x: 2, y: 12 }, fmt(cap)));
+  if (s && $("#pooled").checked) svg.append(svgEl("circle", { cx: X(s.util), cy: Y(s.W), r: 5, fill: "var(--blue)" }));
+}
+for (const id of ["lambda", "mu", "c"]) $("#" + id).addEventListener("input", render);
+$("#pooled").onchange = render; $("#rerun").onclick = () => { seed++; render(); };
+render();
+</script>
+</body>
+</html>

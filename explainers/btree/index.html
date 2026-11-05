@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B-tree Indexes</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  #tree { display: block; }
+  .bn rect.box { fill: var(--surface-2); stroke: var(--border); stroke-width: 1.5; }
+  .bn.visit rect.box { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2.5; }
+  .bn.split rect.box { fill: var(--blue-soft); stroke: var(--blue); stroke-width: 2.5; }
+  .bn text { font-family: var(--mono); font-size: 12px; text-anchor: middle; fill: var(--text); }
+  .bn text.hit { fill: var(--green); font-weight: 700; }
+  .bn line.sep { stroke: var(--border); }
+  .be { stroke: var(--border); stroke-width: 1.3; fill: none; }
+  .be.visit { stroke: var(--accent); stroke-width: 2.5; }
+  .row input[type=number] { width: 7em; font-family: var(--mono); }
+  .msg { font-size: 15px; min-height: 1.6em; }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+  input[type=range] { accent-color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>B-tree indexes</h1>
+  <p class="lede">A table with a billion rows can find any one of them in a handful of disk reads. The trick is the B-tree, a short, wide search tree whose nodes are sized to fit a disk page. It's the default index in PostgreSQL, MySQL, SQLite and most file systems.</p>
+
+  <div class="panel">
+    <div class="row">
+      <input id="key" type="number" value="42" aria-label="Key">
+      <button id="ins" class="primary">Insert</button>
+      <button id="find">Search</button>
+      <button id="rand">+ 10 random</button>
+      <button id="seq">+ 10 in order</button>
+      <button id="reset">Reset</button>
+      <label class="inline">Max keys per node <input type="range" id="max" min="2" max="8" value="3"> <b id="vmax"></b></label>
+    </div>
+    <p class="msg" id="msg"></p>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel"><div class="scroll-x"><svg id="tree" role="img" aria-label="B-tree"></svg></div>
+    <p class="status">Orange = nodes read by the last operation (each is one disk page). Blue = nodes created by a split.</p></div>
+
+  <div class="panel scroll-x">
+    <b>Why "wide" wins: disk reads to find one row</b>
+    <table class="data" id="scale" style="margin-top:6px"></table>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>A node is a sorted list of keys</b> with a child pointer between each pair. To search, read the root, find which gap your key falls in, follow that pointer, and repeat. Each step reads one node, which on disk means one page.</p>
+  <p><b>Inserting</b> always happens at a leaf. When a node overflows, it <b>splits</b>: the middle key moves up to the parent and the two halves become siblings. If that overfills the parent, it splits too. The tree only gets taller when the <i>root</i> splits, so every leaf is always at the same depth and the tree can't go lopsided. Insert keys in order and watch it stay balanced, where a plain binary search tree would turn into a long chain.</p>
+  <p><b>Why so wide?</b> Reading from disk (even an SSD) costs far more than searching within a page you've already loaded. So real B-tree nodes hold hundreds of keys, one per 4–16 KB page. With 500 keys per node, three levels cover 125 million rows and four cover 62 billion. The top levels stay cached in memory, so a lookup often costs one or two actual reads.</p>
+  <p class="status">Real databases usually use the B+tree variant: all values live in the leaves, which are linked left-to-right for fast range scans (<code>WHERE price BETWEEN …</code>), and inner nodes hold only separator keys. Deletion (merging and borrowing between siblings) is left out here.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { BTree, heightFor } from "./btree.js";
+chrome();
+
+let t, last = { visit: new Set(), split: new Set(), hit: null }, rnd = 1, nextSeq = 1;
+const r = () => (rnd = (rnd * 1103515245 + 12345) % 2147483648) / 2147483648;
+function reset() { t = new BTree(+$("#max").value); last = { visit: new Set(), split: new Set(), hit: null }; nextSeq = 1; $("#msg").textContent = "Empty tree. Insert some keys."; render(); }
+
+function insert(k, quiet = false) {
+  const before = t.height();
+  const res = t.insert(k), s = t.search(k);
+  last = { visit: new Set(s.visited), split: new Set(res.splits.flatMap(x => [x.left, x.right])), hit: k };
+  if (!quiet) $("#msg").innerHTML = !res.inserted ? `${k} is already in the tree.` :
+    `Inserted <b>${k}</b>` + (res.splits.length ? `. The node overflowed and split: ` + res.splits.map((x, i) => `${i ? "then the parent overflowed too, and " : ""}<b>${x.up}</b> moved up a level`).join(", ") : " into a leaf with room, no split needed") + (t.height() > before ? `. <b>The root split, so the tree grew one level taller.</b>` : ".");
+}
+function search(k) {
+  const s = t.search(k); last = { visit: new Set(s.visited), split: new Set(), hit: s.found ? k : null };
+  $("#msg").innerHTML = `${s.found ? `Found <b>${k}</b>` : `<b>${k}</b> isn't there`}, after reading <b>${s.visited.length}</b> node${s.visited.length > 1 ? "s" : ""} out of ${t.levels().flat().length}. A full scan would read all ${t.size} keys.`;
+}
+function render() {
+  $("#vmax").textContent = $("#max").value;
+  const levels = t.levels(), KW = 30, PAD = 6, GX = 14, GY = 56, NH = 30;
+  const width = n => Math.max(1, n.keys.length) * KW + PAD * 2;
+  // place leaves left to right, then centre parents over children
+  const pos = new Map(); let x = 10;
+  levels.at(-1).forEach(n => { pos.set(n.id, x + width(n) / 2); x += width(n) + GX; });
+  for (let l = levels.length - 2; l >= 0; l--) levels[l].forEach(n => pos.set(n.id, (pos.get(n.kids[0].id) + pos.get(n.kids.at(-1).id)) / 2));
+  const W = Math.max(x, 400), H = levels.length * (NH + GY);
+  const svg = $("#tree"); svg.replaceChildren(); svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const Y = l => 10 + l * (NH + GY);
+  levels.forEach((lv, l) => lv.forEach(n => {
+    if (n.leaf) return;
+    const nx = pos.get(n.id) - width(n) / 2;
+    n.kids.forEach((c, i) => {
+      const sx = nx + PAD + i * KW, cx = pos.get(c.id);
+      svg.append(svgEl("path", { d: `M${sx} ${Y(l) + NH} C ${sx} ${Y(l) + NH + GY / 2}, ${cx} ${Y(l + 1) - GY / 2}, ${cx} ${Y(l + 1)}`, class: "be" + (last.visit.has(n.id) && last.visit.has(c.id) ? " visit" : "") }));
+    });
+  }));
+  levels.forEach((lv, l) => lv.forEach(n => {
+    const w = width(n), nx = pos.get(n.id) - w / 2;
+    const g = svgEl("g", { class: "bn" + (last.visit.has(n.id) ? " visit" : last.split.has(n.id) ? " split" : ""), transform: `translate(${nx},${Y(l)})` });
+    g.append(svgEl("rect", { width: w, height: NH, rx: 5, class: "box" }));
+    n.keys.forEach((k, i) => {
+      if (i) g.append(svgEl("line", { x1: PAD + i * KW, x2: PAD + i * KW, y1: 4, y2: NH - 4, class: "sep" }));
+      g.append(svgEl("text", { x: PAD + i * KW + KW / 2, y: NH / 2 + 4, class: k === last.hit ? "hit" : "" }, k));
+    });
+    svg.append(g);
+  }));
+  const nodes = levels.flat().length;
+  $("#stats").innerHTML = [[t.size, "keys"], [t.height(), "levels (reads per lookup)"], [nodes, "nodes (pages)"], [(t.size / nodes).toFixed(1) + " / " + t.max, "avg keys per node"]].map(statTile).join("");
+  const sizes = [1e3, 1e6, 1e9];
+  $("#scale").innerHTML = `<tr><th>Rows</th><th>Full scan (≈100 rows per page)</th><th>Binary tree</th><th>B-tree, 100 keys/node</th><th>B-tree, 500 keys/node</th></tr>` + sizes.map(n =>
+    `<tr><td class="num">${n.toLocaleString()}</td><td class="num">${(n / 100).toLocaleString()} pages</td><td class="num">${Math.ceil(Math.log2(n))}</td><td class="num">${heightFor(n, 100)}</td><td class="num">${heightFor(n, 500)}</td></tr>`).join("");
+}
+$("#ins").onclick = () => { insert(+$("#key").value); render(); };
+$("#find").onclick = () => { search(+$("#key").value); render(); };
+$("#key").addEventListener("keydown", e => { if (e.key === "Enter") { insert(+$("#key").value); render(); } });
+$("#rand").onclick = () => { const ks = []; for (let i = 0; i < 10; i++) { const k = 1 + Math.floor(r() * 99); insert(k, true); ks.push(k); } $("#msg").textContent = `Inserted ${ks.join(", ")}.`; render(); };
+$("#seq").onclick = () => { const a = nextSeq; for (let i = 0; i < 10; i++) insert(100 + nextSeq++, true); $("#msg").textContent = `Inserted ${100 + a}…${100 + nextSeq - 1} in order. Still balanced.`; render(); };
+$("#reset").onclick = reset;
+$("#max").oninput = () => { const ks = t.inorder(); t = new BTree(+$("#max").value); for (const k of ks) t.insert(k); last = { visit: new Set(), split: new Set(), hit: null }; $("#msg").textContent = `Rebuilt with up to ${t.max} keys per node.`; render(); };
+reset();
+for (const k of [20, 40, 10, 30, 50, 60, 25, 35, 5, 15, 45, 55, 70]) insert(k, true);
+$("#msg").textContent = "A small tree is ready. Try inserting 33, or searching for 45.";
+last = { visit: new Set(), split: new Set(), hit: null }; render();
+</script>
+</body>
+</html>

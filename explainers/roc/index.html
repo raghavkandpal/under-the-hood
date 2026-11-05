@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Precision, Recall &amp; ROC</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 16px; }
+  .grid label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .grid label b { color: var(--text); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  svg.chart { width: 100%; display: block; }
+  svg.chart text { font-size: 10px; fill: var(--muted); font-family: var(--mono); }
+  .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 820px) { .three { grid-template-columns: minmax(0, 1fr); } }
+  table.cm { border-collapse: collapse; font-size: 14px; }
+  table.cm td, table.cm th { border: 1px solid var(--border); padding: 8px 12px; text-align: center; }
+  table.cm th { color: var(--muted); font-weight: 600; }
+  table.cm td.tp { background: var(--green-soft); } table.cm td.tn { background: var(--surface-2); }
+  table.cm td.fp { background: var(--accent-soft); } table.cm td.fn { background: var(--red-soft); }
+  .stats { --stat-min: 110px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Precision, recall &amp; ROC</h1>
+  <p class="lede">A spam filter, a fraud detector or a cancer screen doesn't really say yes or no. It gives a <b>score</b>, and someone picks a <b>threshold</b>. Move the threshold and you trade one kind of mistake for the other. Here's how to see that trade-off, and why "99% accurate" can mean nothing.</p>
+
+  <div class="panel">
+    <div class="grid">
+      <label>Threshold <b id="vt"></b><input type="range" id="t" min="-3" max="5" step="0.02" value="1"></label>
+      <label>How well the model separates the classes <b id="vsep"></b><input type="range" id="sep" min="0" max="4" step="0.05" value="1.5"></label>
+      <label>Share of real positives (prevalence) <b id="vprev"></b><input type="range" id="prev" min="0.01" max="0.5" step="0.01" value="0.3"></label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <b>Scores the model gives</b> <span class="status"><span style="color:var(--red)">■</span> real positives (e.g. fraud) · <span style="color:var(--blue)">■</span> real negatives · dashed line = threshold, flagged if to the right</span>
+    <svg class="chart" id="hist" viewBox="0 0 700 150" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="three">
+    <div class="panel">
+      <b>Confusion matrix</b>
+      <table class="cm" id="cm" style="margin-top:8px"></table>
+      <div class="stats" id="stats"></div>
+    </div>
+    <div class="panel"><b>ROC curve</b> <span class="status" id="auc"></span><svg class="chart" id="rocc" viewBox="0 0 220 220"></svg><p class="status">Catch rate vs. false-alarm rate at every threshold. The dot is yours. The diagonal is guessing.</p></div>
+    <div class="panel"><b>Precision–recall curve</b><svg class="chart" id="prc" viewBox="0 0 220 220"></svg><p class="status">Of what you flag, how much is real, vs. how much of the real stuff you catch. The dashed line is the prevalence.</p></div>
+  </div>
+
+  <h2>The vocabulary</h2>
+  <p><b>Recall</b> (sensitivity, true-positive rate): of all real positives, what share did we catch? <b>Precision</b>: of everything we flagged, what share was real? <b>False-positive rate</b>: of all real negatives, what share did we wrongly flag? <b>F1</b> is the harmonic mean of precision and recall, one number that's high only when both are.</p>
+  <p><b>The threshold is a business decision.</b> Slide it left and you catch more fraud (recall up) but annoy more honest customers (precision down). Slide it right and it's the reverse. No threshold is "correct". It depends on what a missed case costs against a false alarm.</p>
+  <p><b>ROC and AUC</b> summarise the model over <i>every</i> threshold. AUC, the area under the ROC curve, is the probability that a random positive gets a higher score than a random negative: 0.5 is a coin flip, 1.0 is perfect. It's a good way to compare models before choosing a threshold.</p>
+  <p><b>The rare-case trap.</b> Drop prevalence to 1%. The ROC curve barely moves, but precision collapses, because even a small false-positive rate on 99% of the data swamps the true hits (exactly <a href="../bayes/">Bayes' theorem</a>). Meanwhile "accuracy" looks fantastic, since flagging nothing at all would score 99%. For rare events, look at precision and recall, not accuracy.</p>
+  <p class="status">1,000 synthetic cases. The model's scores follow two overlapping bell curves; "separation" is the distance between their centres in standard deviations.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { makeScores, confusion, curves } from "./roc.js";
+chrome();
+
+let data, C;
+const pct = x => (x * 100).toFixed(0) + "%";
+function regen() { data = makeScores({ n: 1000, sep: +$("#sep").value, prevalence: +$("#prev").value, seed: 7 }); C = curves(data); render(); }
+function render() {
+  const t = +$("#t").value, sep = +$("#sep").value; $("#vt").textContent = t.toFixed(2); $("#vsep").textContent = sep.toFixed(2) + (sep < 0.3 ? " (useless)" : sep > 3 ? " (excellent)" : ""); $("#vprev").textContent = pct(+$("#prev").value);
+  const h = $("#hist"); h.replaceChildren();
+  const lo = -3.5, hi = 7.5, B = 70, bw = (hi - lo) / B, X = v => 10 + (v - lo) / (hi - lo) * 680;
+  const cnt = y => { const c = new Array(B).fill(0); for (const d of data) if (d.y === y) { const b = Math.floor((d.s - lo) / bw); if (b >= 0 && b < B) c[b]++; } return c; };
+  const neg = cnt(0), pos = cnt(1), mx = Math.max(1, ...neg, ...pos);
+  for (const [arr, col] of [[neg, "var(--blue)"], [pos, "var(--red)"]]) arr.forEach((c, b) => { const x0 = lo + b * bw; h.append(svgEl("rect", { x: X(x0), y: 140 - c / mx * 130, width: 680 / B - 1, height: c / mx * 130, fill: col, opacity: x0 + bw / 2 >= t ? 0.75 : 0.3 })); });
+  h.append(svgEl("line", { x1: X(t), x2: X(t), y1: 0, y2: 145, stroke: "var(--text)", "stroke-width": 2, "stroke-dasharray": "5 3", "vector-effect": "non-scaling-stroke" }));
+  const c = confusion(data, t);
+  $("#cm").innerHTML = `<tr><th></th><th>flagged</th><th>not flagged</th></tr><tr><th>really positive</th><td class="tp">${c.tp}<br><small>caught</small></td><td class="fn">${c.fn}<br><small>missed</small></td></tr><tr><th>really negative</th><td class="fp">${c.fp}<br><small>false alarm</small></td><td class="tn">${c.tn}<br><small>correctly ignored</small></td></tr>`;
+  $("#stats").innerHTML = [[pct(c.precision), "precision"], [pct(c.recall), "recall"], [pct(c.fpr), "false-positive rate"], [c.f1.toFixed(2), "F1"], [pct(c.accuracy), "accuracy"], [pct(1 - C.base), "accuracy if you flag nothing"]].map(statTile).join("");
+  const S = 200, P0 = 10, map = (x, y) => [P0 + x * S, P0 + S - y * S];
+  const draw = (svg, pts, fx, fy, dot, base) => {
+    svg.replaceChildren();
+    svg.append(svgEl("rect", { x: P0, y: P0, width: S, height: S, fill: "none", stroke: "var(--border)" }));
+    if (base != null) svg.append(svgEl("line", { x1: P0, x2: P0 + S, y1: map(0, base)[1], y2: map(0, base)[1], stroke: "var(--muted)", "stroke-dasharray": "4 3" }));
+    else svg.append(svgEl("line", { x1: P0, y1: P0 + S, x2: P0 + S, y2: P0, stroke: "var(--muted)", "stroke-dasharray": "4 3" }));
+    svg.append(svgEl("polyline", { points: pts.map(p => map(fx(p), fy(p)).join(",")).join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": 2.5 }));
+    const [dx, dy] = map(...dot); svg.append(svgEl("circle", { cx: dx, cy: dy, r: 6, fill: "var(--text)", stroke: "var(--surface)", "stroke-width": 2 }));
+  };
+  draw($("#rocc"), C.roc, p => p.fpr, p => p.tpr, [c.fpr, c.recall]);
+  draw($("#prc"), C.pr, p => p.recall, p => p.precision, [c.recall, c.precision], C.base);
+  $("#auc").textContent = `AUC = ${C.auc.toFixed(3)}`;
+}
+$("#t").oninput = render; $("#sep").oninput = regen; $("#prev").oninput = regen;
+regen();
+</script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tokenization</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 800px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  .toks { font-family: var(--mono); font-size: 14px; line-height: 2.1; word-break: break-word; }
+  .tk { padding: 2px 1px; border-radius: 4px; margin-right: 1px; white-space: pre; }
+  .tk .sp { opacity: .45; }
+  .tk.new { outline: 2px solid var(--accent); }
+  ol.merges { font-family: var(--mono); font-size: 13px; max-height: 260px; overflow: auto; margin: 0; padding-left: 34px; }
+  ol.merges li.cur { color: var(--accent); font-weight: 700; }
+  .pairs { font-family: var(--mono); font-size: 13px; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; }
+  .pairs .track { height: 10px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+  .pairs .fill { height: 100%; background: var(--accent); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .stats { --stat-min: 110px; }
+  .row input[type=text] { flex: 1 1 260px; font-family: var(--mono); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tokenization</h1>
+  <p class="lede">Language models don't read letters or words. They read <b>tokens</b>, chunks of text learned from data. Most modern models build their chunks with <b>byte-pair encoding</b>: start from single characters and keep gluing together the pair that appears most often.</p>
+
+  <div class="panel">
+    <label class="status" for="corpus">Training text (edit it, the vocabulary is relearned instantly)</label>
+    <textarea id="corpus" rows="5" spellcheck="false"></textarea>
+    <label class="inline" style="margin-top:10px;display:flex">Merges learned: <b id="vk" style="min-width:3ch"></b><input type="range" id="k" min="0" max="150" value="0" style="flex:1"></label>
+    <div class="controls" style="margin:8px 0 0"><button id="next" class="primary">Learn next merge ▶</button><button id="play">▶ Play</button><button id="zero">Back to characters</button></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <b>Most common neighbouring pairs right now</b>
+      <p class="status" style="margin:2px 0 8px">The top one gets merged next.</p>
+      <div class="pairs" id="pairs"></div>
+    </div>
+    <div class="panel">
+      <b>Merge rules so far</b> <span class="status">(the learned vocabulary, in order)</span>
+      <ol class="merges" id="merges"></ol>
+    </div>
+  </div>
+
+  <div class="panel">
+    <b>The training text, tokenized</b> <span class="status">(<span style="opacity:.45">▁</span> marks the start of a word; outlined = created by the latest merge)</span>
+    <div class="toks" id="corpusToks" style="margin-top:6px"></div>
+  </div>
+
+  <h2>Try your own text</h2>
+  <div class="panel">
+    <div class="row"><input id="probe" type="text" value="The baker baked bread, then rebaked the unbakeable loaf." aria-label="Text to tokenize"></div>
+    <div class="toks" id="probeToks" style="margin-top:8px"></div>
+    <p class="status" id="probeInfo"></p>
+  </div>
+
+  <h2>Why this matters</h2>
+  <p><b>Fixed vocabulary, any text.</b> Rare or brand-new words never break the model. They just split into smaller known pieces, down to single characters if need be. Type a made-up word above and watch it fall apart into familiar chunks.</p>
+  <p><b>Common things get cheap.</b> Frequent words become a single token, and rare ones cost several. Models are priced and limited by tokens, not words. A typical English token is about 4 characters, and languages under-represented in the training data need more tokens for the same meaning.</p>
+  <p><b>Models don't see letters.</b> If "strawberry" is one or two tokens, the model never directly sees its individual r's. That's part of why language models are oddly bad at spelling and letter-counting.</p>
+  <p class="status">Toy version: lowercase letters only and a tiny corpus. Real tokenizers (GPT, Llama, Claude) work on raw bytes so any Unicode works, train on terabytes of text, and learn 50,000–200,000 merges.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml, statTile } from "../../shared/common.js";
+import { train, encode, vocab, words, SPACE } from "./bpe.js";
+chrome();
+
+const DEFAULT = `The baker bakes bread every morning. She bakes brown bread and white bread, and her bakery is the best bakery in the town. The baker's brother is a banker; the banker banks at the bank by the bakery. Every morning the banker buys bread from the baker, and every evening the baker brings the bread money to the bank. Baking and banking: the baker bakes, the banker banks, and the town eats bread.`;
+$("#corpus").value = DEFAULT;
+let model, k = 0, timer = null;
+
+const hue = t => { let h = 0; for (const c of t) h = (h * 31 + c.codePointAt(0)) >>> 0; return h % 360; };
+const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
+const tokHtml = (toks, fresh) => toks.map(t => `<span class="tk${t === fresh ? " new" : ""}" style="background:hsl(${hue(t)} 70% ${dark() ? "28%" : "86%"})" title="${escapeHtml(t)}">${t.startsWith(SPACE) ? `<span class="sp">▁</span>${escapeHtml(t.slice(1))}` : escapeHtml(t)}</span>`).join("");
+
+function relearn() {
+  model = train($("#corpus").value, 150);
+  $("#k").max = model.merges.length;
+  k = Math.min(k, model.merges.length);
+  render();
+}
+function render() {
+  $("#k").value = k; $("#vk").textContent = k;
+  const text = $("#corpus").value, toks = encode(text, model.merges, k), chars = words(text).join("").length;
+  const fresh = k ? model.merges[k - 1].token : null;
+  $("#corpusToks").innerHTML = tokHtml(toks, fresh);
+  $("#stats").innerHTML = [[vocab(model.base, model.merges, k).length, "vocabulary size"], [toks.length, "tokens in training text"], [(chars / toks.length).toFixed(2), "characters per token"]]
+    .map(statTile).join("");
+  const top = model.tops[k];
+  if (top) {
+    const mx = top[0][1];
+    $("#pairs").innerHTML = top.map(([p, c], i) => `<span>${escapeHtml(p[0])} + ${escapeHtml(p[1])}</span><div class="track"><div class="fill" style="width:${c / mx * 100}%;opacity:${i ? 0.5 : 1}"></div></div><span>${c}×</span>`).join("");
+  } else $("#pairs").innerHTML = `<span class="status" style="grid-column:1/-1">No pair appears twice any more. The vocabulary is done for this text.</span>`;
+  $("#merges").innerHTML = model.merges.slice(0, k).map((m, i) => `<li class="${i === k - 1 ? "cur" : ""}">${escapeHtml(m.pair[0])} + ${escapeHtml(m.pair[1])} → <b>${escapeHtml(m.token)}</b> <span class="status">(${m.count}×)</span></li>`).join("") || `<li class="status" style="list-style:none;margin-left:-34px">None yet: every token is a single character.</li>`;
+  $("#merges").scrollTop = 1e9;
+  probe();
+}
+function probe() {
+  const t = $("#probe").value, toks = encode(t, model.merges, k), chars = words(t).join("").length;
+  $("#probeToks").innerHTML = tokHtml(toks);
+  $("#probeInfo").textContent = toks.length ? `${toks.length} tokens for ${words(t).length} words (${(chars / toks.length).toFixed(2)} characters per token).` : "";
+}
+const stop = () => { clearInterval(timer); timer = null; $("#play").textContent = "▶ Play"; };
+$("#k").oninput = e => { stop(); k = +e.target.value; render(); };
+$("#next").onclick = () => { stop(); if (k < model.merges.length) { k++; render(); } };
+$("#zero").onclick = () => { stop(); k = 0; render(); };
+$("#play").onclick = () => {
+  if (timer) return stop();
+  $("#play").textContent = "⏸ Pause";
+  timer = setInterval(() => { if (k >= model.merges.length) return stop(); k++; render(); }, 350);
+};
+let debounce; $("#corpus").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(relearn, 200); });
+$("#probe").addEventListener("input", probe);
+relearn();
+</script>
+</body>
+</html>

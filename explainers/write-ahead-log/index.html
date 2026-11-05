@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Write-Ahead Logging</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 10px; }
+  @media (max-width: 640px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  .box { border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 12px; min-height: 150px; }
+  .box.mem { border-style: dashed; }
+  .box.lost { opacity: 0.35; }
+  .box h3 { margin: 0 0 6px; font-size: 15px; }
+  .pages { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pg { font-family: var(--mono); font-size: 14px; padding: 6px 10px; border-radius: 8px; background: var(--surface-2); }
+  .pg.dirty { background: var(--accent-soft); outline: 1.5px solid var(--accent); }
+  .log { font-family: var(--mono); font-size: 12px; margin-top: 8px; display: grid; gap: 2px; }
+  .log div { padding: 1px 6px; border-radius: 4px; background: var(--surface-2); }
+  .log .commit { background: var(--green-soft); }
+  .log .abort { background: var(--red-soft); }
+  .row { margin-top: 8px; }
+  .verdict { padding: 8px 12px; border-radius: 10px; margin-top: 10px; font-weight: 600; }
+  .verdict.good { background: var(--green-soft); color: var(--green); }
+  .verdict.bad { background: var(--red-soft); color: var(--red); }
+  .verdict.info { background: var(--surface-2); }
+  #events { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Write-ahead logging</h1>
+  <p class="lede">Move £30 from account A to account B, and the power cuts out halfway. Afterwards the money must be in exactly one place: either the whole transfer happened or none of it did. Every serious database, and most file systems, get there with one simple rule: <i>write down what you're about to do before you do it.</i></p>
+
+  <div class="panel">
+    <div class="row" style="margin-top:0">
+      <label class="inline"><input type="checkbox" id="wal" checked> use a write-ahead log</label>
+      <span style="flex:1"></span>
+      <span class="status">Try:</span><button data-s="late">Crash after commit</button><button data-s="early">Crash mid-transfer</button><button data-s="torn">No log, crash mid-commit</button>
+    </div>
+    <div class="row">
+      <button data-a="wa">T1: A − 30</button><button data-a="wb">T1: B + 30</button><button data-a="commit" class="primary">Commit T1</button>
+      <button data-a="fa">Write page A to disk</button><button data-a="fb">Write page B to disk</button>
+      <button data-a="crash">💥 Crash</button><button data-a="recover">Restart</button><button data-a="reset">Reset</button>
+    </div>
+    <div class="two">
+      <div class="box mem" id="membox"><h3>Memory <span class="status">(lost in a crash)</span></h3><div class="pages" id="cache"></div><div class="log" id="logbuf"></div></div>
+      <div class="box"><h3>Disk <span class="status">(survives)</span></h3><div class="pages" id="disk"></div><div class="log" id="logdisk"></div></div>
+    </div>
+    <div id="verdict"></div>
+    <p id="events"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Why not just write the pages?</b> A transfer touches two places on disk, and disks write one at a time. Crash between the two writes and £30 has vanished. There's no way to update two places atomically, so writing in place can't be safe on its own. Untick the log and try “No log, crash mid-commit”.</p>
+  <p><b>The log.</b> Before changing anything, append a record to a sequential log file: “T1 changes A from 100 to 70”. Committing means appending “T1 commits” and forcing the log to disk with <code>fsync</code>. That one append is the moment of truth. The data pages themselves can be written whenever is convenient, minutes later and in big batches, because the log can rebuild them.</p>
+  <p><b>The rule</b>: a changed page may reach disk only <i>after</i> the log records describing it. That's why it's called write-<i>ahead</i>. Writing page A early is allowed, and databases do it to free memory, but the engine flushes the log first, so it can always undo.</p>
+  <p><b>Recovery.</b> After a crash: <i>redo</i> every change in the log, restoring work that was committed but whose pages never got written, then <i>undo</i> every change from transactions that never committed. That's the essence of ARIES, the algorithm inside most relational databases. Recovery is also safe to run twice, which matters because the power can fail during recovery too.</p>
+  <p class="status">Bonus: appending to one file is far faster than scattered page writes, so the log makes databases faster as well as safe. The same log, shipped over the network, is how replicas stay in sync (Postgres streaming replication, MySQL binlog), and log-structured storage like <a href="../lsm/">LSM trees</a> takes the idea all the way.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml } from "../../shared/common.js";
+import { Engine, total } from "./wal.js";
+chrome();
+
+const INIT = { A: 100, B: 50 };
+let e, crashed = false, recovered = false;
+function reset() { e = new Engine(INIT, { wal: $("#wal").checked }); crashed = false; recovered = false; render(); }
+const rec = r => r.type === "update" ? `#${r.lsn} T${r.tx} ${r.key}: ${r.old} → ${r.new}` : `#${r.lsn} T${r.tx} ${r.type.toUpperCase()}`;
+function render() {
+  const keys = ["A", "B"];
+  $("#cache").innerHTML = crashed ? `<span class="status">(empty: wiped by the crash)</span>` : keys.map(k => `<span class="pg ${e.dirty.has(k) ? "dirty" : ""}">${k} = ${e.read(k)}</span>`).join("");
+  $("#disk").innerHTML = keys.map(k => `<span class="pg">${k} = ${e.disk[k]}</span>`).join("");
+  $("#logbuf").innerHTML = e.wal ? (e.logBuf.length ? `<span class="status">log buffer, not yet on disk:</span>` : "") + e.logBuf.map(r => `<div class="${r.type}">${rec(r)}</div>`).join("") : "";
+  $("#logdisk").innerHTML = e.wal ? `<span class="status">log file:</span>` + (e.logDisk.map(r => `<div class="${r.type}">${rec(r)}</div>`).join("") || ` <i class="status">(empty)</i>`) : `<span class="status">no log</span>`;
+  $("#membox").classList.toggle("lost", crashed);
+  const committed = e.wal ? e.logDisk.some(r => r.type === "commit") : e.events.some(x => /committed/.test(x));
+  const sum = total(e.disk, keys);
+  let v;
+  if (crashed && !recovered) v = ["info", `Crashed. Disk holds A = ${e.disk.A}, B = ${e.disk.B} (total £${sum}). Press Restart.`];
+  else if (recovered || crashed) {
+    if (sum !== 150) v = ["bad", `Corrupted: the accounts total £${sum}, not £150. Money was ${sum < 150 ? "destroyed" : "created"}.`];
+    else if (committed && e.disk.A !== 70) v = ["bad", "The bank said the transfer was done, but it's gone. Durability violated."];
+    else v = ["good", committed ? "Consistent and durable: the committed transfer survived the crash." : "Consistent: the unfinished transfer was rolled back cleanly. All or nothing."];
+  } else v = ["info", `Accounts total £${total({ A: e.read("A"), B: e.read("B") }, keys)}. ${committed ? "T1 is committed." : "T1 is not committed yet."}`];
+  $("#verdict").innerHTML = `<div class="verdict ${v[0]}">${v[1]}</div>`;
+  $("#events").textContent = e.events.slice(-3).join(" · ");
+  document.querySelectorAll("[data-a]").forEach(b => (b.disabled = crashed && !["recover", "reset"].includes(b.dataset.a) || (!crashed && b.dataset.a === "recover")));
+}
+const ACT = {
+  wa: () => e.write(1, "A", e.read("A") - 30), wb: () => e.write(1, "B", e.read("B") + 30),
+  commit: () => { if (!e.commit(1)) crashed = true; }, fa: () => e.flushPage("A"), fb: () => e.flushPage("B"),
+  crash: () => { e.crash(); crashed = true; }, recover: () => { const r = e.recover(); crashed = false; recovered = true; if (e.wal) e.events.push(r.losers.length ? `T${r.losers.join(", T")} rolled back` : "nothing to roll back"); },
+  reset,
+};
+document.querySelectorAll("[data-a]").forEach(b => (b.onclick = () => { ACT[b.dataset.a](); if (b.dataset.a !== "reset") render(); }));
+const SCEN = {
+  late: () => { $("#wal").checked = true; reset(); ACT.wa(); ACT.wb(); ACT.commit(); ACT.crash(); },
+  early: () => { $("#wal").checked = true; reset(); ACT.wa(); ACT.fa(); ACT.crash(); },
+  torn: () => { $("#wal").checked = false; reset(); ACT.wa(); ACT.wb(); e.commit(1, { crashAfterPages: 1 }); crashed = true; },
+};
+document.querySelectorAll("[data-s]").forEach(b => (b.onclick = () => { SCEN[b.dataset.s](); render(); }));
+$("#wal").onchange = reset;
+reset();
+</script>
+</body>
+</html>

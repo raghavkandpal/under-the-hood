@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Internet Routing</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 8px; }
+  @media (max-width: 760px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  #net .link { cursor: pointer; }
+  #net .link line.hit { stroke: transparent; stroke-width: 16; }
+  #net text { font-size: 12px; text-anchor: middle; fill: var(--text); pointer-events: none; }
+  #net text.r { font-weight: 700; font-size: 15px; fill: #fff; }
+  #net .router { cursor: pointer; }
+  table.data td, table.data th { font-family: var(--mono); font-size: 13px; padding: 3px 10px; }
+  table.data tr.chg td { background: var(--accent-soft); }
+  table.data tr.inf td { color: var(--red); }
+  .row { gap: 10px; }
+  .msg { min-height: 1.5em; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Internet routing</h1>
+  <p class="lede">No router on the internet has a map of the whole thing. Each one only talks to its neighbours, swapping notes like “I can reach X in 3 hops”, and from that gossip alone every packet finds a short path. Until a cable is cut, and bad news turns out to travel much more slowly than good news.</p>
+
+  <div class="panel">
+    <div class="row">
+      <button id="step" class="primary">Exchange once ▶</button><button id="run">Run until stable</button><button id="reset">Restart routers</button>
+      <label class="inline"><input type="checkbox" id="sh"> split horizon (poisoned reverse)</label>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <label class="inline">packet from <select id="src"></select> to <select id="dst"></select></label>
+      <button id="cut">✂ Cut C–E</button><button id="iso">✂ Cut E and F off</button><button id="heal">Repair all cables</button>
+    </div>
+    <div class="two">
+      <svg id="net" viewBox="0 0 420 270" style="width:100%;height:auto;display:block" role="img" aria-label="Network of routers"></svg>
+      <div><b>Router <span id="who"></span>'s table</b> <span class="status">(click a router)</span><div class="scroll-x"><table class="data" id="tbl"></table></div></div>
+    </div>
+    <p class="msg" id="msg"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Distance vector.</b> Every router keeps a table: for each destination, the cost and which neighbour to hand the packet to. Periodically it sends its costs to its neighbours. Hearing that neighbour N can reach X at cost c, over a link costing ℓ, it knows a route to X at c + ℓ via N, and keeps the cheapest. That's the Bellman-Ford algorithm, spread across many machines. News spreads one hop per exchange. Press “Exchange once” and watch the tables fill outward.</p>
+  <p><b>Click any link</b> to cut or restore it. The packet path (thick) follows each router's “via” pointer hop by hop. No one router knows the whole route.</p>
+  <p><b>Bad news travels slowly.</b> Cut C–E and step through. C's neighbours still advertise routes to E that secretly went <i>through C</i>, so for a few rounds the routers point at each other and packets loop until their TTL expires. Then the real detour via B wins.</p>
+  <p><b>Count to infinity.</b> Now cut E and F off completely. Every router still hears “E is reachable” from a neighbour whose route was really learned from it, so the cost creeps up a little each round and never settles. RIP caps “infinity” at 16 hops so the counting at least ends. <b>Split horizon</b> means never advertising a route back to the neighbour you learned it from, and the <i>poisoned reverse</i> variant advertises it as unreachable instead. That cures the loop between two routers, but here the stale route circles A → B → C → D, so it only shortens the count. Fixing that for good takes a different design.</p>
+  <p><b>Link state</b> (OSPF, IS-IS, inside a company or ISP) takes the other approach: every router floods a description of its own links to everyone, so all have the full map and run Dijkstra. Between the internet's ~75,000 networks, <b>BGP</b> uses <i>path vectors</i>, advertising the whole list of networks a route passes through. That lets it spot loops instantly and apply business policy, such as preferring a route because it's cheaper rather than shorter.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl } from "../../shared/common.js";
+import { init, step, INF } from "./routing.js";
+chrome();
+
+const POS = { A: [50, 70], B: [170, 40], C: [210, 150], D: [80, 210], E: [340, 120], F: [360, 230] };
+const ALL = [["A", "B", 1], ["A", "D", 2], ["B", "C", 1], ["C", "D", 3], ["C", "E", 1], ["B", "E", 5], ["E", "F", 1], ["D", "F", 6]];
+const NODES = Object.keys(POS);
+let down = new Set(), tables, prevT = null, round = 0, sel = "A";
+const key = l => l[0] + l[1];
+const links = () => ALL.filter(l => !down.has(key(l)));
+$("#src").innerHTML = NODES.map(n => `<option${n === "A" ? " selected" : ""}>${n}</option>`).join("");
+$("#dst").innerHTML = NODES.map(n => `<option${n === "E" ? " selected" : ""}>${n}</option>`).join("");
+
+function reset() { tables = init(NODES); prevT = null; round = 0; render("Every router knows only itself. Press “Exchange once”."); }
+function path(src, dst) {
+  const p = [src], seen = new Set([src]);
+  for (let cur = src; cur !== dst;) {
+    const r = tables[cur][dst]; if (!r || r.cost >= INF || !r.via) return { p, ok: false, why: `${cur} has no route` };
+    cur = r.via; if (seen.has(cur)) { p.push(cur); return { p, ok: false, why: "loop" }; }
+    seen.add(cur); p.push(cur);
+    if (!links().some(l => (l[0] === p.at(-2) && l[1] === cur) || (l[1] === p.at(-2) && l[0] === cur))) return { p, ok: false, why: "the cable is cut" };
+  }
+  return { p, ok: true };
+}
+function render(msg) {
+  const svg = $("#net"); svg.replaceChildren();
+  const pr = path($("#src").value, $("#dst").value), onPath = new Set(); for (let i = 1; i < pr.p.length; i++) onPath.add([pr.p[i - 1], pr.p[i]].sort().join(""));
+  for (const l of ALL) {
+    const [a, b, c] = l, [x1, y1] = POS[a], [x2, y2] = POS[b], isDown = down.has(key(l)), hot = onPath.has([a, b].sort().join(""));
+    const g = svgEl("g", { class: "link", "data-l": key(l) });
+    g.append(svgEl("line", { x1, y1, x2, y2, stroke: isDown ? "var(--red)" : hot ? (pr.ok ? "var(--accent)" : "var(--red)") : "var(--muted)", "stroke-width": hot ? 6 : 2, "stroke-dasharray": isDown ? "6 5" : "", opacity: isDown ? 0.6 : 1 }));
+    g.append(svgEl("line", { x1, y1, x2, y2, class: "hit" }));
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    g.append(svgEl("rect", { x: mx - 9, y: my - 9, width: 18, height: 18, rx: 4, fill: "var(--surface)", stroke: "var(--border)" }), svgEl("text", { x: mx, y: my + 4 }, isDown ? "✂" : c));
+    svg.append(g);
+  }
+  for (const n of NODES) { const [x, y] = POS[n], g = svgEl("g", { class: "router", "data-n": n });
+    g.append(svgEl("circle", { cx: x, cy: y, r: 19, fill: n === sel ? "var(--accent)" : "var(--blue)", stroke: "var(--surface)", "stroke-width": 3 }), svgEl("text", { x, y: y + 5, class: "r" }, n)); svg.append(g); }
+  $("#who").textContent = sel;
+  const t = tables[sel], pt = prevT?.[sel] || {};
+  $("#tbl").innerHTML = `<tr><th>to</th><th>cost</th><th>via</th></tr>` + NODES.map(d => { const r = t[d], o = pt[d], chg = prevT && (r?.cost !== o?.cost || r?.via !== o?.via);
+    return `<tr class="${chg ? "chg" : ""} ${r && r.cost >= INF ? "inf" : ""}"><td>${d}</td><td>${!r ? "?" : r.cost >= INF ? "∞ (16)" : r.cost}</td><td>${!r || r.cost >= INF ? "–" : r.via === sel ? "(me)" : r.via}</td></tr>`; }).join("");
+  const pathTxt = pr.ok ? `Packet ${pr.p.join(" → ")}.` : pr.why === "loop" ? `<b style="color:var(--red)">Routing loop!</b> ${pr.p.join(" → ")} → … The packet bounces until its TTL runs out.` : `Packet stuck: ${pr.p.join(" → ")} (${pr.why}).`;
+  $("#msg").innerHTML = `<b>Round ${round}.</b> ${msg ? msg + " " : ""}${pathTxt}`;
+}
+function doStep() { const r = step(tables, links(), { splitHorizon: $("#sh").checked }); prevT = tables; tables = r.tables; round++; return r.changed; }
+$("#step").onclick = () => { const ch = doStep(); render(ch ? "Highlighted rows just changed." : "Nothing changed: the network has converged."); };
+$("#run").onclick = () => { let n = 0; while (doStep() && n < 60) n++; render(`Stable after ${n} more exchange${n === 1 ? "" : "s"}.`); };
+$("#reset").onclick = reset;
+const setDown = (ks, msg) => { down = new Set(ks); prevT = null; render(msg); };
+$("#cut").onclick = () => setDown(["CE"], "C–E is cut. Step through and watch the routes to E: with split horizon off, packets loop for a few rounds.");
+$("#iso").onclick = () => setDown(["CE", "BE", "DF"], "E and F are unreachable now, but nobody knows it. Step through and watch the cost to E count upwards.");
+$("#heal").onclick = () => setDown([], "All cables repaired.");
+$("#net").addEventListener("click", e => {
+  const r = e.target.closest("[data-n]"); if (r) { sel = r.dataset.n; render(); return; }
+  const l = e.target.closest("[data-l]"); if (l) { const k = l.dataset.l; down.has(k) ? down.delete(k) : down.add(k); prevT = null; render(`${k[0]}–${k[1]} ${down.has(k) ? "cut" : "restored"}.`); }
+});
+$("#src").onchange = $("#dst").onchange = () => render();
+$("#sh").onchange = () => render(`Split horizon ${$("#sh").checked ? "on" : "off"}.`);
+reset();
+</script>
+</body>
+</html>

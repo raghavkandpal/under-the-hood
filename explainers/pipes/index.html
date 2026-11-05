@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shell Pipes</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .cmd { font-family: var(--mono); font-size: 14px; background: #1e1e1e; color: #d4d4d4; padding: 8px 12px; border-radius: 8px; margin-top: 8px; overflow-wrap: anywhere; }
+  .cmd::before { content: "$ "; color: #6a9955; }
+  .flow { display: flex; align-items: stretch; gap: 0; margin-top: 12px; overflow-x: auto; padding-bottom: 4px; }
+  .stage { flex: 1 1 0; min-width: 104px; border: 2px solid var(--border); border-radius: 10px; padding: 6px 8px; text-align: center; background: var(--surface); }
+  .stage b { font-family: var(--mono); font-size: 13px; display: block; overflow-wrap: anywhere; }
+  .stage .st { font-size: 12px; margin-top: 2px; min-height: 1.3em; }
+  .stage input { width: 100%; }
+  .stage small { color: var(--muted); font-size: 11px; display: block; }
+  .stage.running { border-color: var(--green); } .stage.blocked { border-color: var(--accent); } .stage.waiting { border-color: var(--blue); }
+  .stage.dead { border-color: var(--red); opacity: .6; } .stage.done { opacity: .6; }
+  .pipe { flex: 0 0 34px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+  .gauge { width: 14px; height: 62px; border: 1.5px solid var(--muted); border-radius: 4px; position: relative; overflow: hidden; background: var(--surface-2); }
+  .gauge i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--accent); }
+  .pipe small { font-size: 10px; color: var(--muted); }
+  .held { font-size: 11px; color: var(--red); font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Shell pipes</h1>
+  <p class="lede"><code>cat huge.log | grep ERROR | head</code> answers instantly even on a 10 GB file, using almost no memory. Each <code>|</code> connects two programs running at the same time through a small buffer. That buffer, and what happens when it's full or empty, is the whole trick.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">pipeline <select id="preset"></select></label>
+      <label class="inline">file size <select id="input"><option value="2000">2,000 lines</option><option value="10000" selected>10,000 lines</option><option value="50000">50,000 lines</option></select></label>
+      <label class="inline">pipe buffer <input type="range" id="buf" min="4" max="256" step="4" value="64"> <b id="bv"></b> lines</label>
+    </div>
+    <div class="cmd" id="cmd"></div>
+    <div class="row" style="margin-top:8px"><button id="play" class="primary">▶ Run</button><button id="reset">Reset</button><span class="status" id="clock" style="min-height:0"></span></div>
+    <div class="flow" id="flow"></div>
+    <p class="status" style="margin:4px 0 0">Sliders set each program's speed (lines per tick). Gauges show each pipe's buffer. Green: working. Orange: blocked, output pipe full. Blue: waiting for input. Red: killed.</p>
+    <div class="stats" id="stats" style="--stat-min:130px"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>All at once, not one after another.</b> The shell starts every program in the pipeline at the same moment and connects each one's output to the next one's input with a pipe: a small buffer in the kernel, 64 KB on Linux. Lines flow through while <code>cat</code> is still reading. Nothing waits for a whole file to be written anywhere.</p>
+  <p><b>Backpressure.</b> When a pipe fills up, the writer is simply paused by the OS until the reader catches up (orange). When it's empty, the reader waits (blue). So the whole pipeline settles at the speed of its slowest program, and memory stays at a few buffers' worth, whether the file is a kilobyte or a terabyte. Try the slow <code>sed</code> pipeline and drag its speed.</p>
+  <p><b>Stopping early.</b> <code>head -n 10</code> exits after ten lines and closes its end of the pipe. The next time <code>grep</code> writes, the OS kills it with SIGPIPE, and the same happens to <code>cat</code>. Most of the file is never even read.</p>
+  <p><b>Some programs can't stream.</b> <code>sort</code> can't output its first line until it has seen the last one, so it holds everything in memory (red count) and the stages after it sit idle. <code>wc -l</code> also reads everything, but only keeps a counter. Put <code>grep</code> before <code>sort</code> and it has far less to hold.</p>
+  <p class="status">The same ideas appear in <a href="../queues/">message queues</a>, streaming frameworks and network flow control (<a href="../tcp/">TCP</a>'s window is backpressure too). Simplified: rates are fixed per program, and real pipes carry bytes, not lines.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile } from "../../shared/common.js";
+import { simulate, PIPELINES } from "./pipes.js";
+chrome();
+
+$("#preset").innerHTML = Object.entries(PIPELINES).map(([k, p]) => `<option value="${k}">${p.cmd}</option>`).join("");
+let stages, r, k = 0, run = 0;
+function load() { stages = PIPELINES[$("#preset").value].stages.map(s => ({ ...s })); $("#cmd").textContent = PIPELINES[$("#preset").value].cmd; build(); recompute(); }
+function build() {
+  $("#flow").innerHTML = stages.map((s, i) => `${i ? `<div class="pipe"><div class="gauge"><i id="g${i - 1}"></i></div><small id="gl${i - 1}"></small></div>` : ""}
+    <div class="stage" id="s${i}"><b>${s.name}</b><div class="st" id="st${i}"></div><input type="range" min="1" max="60" value="${s.rate}" data-i="${i}" aria-label="speed of ${s.name}"><small>${s.rate} lines/tick</small><div class="held" id="h${i}"></div></div>`).join("");
+  document.querySelectorAll("#flow input").forEach(inp => (inp.oninput = () => { stages[+inp.dataset.i].rate = +inp.value; inp.nextElementSibling.textContent = inp.value + " lines/tick"; recompute(); }));
+}
+function recompute() { run++; $("#bv").textContent = $("#buf").value; r = simulate(stages, { input: +$("#input").value, buffer: +$("#buf").value, maxTicks: 60000 }); k = 0; show(); }
+function state(i, h, prev) {
+  const s = r.stages[i];
+  if (!h.alive[i]) return s.exited ? ["done", `exited (got its ${stages[i].n})`] : ["dead", "killed by SIGPIPE"];
+  if (h.done[i]) return ["done", "finished"];
+  const outFull = i < h.pipes.length && h.pipes[i] >= +$("#buf").value, inEmpty = i > 0 && h.pipes[i - 1] === 0 && (!prev || prev.pipes[i - 1] === 0);
+  if (outFull) return ["blocked", "blocked: pipe full"];
+  if (inEmpty && !(stages[i].kind === "sort" && h.held[i])) return ["waiting", "waiting for input"];
+  if (stages[i].kind === "sort" && h.held[i] && i > 0 && !h.done[i - 1] && h.alive[i - 1]) return ["running", "reading, can't output yet"];
+  return ["running", "running"];
+}
+function show() {
+  const h = r.hist[Math.min(k, r.hist.length - 1)], prev = r.hist[k - 1], B = +$("#buf").value;
+  stages.forEach((_, i) => {
+    const [cls, txt] = k === 0 ? ["", "ready"] : state(i, h, prev); $("#s" + i).className = "stage " + cls; $("#st" + i).textContent = txt;
+    $("#h" + i).textContent = h.held[i] ? `holding ${h.held[i].toLocaleString()} lines in memory` : "";
+    if (i < h.pipes.length) { $("#g" + i).style.height = (k ? h.pipes[i] / B * 100 : 0) + "%"; $("#gl" + i).textContent = k ? h.pipes[i] : 0; }
+  });
+  const mem = k ? Math.max(...r.hist.slice(0, k + 1).map(x => x.pipes.reduce((a, b) => a + b, 0) + x.held.reduce((a, b) => a + b, 0))) : 0;
+  $("#clock").textContent = `tick ${Math.min(k, r.ticks)} of ${r.ticks}`;
+  $("#stats").innerHTML = [[(k ? h.read : 0).toLocaleString() + " / " + (+$("#input").value).toLocaleString(), "lines read from the file"], [(k ? h.out : 0).toLocaleString(), "lines printed"], [mem.toLocaleString(), "peak lines in memory"], [k >= r.ticks ? r.ticks.toLocaleString() : "…", "ticks to finish"]].map(statTile).join("");
+}
+$("#play").onclick = async () => {
+  const my = ++run; if (k >= r.ticks) k = 0; const per = Math.max(1, Math.round(r.ticks / 220));
+  while (my === run && k < r.ticks) { k = Math.min(r.ticks, k + per); show(); await new Promise(res => setTimeout(res, 40)); }
+};
+$("#reset").onclick = () => { run++; k = 0; show(); };
+$("#preset").onchange = load;
+$("#input").onchange = $("#buf").oninput = recompute;
+load();
+</script>
+</body>
+</html>

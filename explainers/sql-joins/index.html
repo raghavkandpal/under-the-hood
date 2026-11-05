@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQL Joins</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .three { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1.5fr); gap: 14px; align-items: start; margin-top: 10px; }
+  @media (max-width: 760px) { .three { grid-template-columns: minmax(0, 1fr); } }
+  table.data td, table.data th { font-family: var(--mono); font-size: 13px; padding: 3px 8px; }
+  table.data tr.hit td { background: var(--accent-soft); }
+  table.data tr.miss td { opacity: 0.4; }
+  table.data td.null { color: var(--muted); font-style: italic; }
+  table.data select { font-family: var(--mono); font-size: 12px; padding: 1px 2px; }
+  .sql { font-family: var(--mono); font-size: 13.5px; background: var(--surface-2); padding: 8px 12px; border-radius: 8px; margin-top: 10px; white-space: pre-wrap; }
+  .sql b { color: var(--accent); }
+  .bars { display: grid; gap: 6px; margin-top: 10px; }
+  .bars .r { display: grid; grid-template-columns: 110px minmax(0, 1fr) 90px; gap: 8px; align-items: center; font-size: 13.5px; }
+  .bars .b { height: 18px; border-radius: 4px; background: var(--accent); min-width: 2px; }
+  .bars .v { font-family: var(--mono); font-size: 12.5px; text-align: right; }
+  .venn { display: block; margin: 0 auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>SQL joins</h1>
+  <p class="lede">A join stitches two tables together on a shared column, such as customers and their orders. The kind of join decides what happens to rows with no partner, and the algorithm the database picks decides whether it takes milliseconds or hours.</p>
+
+  <div class="panel">
+    <div class="tabs" id="kind"></div>
+    <div class="sql" id="sql"></div>
+    <div class="three">
+      <div><b>customers</b><div class="scroll-x"><table class="data" id="tl"></table></div>
+        <svg class="venn" id="venn" viewBox="0 0 160 100" width="160" height="100" aria-hidden="true"></svg></div>
+      <div><b>orders</b> <span class="status">(change a customer_id)</span><div class="scroll-x"><table class="data" id="tr"></table></div></div>
+      <div><b>result</b> <span class="status" id="cnt"></span><div class="scroll-x"><table class="data" id="out"></table></div></div>
+    </div>
+    <p id="msg" style="margin-bottom:0"></p>
+  </div>
+
+  <div class="panel">
+    <b>How the database actually does it</b>
+    <div class="controls" style="margin:8px 0 0">
+      <label class="inline">customers <input type="range" id="nl" min="2" max="6" step="0.25" value="4"> <span id="nlv"></span></label>
+      <label class="inline">orders <input type="range" id="nr" min="2" max="7" step="0.25" value="5"> <span id="nrv"></span></label>
+      <label class="inline"><input type="checkbox" id="idx"> both already sorted (an index)</label>
+    </div>
+    <div class="bars" id="bars"></div>
+    <p class="status" id="note" style="margin-bottom:0"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Inner join</b> keeps only pairs that match. A customer with no orders disappears, and so does an order whose customer doesn't exist. <b>Left join</b> keeps every customer and fills in <code>NULL</code> where there's no order, which is how you find "customers who never ordered" (<code>WHERE o.id IS NULL</code>). <b>Right</b> is the mirror image. <b>Full outer</b> keeps everything from both sides. <b>Cross join</b> pairs every row with every row: 3 × 4 = 12 rows here, a trillion with two million-row tables. An inner join that forgets its <code>ON</code> clause becomes one.</p>
+  <p><b>One-to-many multiplies rows.</b> A customer with two orders appears twice in the result. That's how a careless join makes <code>SUM()</code> double-count.</p>
+  <p><b>NULL never equals anything</b>, not even another NULL, so rows with a missing key never match.</p>
+  <h3>Three algorithms</h3>
+  <p><b>Nested loop</b> compares every customer with every order, n × m steps. It's fine for tiny tables, or when an index lets it look up each match directly instead of scanning. <b>Hash join</b> loads the smaller table into a hash table, then streams the bigger one past it, n + m steps, but it needs memory for the hash table. <b>Sort-merge join</b> sorts both sides and walks them together like a zipper. Sorting costs n log n, unless an index already keeps them sorted, and then the join is nearly free.</p>
+  <p>The query planner chooses using statistics about table sizes. Run <code>EXPLAIN</code> on a slow query and you'll see which one it picked, often a nested loop that assumed a table was small.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml } from "../../shared/common.js";
+import { join, nestedLoop, hashJoin, mergeJoin } from "./joins.js";
+chrome();
+
+const KINDS = { inner: "INNER", left: "LEFT", right: "RIGHT", full: "FULL OUTER", cross: "CROSS" };
+const C = [{ cid: 1, name: "Ana" }, { cid: 2, name: "Bo" }, { cid: 3, name: "Cy" }];
+const O = [{ oid: 101, cid: 1, item: "pen" }, { oid: 102, cid: 1, item: "ink" }, { oid: 103, cid: 3, item: "mug" }, { oid: 104, cid: 7, item: "lamp" }];
+let kind = "inner";
+$("#kind").innerHTML = Object.entries(KINDS).map(([k, l]) => `<button data-k="${k}" aria-pressed="${k === kind}">${l}</button>`).join("");
+const cell = v => (v == null ? `<td class="null">NULL</td>` : `<td>${escapeHtml(String(v))}</td>`);
+
+function render() {
+  $("#sql").innerHTML = `SELECT c.name, o.oid, o.item\nFROM customers c <b>${KINDS[kind]} JOIN</b> orders o${kind === "cross" ? "" : " ON c.cid = o.cid"};`;
+  const res = join(C, O, "cid", kind), lHit = new Set(res.filter(p => p.l && p.r).map(p => p.l)), rHit = new Set(res.filter(p => p.l && p.r).map(p => p.r));
+  const keepL = kind === "left" || kind === "full" || kind === "cross", keepR = kind === "right" || kind === "full" || kind === "cross";
+  $("#tl").innerHTML = `<tr><th>cid</th><th>name</th></tr>` + C.map(c => `<tr class="${lHit.has(c) ? "hit" : keepL ? "" : "miss"}">${cell(c.cid)}${cell(c.name)}</tr>`).join("");
+  $("#tr").innerHTML = `<tr><th>oid</th><th>customer_id</th><th>item</th></tr>` + O.map((o, i) => `<tr class="${rHit.has(o) ? "hit" : keepR ? "" : "miss"}">${cell(o.oid)}<td><select data-i="${i}" aria-label="customer_id of order ${o.oid}">${[1, 2, 3, 7, null].map(v => `<option value="${v ?? ""}"${v === o.cid ? " selected" : ""}>${v ?? "NULL"}</option>`).join("")}</select></td>${cell(o.item)}</tr>`).join("");
+  $("#out").innerHTML = `<tr><th>name</th><th>oid</th><th>item</th></tr>` + res.map(p => `<tr class="${p.l && p.r && kind !== "cross" ? "hit" : ""}">${cell(p.l?.name)}${cell(p.r?.oid)}${cell(p.r?.item)}</tr>`).join("");
+  $("#cnt").textContent = `(${res.length} row${res.length === 1 ? "" : "s"})`;
+  const MSG = {
+    inner: "Only matched pairs survive. Customers without orders and orders without customers vanish.",
+    left: "Every customer appears at least once. No order? The order columns are NULL.",
+    right: "Every order appears. One whose customer doesn't exist gets a NULL name.",
+    full: "Everything from both sides, matched where possible, NULL-padded where not.",
+    cross: `No ON clause: every customer paired with every order, ${C.length} × ${O.length} = ${C.length * O.length} rows. Usually a mistake.`,
+  };
+  $("#msg").textContent = MSG[kind];
+  // Venn: which regions are kept
+  const fill = on => (on ? "var(--accent)" : "none"), v = $("#venn");
+  v.innerHTML = `<defs><clipPath id="cl"><circle cx="62" cy="50" r="36"/></clipPath></defs>
+    <circle cx="62" cy="50" r="36" fill="${fill(keepL)}" fill-opacity=".35"/><circle cx="98" cy="50" r="36" fill="${fill(keepR)}" fill-opacity=".35"/>
+    <circle cx="98" cy="50" r="36" clip-path="url(#cl)" fill="var(--accent)" fill-opacity="${keepL && keepR ? 0 : keepL || keepR ? 0.35 : 0.7}"/>
+    <circle cx="62" cy="50" r="36" fill="none" stroke="var(--text)" stroke-width="1.5"/><circle cx="98" cy="50" r="36" fill="none" stroke="var(--text)" stroke-width="1.5"/>
+    <text x="40" y="54" font-size="11" fill="var(--text)" text-anchor="middle">C</text><text x="120" y="54" font-size="11" fill="var(--text)" text-anchor="middle">O</text>`;
+}
+
+function fmt(n) { return n >= 1e9 ? (n / 1e9).toFixed(1) + " B" : n >= 1e6 ? (n / 1e6).toFixed(1) + " M" : n >= 1e3 ? (n / 1e3).toFixed(1) + " k" : String(Math.round(n)); }
+function costs() {
+  const n = Math.round(10 ** +$("#nl").value), m = Math.round(10 ** +$("#nr").value), sorted = $("#idx").checked;
+  $("#nlv").textContent = fmt(n); $("#nrv").textContent = fmt(m);
+  // For big sizes, compute the closed forms the lib's counters produce instead of looping millions of rows.
+  const lg = k => (k > 1 ? Math.ceil(k * Math.log2(k)) : 0);
+  const rows = [["Nested loop", n * m], ["Hash join", n + m], ["Sort-merge", (sorted ? 0 : lg(n) + lg(m)) + n + m]];
+  const max = Math.max(...rows.map(r => Math.log10(r[1] + 1)));
+  $("#bars").innerHTML = rows.map(([l, v]) => `<div class="r"><span>${l}</span><div class="b" style="width:${Math.log10(v + 1) / max * 100}%"></div><span class="v">${fmt(v)}</span></div>`).join("");
+  const secs = (n * m) / 1e8;
+  $("#note").textContent = `Steps, log scale. At ~100 million comparisons a second, the nested loop takes ${secs < 1 ? "under a second" : secs < 120 ? Math.round(secs) + " seconds" : secs < 7200 ? Math.round(secs / 60) + " minutes" : Math.round(secs / 3600) + " hours"}. The hash join needs memory for ${fmt(Math.min(n, m))} rows.`;
+}
+
+// sanity check: the lib's step counters match the closed forms used above
+{ const A = Array.from({ length: 50 }, (_, i) => ({ k: i })), B = Array.from({ length: 80 }, (_, i) => ({ k: i % 60 }));
+  console.assert(nestedLoop(A, B, "k").ops === 4000 && hashJoin(A, B, "k").ops === 130 && mergeJoin(A, B, "k", { sorted: true }).ops <= 130); }
+
+$("#kind").onclick = e => { const b = e.target.closest("[data-k]"); if (!b) return; kind = b.dataset.k; document.querySelectorAll("#kind button").forEach(x => x.setAttribute("aria-pressed", x === b)); render(); };
+$("#tr").onchange = e => { const s = e.target.closest("select"); if (!s) return; O[+s.dataset.i].cid = s.value === "" ? null : +s.value; render(); };
+["#nl", "#nr", "#idx"].forEach(s => ($(s).oninput = costs));
+render(); costs();
+</script>
+</body>
+</html>

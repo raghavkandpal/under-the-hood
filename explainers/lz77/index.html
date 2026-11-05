@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LZ77 Compression</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .text { font-family: var(--mono); font-size: 15px; line-height: 2; word-break: break-all; white-space: pre-wrap; }
+  .text span { border-radius: 3px; }
+  .text .src { background: var(--blue-soft); outline: 1.5px solid var(--blue); }
+  .text .dst { background: var(--accent-soft); outline: 1.5px solid var(--accent); }
+  .text .done { color: var(--text); }
+  .text .todo { color: var(--muted); opacity: .45; }
+  .text .win { background: var(--surface-2); }
+  .toks { font-family: var(--mono); font-size: 13.5px; line-height: 2.1; word-break: break-all; }
+  .tk { padding: 2px 3px; border-radius: 4px; cursor: pointer; margin-right: 1px; white-space: pre; }
+  .tk.lit { background: var(--surface-2); }
+  .tk.ref { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .tk.cur { outline: 2px solid var(--text); }
+  input[type=range] { accent-color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>LZ77 compression</h1>
+  <p class="lede">ZIP, gzip, PNG and HTTP compression all start with one trick: when something repeats, don't write it again. Write "go back <i>d</i> characters and copy <i>n</i>." Here it is working through your text, one decision at a time.</p>
+
+  <div class="panel">
+    <label class="status" for="input">Text to compress</label>
+    <textarea id="input" rows="3" spellcheck="false">She sells sea shells by the sea shore; the shells she sells are sea shells, sure.</textarea>
+    <div class="controls" style="margin:10px 0 0">
+      <label class="inline">Look-back window <select id="win"><option value="8">8 chars</option><option value="32">32 chars</option><option value="4096" selected>4,096 chars</option></select></label>
+      <span class="status">Examples:</span>
+      <button data-ex="rep">Repetitive</button><button data-ex="run">One long run</button><button data-ex="rand">Random</button><button data-ex="dna">DNA-like</button>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel">
+    <div class="controls" style="margin:0"><button id="prev">◀</button><input type="range" id="step" min="0" value="0" style="flex:1;min-width:120px"><button id="next" class="primary">▶</button><button id="play">Play</button></div>
+    <p class="status" id="explain" style="min-height:2.8em"></p>
+    <div class="text" id="text"></div>
+  </div>
+
+  <div class="panel">
+    <b>The compressed stream</b> <span class="status">(plain = literal character, orange ⟵d,n = copy n chars from d back; click one to jump there)</span>
+    <div class="toks" id="toks" style="margin-top:6px"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Look back, then copy.</b> At each position, search the recent past (the <i>window</i>) for the longest string that matches what comes next. If it's at least 3 characters, emit a back-reference <code>(distance, length)</code>. Otherwise emit the character itself.</p>
+  <p><b>Copies can overlap themselves.</b> "aaaaaaaa" becomes one <code>a</code> followed by "go back 1, copy 7". The copy reads characters it's writing as it goes, so long runs collapse to almost nothing. Try "One long run".</p>
+  <p><b>The window is a trade-off.</b> A bigger window finds older repeats but costs more memory and search time, and needs more bits per distance. Set it to 8 characters and watch the repeats of "sea shells" go unnoticed. gzip uses 32 KB. Modern compressors like zstd and Brotli use megabytes.</p>
+  <p><b>Nothing compresses random data.</b> With no repeats there's nothing to point back to, and the format's overhead makes it slightly <i>bigger</i>. That's why compressing an already-compressed file doesn't help.</p>
+  <p><b>Then Huffman.</b> DEFLATE (the format inside ZIP, gzip and PNG) runs LZ77 first, then Huffman-codes the resulting literals, lengths and distances, so common ones get short codes. See the <a href="../huffman/">Huffman</a> explainer for that half.</p>
+  <p class="status">Size estimate: a literal costs about 9 bits (a flag plus 8 bits), a back-reference about 21 bits. Real formats are smarter, and greedy matching (always take the longest) isn't always optimal; zlib looks one step ahead ("lazy matching").</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml, statTile } from "../../shared/common.js";
+import { encode, sizeBits, rawBits } from "./lz77.js";
+chrome();
+
+const EX = {
+  rep: "the rain in spain falls mainly on the plain; the rain in spain stays mainly in the plain.",
+  run: "Zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz... and then she woke up.",
+  rand: "q8#Lr!v2Wm@9zTx&Kp4$Nf7^Yb1*Hc6(Ud3)Gj0_Rs5+Ea",
+  dna: "GATTACAGATTACACATGATTACAGGATCCATGATTACAGATTACATTTAGATTACA",
+};
+let chars = [], toks = [], k = 0, timer = null;
+function recompute() {
+  chars = [...$("#input").value]; toks = encode($("#input").value, { window: +$("#win").value });
+  $("#step").max = toks.length; k = Math.min(k, toks.length);
+  const bits = sizeBits(toks), raw = rawBits($("#input").value);
+  $("#stats").innerHTML = [[chars.length, "characters"], [toks.filter(t => t.lit != null).length, "literals"], [toks.filter(t => t.lit == null).length, "back-references"], [raw ? Math.round(bits / raw * 100) + "%" : "—", "of original size (est.)"]]
+    .map(statTile).join("");
+  $("#toks").innerHTML = toks.map((t, i) => `<span class="tk ${t.lit != null ? "lit" : "ref"}" data-i="${i + 1}" title="${t.lit != null ? "literal" : `copy ${t.len} from ${t.dist} back`}">${t.lit != null ? escapeHtml(t.lit === " " ? "␣" : t.lit === "\n" ? "↵" : t.lit) : `⟵${t.dist},${t.len}`}</span>`).join("");
+  render();
+}
+function render() {
+  $("#step").value = k;
+  const cur = toks[k - 1], done = cur ? cur.pos + (cur.lit != null ? 1 : cur.len) : 0, W = +$("#win").value;
+  const src = cur && cur.lit == null ? [cur.pos - cur.dist, cur.pos - cur.dist + cur.len] : null, dst = cur ? [cur.pos, done] : null;
+  $("#text").innerHTML = chars.map((c, i) => {
+    let cls = i < done ? "done" : "todo";
+    if (cur && i >= Math.max(0, cur.pos - W) && i < cur.pos) cls += " win";
+    if (src && i >= src[0] && i < src[1]) cls += " src";
+    if (dst && i >= dst[0] && i < dst[1]) cls += " dst";
+    return `<span class="${cls}">${escapeHtml(c)}</span>`;
+  }).join("");
+  document.querySelectorAll("#toks .tk").forEach(el => el.classList.toggle("cur", +el.dataset.i === k));
+  const show = s => `“${escapeHtml(s.replace(/ /g, "␣"))}”`;
+  $("#explain").innerHTML = !cur ? "Press ▶ to start. Grey shading will show the look-back window." :
+    cur.lit != null ? `Position ${cur.pos}: no match of 3+ characters in the window, so emit the literal ${show(cur.lit)}.` :
+    `Position ${cur.pos}: ${show(chars.slice(cur.pos, done).join(""))} already appeared <b>${cur.dist}</b> character${cur.dist === 1 ? "" : "s"} back (blue), so emit <b>⟵${cur.dist},${cur.len}</b> instead of ${cur.len} characters.` + (cur.len > cur.dist ? ` The copy overlaps itself: it reads characters it's still writing.` : "");
+}
+const stop = () => { clearInterval(timer); timer = null; $("#play").textContent = "Play"; };
+$("#next").onclick = () => { stop(); if (k < toks.length) { k++; render(); } };
+$("#prev").onclick = () => { stop(); if (k > 0) { k--; render(); } };
+$("#step").oninput = e => { stop(); k = +e.target.value; render(); };
+$("#play").onclick = () => { if (timer) return stop(); if (k >= toks.length) k = 0; $("#play").textContent = "Pause"; timer = setInterval(() => { if (k >= toks.length) return stop(); k++; render(); }, 450); };
+$("#toks").onclick = e => { const t = e.target.closest("[data-i]"); if (t) { stop(); k = +t.dataset.i; render(); } };
+$("#input").addEventListener("input", () => { stop(); k = 0; recompute(); });
+$("#win").onchange = () => { stop(); recompute(); };
+document.querySelectorAll("[data-ex]").forEach(b => b.onclick = () => { stop(); $("#input").value = EX[b.dataset.ex]; k = 0; recompute(); });
+recompute();
+</script>
+</body>
+</html>

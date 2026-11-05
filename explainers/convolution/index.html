@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convolution &amp; Filters</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  @media (max-width: 700px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  canvas.img { width: 100%; image-rendering: pixelated; display: block; border-radius: 8px; background: #000; cursor: crosshair; }
+  .kgrid { display: inline-grid; gap: 3px; }
+  .kgrid input { width: 4.2em; font-family: var(--mono); font-size: 13px; text-align: center; padding: 4px; }
+  .math { display: grid; gap: 2px; font-family: var(--mono); font-size: 11px; }
+  .math div { padding: 3px 2px; text-align: center; border-radius: 3px; }
+  .row { gap: 14px; align-items: flex-start; }
+  .eq { font-family: var(--mono); font-size: 13px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Convolution &amp; image filters</h1>
+  <p class="lede">Blur, sharpen, edge detection, and the first layer of every image-recognition network are all the same operation. Slide a small grid of numbers (a <b>kernel</b>) over the image, and at each spot multiply and add. <b>Hover over the image</b> to watch it happen for a single pixel.</p>
+
+  <div class="panel">
+    <div class="controls" style="margin:0">
+      <label class="inline">Kernel <select id="kern"></select></label>
+      <label class="inline">or your own image <input type="file" id="file" accept="image/*"></label>
+      <button id="regen">Reset test image</button>
+    </div>
+    <p class="status" style="margin:6px 0 0">Your image stays in this browser tab. It's never uploaded anywhere.</p>
+  </div>
+
+  <div class="two">
+    <div class="panel"><b>Input</b><canvas class="img" id="in"></canvas></div>
+    <div class="panel"><b>Output</b> <span class="status" id="outNote"></span><canvas class="img" id="out"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <div><b>Kernel</b> <span class="status">(edit any number)</span><div class="kgrid" id="kgrid" style="margin-top:6px"></div></div>
+      <div style="flex:1;min-width:240px"><b>At the pixel under your cursor</b><div class="math" id="math" style="margin-top:6px"></div><div class="eq" id="eq"></div></div>
+    </div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Multiply, add, move.</b> For each output pixel, lay the kernel over the input pixel and its neighbours, multiply each pair, and add the products. That sum is the new pixel. Repeat for every position.</p>
+  <p><b>What the numbers mean.</b> All positive and summing to 1 averages the neighbours, which <b>blurs</b>. A big centre minus the neighbours exaggerates differences, which <b>sharpens</b>. Negative on one side and positive on the other measures how fast brightness changes, which finds <b>edges</b>. Sobel x lights up vertical edges and Sobel y horizontal ones. Flat regions give 0 for any edge kernel, so they go grey in the output.</p>
+  <p><b>Why neural networks love it.</b> A convolutional neural network (CNN) learns its kernels instead of using hand-made ones. Early layers end up learning edge and colour detectors much like these, and later layers combine them into textures, parts and objects. Because the same small kernel slides over the whole image, a cat in the corner is detected the same way as a cat in the middle, using few parameters.</p>
+  <p class="status">Processing uses brightness only, with clamped borders. Signed edge outputs are drawn with grey = 0, white = positive, black = negative. Strictly this is cross-correlation (no kernel flip), which is what image libraries and deep-learning frameworks call "convolution".</p>
+</main>
+<script type="module">
+import { chrome, $ } from "../../shared/common.js";
+import { KERNELS, convolve, explainPixel } from "./conv.js";
+chrome();
+
+const W = 160, H = 120, cin = $("#in"), cout = $("#out"); cin.width = cout.width = W; cin.height = cout.height = H;
+let img = new Float32Array(W * H), k = KERNELS.sharpen.k.map(r => r.slice()), signed = false, hover = { x: 80, y: 60 };
+$("#kern").innerHTML = Object.entries(KERNELS).map(([key, v]) => `<option value="${key}"${key === "sharpen" ? " selected" : ""}>${v.label}</option>`).join("") + `<option value="custom">Custom (your edits)</option>`;
+
+function testImage() {
+  const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
+  const grd = g.createLinearGradient(0, 0, W, 0); grd.addColorStop(0, "#222"); grd.addColorStop(1, "#bbb"); g.fillStyle = grd; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#fff"; g.beginPath(); g.arc(45, 45, 26, 0, 7); g.fill();
+  g.fillStyle = "#111"; g.fillRect(90, 20, 50, 34);
+  g.strokeStyle = "#eee"; g.lineWidth = 3; g.beginPath(); g.moveTo(10, 110); g.lineTo(70, 80); g.stroke();
+  g.fillStyle = "#000"; g.font = "bold 26px sans-serif"; g.fillText("Hi!", 92, 100);
+  load(g.getImageData(0, 0, W, H));
+  let x = 7; for (let i = 0; i < img.length; i++) { x = (Math.imul(x, 1664525) + 1013904223) >>> 0; img[i] = Math.min(1, Math.max(0, img[i] + ((x / 4294967296) - 0.5) * 0.06)); }
+}
+function load(data) { for (let i = 0; i < W * H; i++) img[i] = (0.299 * data.data[i * 4] + 0.587 * data.data[i * 4 + 1] + 0.114 * data.data[i * 4 + 2]) / 255; }
+function paint(canvas, arr, isSigned) {
+  const g = canvas.getContext("2d"), d = g.createImageData(W, H);
+  for (let i = 0; i < W * H; i++) { let v = isSigned ? 0.5 + arr[i] / 4 : arr[i]; v = Math.max(0, Math.min(1, v)) * 255; d.data[i * 4] = d.data[i * 4 + 1] = d.data[i * 4 + 2] = v; d.data[i * 4 + 3] = 255; }
+  g.putImageData(d, 0, 0);
+}
+function render() {
+  paint(cin, img, false);
+  const out = convolve(img, W, H, k); paint(cout, out, signed);
+  $("#outNote").textContent = signed ? "(grey = 0, white = positive, black = negative)" : "";
+  for (const c of [cin, cout]) { const g = c.getContext("2d"); g.strokeStyle = "#e08a00"; g.lineWidth = 1; const r = k.length >> 1; g.strokeRect(hover.x - r - 0.5, hover.y - r - 0.5, k.length + 1, k.length + 1); }
+  explain();
+}
+function explain() {
+  const e = explainPixel(img, W, H, k, hover.x, hover.y);
+  $("#math").style.gridTemplateColumns = `repeat(${e.kw}, minmax(0, 1fr))`;
+  $("#math").innerHTML = e.cells.map(c => `<div style="background:rgba(${c.p >= 0 ? "23,163,90" : "224,69,58"},${Math.min(0.6, Math.abs(c.p))})">${c.v.toFixed(2)}×${+c.k.toFixed(2)}</div>`).join("");
+  $("#eq").innerHTML = `pixel (${hover.x}, ${hover.y}): sum of products = <b>${e.sum.toFixed(3)}</b>` + (signed ? (Math.abs(e.sum) < 0.05 ? " (flat here, no edge)" : " (an edge!)") : "");
+}
+function kgrid() {
+  $("#kgrid").style.gridTemplateColumns = `repeat(${k.length}, auto)`;
+  $("#kgrid").innerHTML = k.flatMap((row, j) => row.map((v, i) => `<input data-j="${j}" data-i="${i}" value="${+v.toFixed(3)}" aria-label="kernel ${j},${i}">`)).join("");
+}
+$("#kern").onchange = e => { const key = e.target.value; if (key !== "custom") { k = KERNELS[key].k.map(r => r.slice()); signed = !!KERNELS[key].signed; kgrid(); } render(); };
+$("#kgrid").addEventListener("input", e => { const t = e.target; const v = parseFloat(t.value); if (Number.isNaN(v)) return; k[+t.dataset.j][+t.dataset.i] = v; $("#kern").value = "custom"; signed = k.flat().reduce((a, b) => a + b, 0) < 0.5; render(); });
+const onMove = c => e => { const b = c.getBoundingClientRect(); hover = { x: Math.max(0, Math.min(W - 1, Math.floor((e.clientX - b.left) / b.width * W))), y: Math.max(0, Math.min(H - 1, Math.floor((e.clientY - b.top) / b.height * H))) }; render(); };
+cin.addEventListener("pointermove", onMove(cin)); cout.addEventListener("pointermove", onMove(cout));
+$("#file").onchange = e => {
+  const f = e.target.files[0]; if (!f) return; const url = URL.createObjectURL(f), im = new Image();
+  im.onload = () => { const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d"); const s = Math.max(W / im.width, H / im.height); g.drawImage(im, (W - im.width * s) / 2, (H - im.height * s) / 2, im.width * s, im.height * s); load(g.getImageData(0, 0, W, H)); URL.revokeObjectURL(url); render(); };
+  im.src = url;
+};
+$("#regen").onclick = () => { testImage(); render(); };
+testImage(); kgrid(); render();
+</script>
+</body>
+</html>

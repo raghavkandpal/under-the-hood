@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Key Exchange</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .trio { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .trio { grid-template-columns: minmax(0, 1fr); } }
+  .party { background: var(--surface-2); border-radius: 10px; padding: 12px; }
+  .party h3 { margin: 0 0 8px; font-size: 15px; }
+  .party.eve { border: 1.5px dashed var(--red); background: transparent; }
+  .party.eve h3 { color: var(--red); }
+  .swrow { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; }
+  .sw { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); flex: none; }
+  .sw.big { width: 48px; height: 48px; }
+  .swrow input[type=color] { width: 36px; height: 36px; border: none; padding: 0; background: none; border-radius: 50%; cursor: pointer; }
+  .math { font-family: var(--mono); font-size: 13px; line-height: 1.9; word-break: break-all; }
+  .math b { color: var(--accent); }
+  .math .sec { color: var(--red); }
+  .math .pub { color: var(--blue); }
+  .math .key { color: var(--green); font-weight: 700; }
+  .row input[type=text] { font-family: var(--mono); width: 14ch; }
+  input[type=range] { accent-color: var(--accent); }
+  .big { font-size: 15px; }
+  .ok { color: var(--green); font-weight: 600; }
+  .bad { color: var(--red); font-weight: 600; }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Key exchange in public</h1>
+  <p class="lede">Two strangers want a shared secret key, but every message between them can be read by an eavesdropper. That sounds impossible, and Diffie-Hellman does it anyway. HTTPS, SSH, Signal and WireGuard all start this way.</p>
+
+  <h2>1. The paint version</h2>
+  <p>Mixing paint is easy, and un-mixing it is practically impossible. Alice and Bob agree in public on a starting colour. Each adds a secret colour of their own and sends the result. Then each adds their own secret to what they received.</p>
+  <div class="panel trio" id="paint">
+    <div class="party"><h3>Alice</h3>
+      <div class="swrow"><input type="color" id="ca" value="#d0213a" aria-label="Alice's secret colour"> secret colour (pick one)</div>
+      <div class="swrow"><span class="sw" id="aMix"></span> public + secret → sends to Bob</div>
+      <div class="swrow"><span class="sw big" id="aKey"></span> <b>adds her secret to Bob's mix</b></div>
+    </div>
+    <div class="party eve"><h3>Eve sees everything sent</h3>
+      <div class="swrow"><span class="sw" id="pub"></span> public colour</div>
+      <div class="swrow"><span class="sw" id="eA"></span> Alice's mix</div>
+      <div class="swrow"><span class="sw" id="eB"></span> Bob's mix</div>
+      <div class="swrow"><span class="sw big" id="eGuess"></span> Eve mixes the two mixes. Close, but wrong.</div>
+    </div>
+    <div class="party"><h3>Bob</h3>
+      <div class="swrow"><input type="color" id="cb" value="#1f6feb" aria-label="Bob's secret colour"> secret colour (pick one)</div>
+      <div class="swrow"><span class="sw" id="bMix"></span> public + secret → sends to Alice</div>
+      <div class="swrow"><span class="sw big" id="bKey"></span> <b>adds his secret to Alice's mix</b></div>
+    </div>
+  </div>
+  <p class="status" id="paintNote"></p>
+
+  <h2>2. The real version</h2>
+  <p>Paint becomes arithmetic modulo a prime. "Mixing in a secret" means raising to a secret power. Computing <code>g<sup>a</sup> mod p</code> is fast. Going backwards from the result to <code>a</code> (the <i>discrete logarithm</i>) has no known fast method.</p>
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Prime size <input type="range" id="bits" min="8" max="48" value="24"> <b id="vbits"></b></label>
+      <button id="newp">New prime</button>
+      <button id="newab">New secrets</button>
+      <label class="inline"><input type="checkbox" id="mitm"> Mallory in the middle</label>
+    </div>
+    <div class="trio" style="margin-top:12px">
+      <div class="party"><h3>Alice</h3><div class="math" id="mA"></div></div>
+      <div class="party eve"><h3 id="eveTitle">On the wire (public)</h3><div class="math" id="mE"></div></div>
+      <div class="party"><h3>Bob</h3><div class="math" id="mB"></div></div>
+    </div>
+    <p class="big" id="verdict"></p>
+  </div>
+
+  <h2>3. Can Eve just try every exponent?</h2>
+  <p>Eve knows <code>p</code>, <code>g</code> and <code>A</code>. She can try <code>g¹, g², g³, …</code> until one equals <code>A</code>. Let's time her.</p>
+  <div class="panel">
+    <div class="row"><button id="crack" class="primary">Brute-force Alice's secret</button><span class="status" id="crackStatus"></span></div>
+    <div class="scroll-x" style="margin-top:12px"><table class="data" id="extrap"></table></div>
+    <p class="status">For scale, the universe is about 1.4 × 10<sup>10</sup> years old. Each extra bit doubles the work. Real keys use 2048-bit primes or elliptic curves. Smarter attacks than brute force exist, and that's why the sizes are so large, but even those stay far beyond reach at these sizes.</p>
+  </div>
+
+  <h2>4. The catch: who are you talking to?</h2>
+  <p>Tick <b>Mallory in the middle</b> above. If an attacker can <i>change</i> messages, not just read them, she can run one exchange with Alice and another with Bob. Each side ends up sharing a perfectly good key… with Mallory. She decrypts, reads and re-encrypts everything.</p>
+  <p>Diffie-Hellman alone gives secrecy, not identity. That's why HTTPS pairs it with <b>certificates</b>. The server signs its half of the exchange with a key that a trusted authority has vouched for, so Mallory can't swap in her own.</p>
+  <p class="status">Toy sizes, built for clarity. Never roll your own crypto for real use.</p>
+</main>
+<script type="module">
+import { chrome, $ } from "../../shared/common.js";
+import { safePrime, modPow, randomBigBelow, bruteForce, mixColor } from "../../shared/dh.js";
+chrome();
+
+// ---- paint ----
+const PUBLIC = "#ffd400";
+function paint() {
+  const a = $("#ca").value, b = $("#cb").value;
+  const set = (id, c) => { $(id).style.background = c; $(id).title = c; };
+  set("#pub", PUBLIC);
+  const aMix = mixColor([PUBLIC, a]), bMix = mixColor([PUBLIC, b]);
+  set("#aMix", aMix); set("#bMix", bMix); set("#eA", aMix); set("#eB", bMix);
+  const key = mixColor([PUBLIC, a, b]);
+  set("#aKey", key); set("#bKey", key);
+  set("#eGuess", mixColor([PUBLIC, a, PUBLIC, b]));
+  $("#paintNote").textContent = `Alice and Bob both end with ${key}: public + Alice's secret + Bob's secret, mixed in a different order. Eve's best guess has twice the public colour in it, because she can't take the yellow back out.`;
+}
+$("#ca").oninput = $("#cb").oninput = paint; paint();
+
+// ---- numbers ----
+let P, G, a, b, m;
+const fmt = n => n.toString();
+function newPrime() { ({ p: P, g: G } = safePrime(+$("#bits").value)); newSecrets(); }
+function newSecrets() {
+  const r = () => randomBigBelow(P - 3n) + 2n;
+  a = r(); b = r(); m = r(); math();
+}
+function math() {
+  $("#vbits").textContent = $("#bits").value + " bits";
+  const A = modPow(G, a, P), B = modPow(G, b, P), M = modPow(G, m, P);
+  const mitm = $("#mitm").checked;
+  const gotA = mitm ? M : B, gotB = mitm ? M : A;
+  const kA = modPow(gotA, a, P), kB = modPow(gotB, b, P);
+  $("#mA").innerHTML = `secret <span class="sec">a = ${fmt(a)}</span><br>sends <span class="pub">A = g<sup>a</sup> mod p = ${fmt(A)}</span><br>receives ${mitm ? "“B” " : "B "}= ${fmt(gotA)}<br>key = ${mitm ? "“B”" : "B"}<sup>a</sup> mod p<br>= <span class="key">${fmt(kA)}</span>`;
+  $("#mB").innerHTML = `secret <span class="sec">b = ${fmt(b)}</span><br>sends <span class="pub">B = g<sup>b</sup> mod p = ${fmt(B)}</span><br>receives ${mitm ? "“A” " : "A "}= ${fmt(gotB)}<br>key = ${mitm ? "“A”" : "A"}<sup>b</sup> mod p<br>= <span class="key">${fmt(kB)}</span>`;
+  $("#eveTitle").textContent = mitm ? "Mallory (can read and change)" : "On the wire (public)";
+  $("#mE").innerHTML = `p = ${fmt(P)}<br>g = ${fmt(G)}<br>` + (mitm
+    ? `secret <span class="sec">m = ${fmt(m)}</span><br>swaps both halves for <span class="pub">M = ${fmt(M)}</span><br>key with Alice = A<sup>m</sup> = <span class="key">${fmt(modPow(A, m, P))}</span><br>key with Bob = B<sup>m</sup> = <span class="key">${fmt(modPow(B, m, P))}</span>`
+    : `A = ${fmt(A)}<br>B = ${fmt(B)}<br>key = <span class="bad">?</span>`);
+  $("#verdict").innerHTML = mitm
+    ? `<span class="bad">Alice's key ≠ Bob's key.</span> Each one matches a key Mallory holds, so she can sit in the middle invisibly.`
+    : `<span class="ok">Both keys are ${fmt(kA)}.</span> (g<sup>b</sup>)<sup>a</sup> = (g<sup>a</sup>)<sup>b</sup> = g<sup>ab</sup>. Eve has A and B, but multiplying them gives g<sup>a+b</sup>, not g<sup>ab</sup>.`;
+}
+$("#bits").oninput = () => { $("#vbits").textContent = $("#bits").value + " bits"; };
+$("#bits").onchange = newPrime;
+$("#newp").onclick = newPrime;
+$("#newab").onclick = newSecrets;
+$("#mitm").onchange = math;
+newPrime();
+
+// ---- brute force ----
+let cracking = null;
+$("#crack").onclick = () => {
+  if (cracking) { cracking.stop = true; return; }
+  const A = modPow(G, a, P), it = bruteForce(G, A, P, 20000);
+  const t0 = performance.now(); const job = cracking = { stop: false };
+  $("#crack").textContent = "Stop";
+  const tick = () => {
+    if (job.stop) return done(null);
+    const sliceEnd = performance.now() + 30; let r;
+    while (performance.now() < sliceEnd) { r = it.next(); if (r.done) return done(r.value); }
+    $("#crackStatus").textContent = `tried ${Number(r.value).toLocaleString()} exponents…`;
+    setTimeout(tick, 0);
+  };
+  const done = res => {
+    cracking = null; $("#crack").textContent = "Brute-force Alice's secret";
+    const secs = (performance.now() - t0) / 1000;
+    if (!res) { $("#crackStatus").textContent = "Stopped."; return; }
+    const tries = Number(res.tries), rate = tries / Math.max(secs, 1e-3);
+    $("#crackStatus").innerHTML = `Found <b>a = ${res.x}</b> after ${tries.toLocaleString()} tries in ${secs.toFixed(2)} s (${Math.round(rate).toLocaleString()} tries/s in this tab). That's ${res.x === a ? "Alice's exact secret" : "an exponent that works just as well"}.`;
+    extrapolate(rate);
+  };
+  tick();
+};
+function human(log10s) {
+  const units = [[0, "seconds", 1], [Math.log10(60), "minutes", 60], [Math.log10(3600), "hours", 3600], [Math.log10(86400), "days", 86400], [Math.log10(31557600), "years", 31557600]];
+  if (log10s < -3) return "instant";
+  if (log10s < 0) return `${Math.max(1, Math.round(10 ** (log10s + 3)))} ms`;
+  const [, name, size] = units.filter(u => log10s >= u[0]).at(-1);
+  const v = log10s - Math.log10(size);
+  if (name === "years" && v > 6) return `10^${Math.round(v)} years`;
+  return `${(10 ** v).toLocaleString(undefined, { maximumSignificantDigits: 2 })} ${name}`;
+}
+function extrapolate(rate) {
+  const rows = [16, 24, 32, 48, 64, 128, 256, 2048];
+  // expected tries ≈ half the group: 2^(bits-1)
+  $("#extrap").innerHTML = `<tr><th>Prime size</th><th>Expected tries</th><th>At this tab's speed</th><th>At a billion tries/s</th></tr>` + rows.map(bits => {
+    const lt = (bits - 1) * Math.log10(2);
+    return `<tr><td>${bits} bits</td><td class="num">~10^${lt.toFixed(0)}</td><td>${human(lt - Math.log10(rate))}</td><td>${human(lt - 9)}</td></tr>`;
+  }).join("");
+}
+</script>
+</body>
+</html>

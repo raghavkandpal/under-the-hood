@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Column Stores</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .strip { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 4px; }
+  .strip span { width: 22px; height: 22px; border-radius: 4px; font-family: var(--mono); font-size: 9px; display: inline-flex; align-items: center; justify-content: center; color: #fff; opacity: .28; }
+  .strip span.on { opacity: 1; outline: 2px solid var(--text); }
+  .lay { margin-top: 10px; }
+  .lay b small { font-weight: 400; color: var(--muted); }
+  .key { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; margin-top: 8px; }
+  .key i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin-right: 3px; }
+  .stats { --stat-min: 150px; }
+  .win { color: var(--green); font-weight: 700; }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Column stores</h1>
+  <p class="lede">An online shop's database writes one order at a time. Its analysts ask questions like “revenue by country this year” over 100 million orders, touching three columns of every row. Store the same table in a different order on disk and that question reads one-tenth of the data, compressed to a fraction of that again.</p>
+
+  <div class="panel">
+    <div class="tabs" id="q"></div>
+    <p id="qtext" style="margin:8px 0 0;font-family:var(--mono);font-size:13px"></p>
+    <div class="key" id="key"></div>
+    <div class="lay"><b>Row store <small>(Postgres, MySQL): each order's fields side by side</small></b><div class="strip" id="row"></div></div>
+    <div class="lay"><b>Column store <small>(Parquet, ClickHouse, BigQuery): each column's values side by side</small></b><div class="strip" id="col"></div></div>
+    <p class="status" style="margin:4px 0 0">8 orders × 8 columns as they sit on disk, in order. Highlighted cells are what the query has to read. Disks read in blocks, so scattered cells cost far more than adjacent ones.</p>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel scroll-x"><b>Why columns compress so well</b> <span class="status">(5,000 sample orders)</span><table class="data" id="comp" style="margin-top:6px"></table></div>
+
+  <h2>How it works</h2>
+  <p><b>Same table, different order on disk.</b> A row store writes each record's fields together. That's perfect for “fetch order #42” or “insert a new order”: one place on disk. A column store writes all the dates together, then all the countries, and so on. A query that needs 3 of 8 columns skips the rest entirely, and the skipped columns here include a wide free-text field.</p>
+  <p><b>Compression loves sameness.</b> A column holds one type of data, often repetitive. Dates sorted by time become long runs (“2026-03-14 × 912”), which <i>run-length encoding</i> stores as one value and a count. Six countries become a <i>dictionary</i> of six strings plus a 1-byte code per row. A mostly-empty notes column almost vanishes. Rows mix types, so they compress far worse.</p>
+  <p><b>Fast CPUs on top.</b> Looping over one tight array of prices suits CPU caches and SIMD instructions that process 8 or 16 values at once. Engines often compute directly on compressed data.</p>
+  <p><b>The trade-off.</b> Single-row reads and writes are clumsy in a column store: inserting one order touches 8 separate places. So companies keep transactions in a row store (OLTP) and copy data periodically into a column store for analytics (OLAP). Some modern databases keep both layouts.</p>
+  <p class="status">Related: <a href="../lsm/">LSM trees</a> (how many column stores absorb writes), <a href="../btree/">B-trees</a> (row-store indexes), <a href="../cpu-cache/">CPU caches</a>.</p>
+</main>
+<script type="module">
+import { chrome, $ } from "../../shared/common.js";
+import { COLUMNS, ROW_BYTES, table, toColumns, compress, bytesRead } from "./columnar.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const PAL = ["#4f7cff", "#19a979", "#e8743b", "#8a6cd8", "#c9a227", "#d64545", "#2a9db0", "#7a7a7a"], R = 8, N = 100e6;
+const Q = {
+  revenue: { label: "Revenue by country", sql: "SELECT country, SUM(price * quantity) FROM orders GROUP BY country;", cols: ["country", "price", "quantity"], rows: "all" },
+  avg: { label: "Average price", sql: "SELECT AVG(price) FROM orders;", cols: ["price"], rows: "all" },
+  lookup: { label: "Fetch order #6", sql: "SELECT * FROM orders WHERE order_id = 6;", cols: COLUMNS.map(c => c.name), rows: [5] },
+  insert: { label: "Insert an order", sql: "INSERT INTO orders VALUES (…);", cols: COLUMNS.map(c => c.name), rows: [7] },
+};
+let q = "revenue";
+$("#q").innerHTML = Object.entries(Q).map(([k, x]) => `<button data-q="${k}" aria-pressed="${k === q}">${x.label}</button>`).join("");
+$("#key").innerHTML = COLUMNS.map((c, i) => `<span><i style="background:${PAL[i]}"></i>${c.name} (${c.bytes} B)</span>`).join("");
+const fmtB = b => b >= 1e12 ? (b / 1e12).toFixed(1) + " TB" : b >= 1e9 ? (b / 1e9).toFixed(1) + " GB" : b >= 1e6 ? (b / 1e6).toFixed(1) + " MB" : b + " B";
+function render() {
+  const x = Q[q], on = (r, c) => x.cols.includes(COLUMNS[c].name) && (x.rows === "all" || x.rows.includes(r));
+  const cell = (r, c) => `<span class="${on(r, c) ? "on" : ""}" style="background:${PAL[c]}" title="order ${r + 1}, ${COLUMNS[c].name}">${r + 1}</span>`;
+  let row = "", col = ""; for (let r = 0; r < R; r++) for (let c = 0; c < COLUMNS.length; c++) row += cell(r, c);
+  for (let c = 0; c < COLUMNS.length; c++) for (let r = 0; r < R; r++) col += cell(r, c);
+  $("#row").innerHTML = row; $("#col").innerHTML = col; $("#qtext").textContent = x.sql;
+  let rb, cb, rs, cs;
+  if (x.rows === "all") { rb = bytesRead(N, x.cols, "row"); cb = bytesRead(N, x.cols, "column"); rs = 1; cs = x.cols.length; }
+  else { rb = ROW_BYTES; cb = ROW_BYTES; rs = 1; cs = COLUMNS.length; }
+  const winner = x.rows === "all" ? "col" : "row";
+  $("#stats").innerHTML = [
+    [fmtB(rb), `row store reads${x.rows === "all" ? " (100 M orders)" : ""}`, winner === "row"],
+    [fmtB(cb), `column store reads${x.rows === "all" ? " (before compression)" : ""}`, winner === "col"],
+    [rs, `place${rs === 1 ? "" : "s"} on disk, row store`, winner === "row"],
+    [cs, `place${cs === 1 ? "" : "s"} on disk, column store`, winner === "col"],
+  ].map(([v, l, w]) => `<div class="stat"><b class="${w ? "win" : ""}">${v}</b><small>${l}</small></div>`).join("");
+}
+function comp() {
+  const cols = toColumns(table(5000, mulberry(3)));
+  let tp = 0, tb = 0;
+  const rows = COLUMNS.map(c => { const r = compress(cols[c.name], c.bytes); tp += r.plain; tb += r.best; return `<tr><td>${c.name}</td><td class="num">${r.distinct.toLocaleString()}</td><td class="num">${(r.plain / 1024).toFixed(1)} KB</td><td>${r.method}</td><td class="num">${(r.best / 1024).toFixed(1)} KB</td><td class="num">${(r.plain / r.best).toFixed(1)}×</td></tr>`; });
+  $("#comp").innerHTML = `<tr><th>Column</th><th>Distinct values</th><th>Raw</th><th>Best encoding</th><th>Compressed</th><th>Ratio</th></tr>` + rows.join("") + `<tr><td><b>Whole table</b></td><td></td><td class="num"><b>${(tp / 1024).toFixed(0)} KB</b></td><td></td><td class="num"><b>${(tb / 1024).toFixed(0)} KB</b></td><td class="num"><b>${(tp / tb).toFixed(1)}×</b></td></tr>`;
+}
+$("#q").onclick = e => { const b = e.target.closest("[data-q]"); if (!b) return; q = b.dataset.q; document.querySelectorAll("#q button").forEach(x => x.setAttribute("aria-pressed", x === b)); render(); };
+render(); comp();
+</script>
+</body>
+</html>

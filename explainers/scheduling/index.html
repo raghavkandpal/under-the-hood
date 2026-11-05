@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPU Scheduling</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .jobs { display: grid; grid-template-columns: auto 1fr 1fr auto; gap: 6px 10px; align-items: center; font-size: 13px; }
+  .jobs input { width: 100%; font-family: var(--mono); padding: 4px 6px; }
+  .jobs .sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+  .lane { display: grid; grid-template-columns: 170px 1fr 220px; gap: 10px; align-items: center; margin: 10px 0; font-size: 13px; }
+  @media (max-width: 760px) { .lane { grid-template-columns: minmax(0, 1fr); } }
+  .gantt { position: relative; height: 30px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
+  .gantt div { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; color: #fff; border-right: 1px solid var(--surface); overflow: hidden; }
+  .gantt div.idle { background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 4px, var(--border) 4px, var(--border) 6px); color: var(--muted); }
+  .lane .m { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .lane .m b { color: var(--text); }
+  .lane.best .name { color: var(--green); font-weight: 700; }
+  input[type=range] { accent-color: var(--accent); }
+  .axis { font-family: var(--mono); font-size: 10px; color: var(--muted); position: relative; height: 14px; }
+  .axis span { position: absolute; transform: translateX(-50%); }
+</style>
+</head>
+<body>
+<main>
+  <h1>CPU scheduling</h1>
+  <p class="lede">Your laptop runs hundreds of programs on a handful of cores. The operating system's scheduler keeps choosing who runs next, and different choices make the same work feel fast or sluggish. Edit the jobs and compare four classic strategies on one core.</p>
+
+  <div class="panel">
+    <div class="controls" style="margin:0 0 10px"><span class="status">Presets:</span><button data-p="convoy">Convoy (one big job first)</button><button data-p="mixed">Mixed</button><button data-p="equal">All equal</button>
+      <label class="inline">Round-robin time slice <input type="range" id="q" min="1" max="8" value="2"> <b id="vq"></b></label></div>
+    <div class="jobs" id="jobs"></div>
+  </div>
+
+  <div class="panel" id="lanes"></div>
+  <p class="status">wait = time spent ready but not running · response = time until first run · ★ = lowest average wait</p>
+
+  <h2>Four strategies</h2>
+  <p><b>First come, first served</b> is simple and fair in one sense, but a long job at the front makes every short job behind it wait. That's the <b>convoy effect</b>, like being stuck behind a full trolley at a checkout.</p>
+  <p><b>Shortest job first</b> runs the quickest job next, which provably minimises average waiting time when all jobs are known. The catch: the OS rarely knows how long a job will take, and a stream of short jobs can starve a long one forever.</p>
+  <p><b>Shortest remaining time</b> is SJF that can <i>preempt</i>. A new short job interrupts a long one. Even better averages, more context switches.</p>
+  <p><b>Round robin</b> gives each job a small time slice in turn. Nobody waits long to <i>start</i> (good response time, which is what makes interactive programs feel snappy), but long jobs finish later and every switch has overhead. Shrink the slice to see switches climb, or grow it until RR behaves like FCFS.</p>
+  <p class="status">Real schedulers mix these ideas. Linux's CFS and its successor EEVDF give each task a fair share of CPU time weighted by priority. Many systems use multi-level feedback queues that guess "interactive vs. batch" from past behaviour. Context-switch cost isn't charged in this simulation.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml } from "../../shared/common.js";
+import { schedule, ALGOS } from "./sched.js";
+chrome();
+
+const COL = ["#e0453a", "#2f6fe4", "#17a35a", "#e08a00", "#8b5cf6", "#0891b2"];
+const PRESETS = {
+  convoy: [["Big", 0, 10], ["A", 1, 1], ["B", 1, 2], ["C", 2, 1], ["D", 3, 2]],
+  mixed: [["Edit", 0, 3], ["Build", 1, 8], ["Mail", 2, 1], ["Music", 3, 4], ["Shell", 5, 2]],
+  equal: [["P1", 0, 4], ["P2", 0, 4], ["P3", 0, 4], ["P4", 0, 4]],
+};
+let jobs;
+function load(k) { jobs = PRESETS[k].map(([name, arrive, burst]) => ({ name, arrive, burst })); form(); render(); }
+function form() {
+  $("#jobs").innerHTML = `<span></span><b class="status">arrives at</b><b class="status">needs (time units)</b><span></span>` + jobs.map((j, i) => `<span><i class="sw" style="background:${COL[i % 6]}"></i> ${escapeHtml(j.name)}</span><input data-i="${i}" data-k="arrive" type="number" min="0" max="30" value="${j.arrive}" aria-label="${escapeHtml(j.name)} arrival"><input data-i="${i}" data-k="burst" type="number" min="1" max="20" value="${j.burst}" aria-label="${escapeHtml(j.name)} burst"><button data-del="${i}" aria-label="remove ${escapeHtml(j.name)}">×</button>`).join("") + `<span></span><button id="add" style="grid-column:span 3">+ add job</button>`;
+}
+function render() {
+  const q = +$("#q").value; $("#vq").textContent = q;
+  if (!jobs.length) { $("#lanes").innerHTML = `<p class="status">Add a job.</p>`; return; }
+  const res = Object.fromEntries(Object.keys(ALGOS).map(a => [a, schedule(jobs, a, q)])), T = Math.max(...Object.values(res).map(r => r.end));
+  const best = Math.min(...Object.values(res).map(r => r.avgWait));
+  const ticks = Array.from({ length: Math.floor(T / 2) + 1 }, (_, i) => i * 2).map(t => `<span style="left:${t / T * 100}%">${t}</span>`).join("");
+  $("#lanes").innerHTML = Object.entries(ALGOS).map(([a, A]) => {
+    const r = res[a];
+    const blocks = r.gantt.map(g => `<div class="${g.name ? "" : "idle"}" style="left:${g.from / T * 100}%;width:${(g.to - g.from) / T * 100}%;background:${g.name ? COL[g.i % 6] : ""}" title="${g.name ?? "idle"} ${g.from}–${g.to}">${g.to - g.from >= 1 ? escapeHtml(g.name ?? "") : ""}</div>`).join("");
+    return `<div class="lane${r.avgWait === best ? " best" : ""}"><span class="name">${A.label}${r.avgWait === best ? " ★" : ""}${a === "rr" ? ` (slice ${q})` : ""}</span><div><div class="gantt">${blocks}</div><div class="axis">${ticks}</div></div><span class="m">avg wait <b>${r.avgWait.toFixed(1)}</b> · response <b>${r.avgResp.toFixed(1)}</b> · switches <b>${r.switches}</b></span></div>`;
+  }).join("");
+}
+$("#jobs").addEventListener("input", e => { const t = e.target; if (!t.dataset.k) return; const v = parseInt(t.value, 10); if (!(v >= (t.dataset.k === "burst" ? 1 : 0))) return; jobs[+t.dataset.i][t.dataset.k] = v; render(); });
+$("#jobs").addEventListener("click", e => {
+  if (e.target.id === "add") { if (jobs.length >= 6) return; jobs.push({ name: "J" + (jobs.length + 1), arrive: Math.max(...jobs.map(j => j.arrive), 0) + 1, burst: 3 }); form(); render(); }
+  const d = e.target.dataset.del; if (d != null) { jobs.splice(+d, 1); form(); render(); }
+});
+$("#q").oninput = render;
+document.querySelectorAll("[data-p]").forEach(b => b.onclick = () => load(b.dataset.p));
+load("convoy");
+</script>
+</body>
+</html>
