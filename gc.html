@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garbage Collection</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  #heap { width: 100%; display: block; user-select: none; }
+  .obj rect { fill: var(--blue-soft); stroke: var(--blue); stroke-width: 1.5; cursor: pointer; }
+  .obj.sel rect { stroke: var(--accent); stroke-width: 3.5; }
+  .obj.leak rect { fill: var(--red-soft); stroke: var(--red); stroke-dasharray: 5 3; }
+  .obj.marked rect { fill: var(--green-soft); stroke: var(--green); stroke-width: 3; }
+  .obj.dying rect { opacity: .25; }
+  .obj text { font-family: var(--mono); font-size: 12px; text-anchor: middle; fill: var(--text); pointer-events: none; }
+  .obj text.rc { font-size: 10px; fill: var(--muted); }
+  .root rect { fill: var(--surface-2); stroke: var(--text); stroke-width: 1.5; cursor: pointer; }
+  .root.sel rect { stroke: var(--accent); stroke-width: 3; }
+  .root text { font-family: var(--mono); font-size: 12px; fill: var(--text); pointer-events: none; }
+  .ref { stroke: var(--muted); stroke-width: 1.6; fill: none; marker-end: url(#arr); }
+  .ref.root { stroke: var(--text); }
+  .freed { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Garbage collection</h1>
+  <p class="lede">In Python, Java, JavaScript or Go you create objects and never free them. Something has to work out which ones you're finished with. Here are the two classic answers, and the case where one of them fails.</p>
+
+  <div class="panel">
+    <div class="controls tabs">
+      <span class="status">Collector:</span>
+      <button data-mode="refcount">Reference counting</button>
+      <button data-mode="marksweep" aria-pressed="true">Mark &amp; sweep</button>
+      <span class="status" style="margin-left:8px">Start from:</span>
+      <button id="sChain">a chain</button><button id="sCycle">a cycle</button><button id="sEmpty">empty</button>
+    </div>
+    <div class="controls" style="margin-bottom:0">
+      <button id="new" class="primary">+ New object</button>
+      <button id="collect">🧹 Run mark &amp; sweep</button>
+      <span class="status" id="hint"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <svg id="heap" viewBox="0 0 760 360" role="img" aria-label="Heap diagram"></svg>
+    <p class="status">Click an object to select it, then click another to add or remove a reference to it. Click a variable to point it at the selected object, or click it with nothing selected to clear it.</p>
+    <p id="msg" style="margin:6px 0 0;font-weight:600"></p>
+    <p class="freed" id="freed"></p>
+  </div>
+
+  <h2>Two ways to find garbage</h2>
+  <p><b>An object is garbage</b> when nothing your program can still reach points to it, directly or through other objects. The <b>roots</b> (local variables, globals, the call stack) are where every search starts.</p>
+  <p><b>Reference counting</b> keeps a count on each object of how many references point at it (the small number). When the count hits 0, the object is freed at once, and its own references are released, which can cascade. It's simple and immediate, with no pauses. But in a <b>cycle</b> each object keeps the other's count at 1 forever, even when nothing else can reach them. Load "a cycle", switch to reference counting, and clear <code>y</code>. The two objects turn red: leaked.</p>
+  <p><b>Mark &amp; sweep</b> ignores counts. From the roots it follows every reference and marks what it reaches (green), then sweeps away everything unmarked. Cycles are no problem. The cost is that it has to run every so often, and naive versions pause the program while they do.</p>
+  <p><b>In practice:</b> CPython uses reference counting <i>plus</i> a cycle detector for exactly this problem. Swift and Objective-C use reference counting and ask you to break cycles with "weak" references. The JVM, V8 and Go use tracing collectors (relatives of mark &amp; sweep) that are <b>generational</b> (most objects die young, so the young area is checked often) and <b>concurrent</b> (they mark while your program runs) to keep pauses short.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, sleep } from "./common.js";
+import { Heap } from "./lib/gc.js";
+chrome();
+
+const ROOTS = ["x", "y", "z"], COLS = 6, ROWS = 3;
+let heap, mode = "marksweep", sel = null, selRoot = null, slots = new Map(), marking = null, busy = false;
+const freeSlot = () => { const used = new Set(slots.values()); for (let i = 0; i < COLS * ROWS; i++) if (!used.has(i)) return i; return -1; };
+const pos = id => { const s = slots.get(id); return { x: 200 + (s % COLS) * 92, y: 60 + Math.floor(s / COLS) * 110 }; };
+const rootPos = i => ({ x: 30, y: 60 + i * 110 });
+
+function fresh() { heap = new Heap(mode); slots = new Map(); sel = null; marking = null; }
+function alloc(root = null) { const s = freeSlot(); if (s < 0) { say("Heap is full. Free something first."); return null; } const id = heap.alloc(root); slots.set(id, s); return id; }
+function sync() { for (const id of [...slots.keys()]) if (!heap.objs.has(id)) slots.delete(id); }
+function say(t) { $("#msg").textContent = t; }
+
+function scenario(kind) {
+  fresh();
+  if (kind === "chain") { const a = alloc("x"), b = alloc(), c = alloc(); heap.link(a, b); heap.link(b, c); say("x → 1 → 2 → 3. Click x (with nothing selected) to drop it."); }
+  if (kind === "cycle") { const p = alloc("y"), q = alloc(); heap.link(p, q); heap.link(q, p); const r = alloc("x"); say("y → 1 ⇄ 2, a cycle. Click y to drop it, under each collector."); }
+  if (kind === "empty") say("An empty heap. Make objects and wire them up.");
+  render();
+}
+function render() {
+  sync();
+  const svg = $("#heap"); svg.replaceChildren();
+  const defs = svgEl("defs"); const mk = svgEl("marker", { id: "arr", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+  mk.append(svgEl("path", { d: "M0 0 L10 5 L0 10 z", fill: "var(--muted)" })); defs.append(mk); svg.append(defs);
+  svg.append(svgEl("text", { x: 30, y: 26, "font-size": 12, fill: "var(--muted)", "font-weight": 700 }, "ROOTS"), svgEl("text", { x: 200, y: 26, "font-size": 12, fill: "var(--muted)", "font-weight": 700 }, "HEAP"));
+  const garbage = new Set(mode === "refcount" ? heap.garbage() : []);
+  const edge = (a, b, cls) => {
+    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+    const sx = a.x + ux * 34, sy = a.y + uy * 22, ex = b.x - ux * 36, ey = b.y - uy * 24;
+    const mx = (sx + ex) / 2 - uy * 18, my = (sy + ey) / 2 + ux * 18;
+    svg.append(svgEl("path", { d: `M${sx} ${sy} Q ${mx} ${my} ${ex} ${ey}`, class: "ref " + cls }));
+  };
+  for (const [id, o] of heap.objs) for (const r of o.refs) if (slots.has(r)) edge(pos(id), pos(r), "");
+  ROOTS.forEach((name, i) => {
+    const p = rootPos(i), t = heap.roots.get(name);
+    const g = svgEl("g", { class: "root" + (selRoot === name ? " sel" : ""), "data-root": name, transform: `translate(${p.x},${p.y - 18})` });
+    g.append(svgEl("rect", { width: 110, height: 36, rx: 6 }));
+    g.append(svgEl("text", { x: 10, y: 23 }, `${name} = ${t != null ? "obj " + t : "null"}`));
+    svg.append(g);
+    if (t != null && slots.has(t)) edge({ x: p.x + 80, y: p.y }, pos(t), "root");
+  });
+  for (const [id, o] of heap.objs) {
+    const p = pos(id);
+    const cls = ["obj", sel === id ? "sel" : "", garbage.has(id) ? "leak" : "", marking?.marked.has(id) ? "marked" : "", marking?.dying?.has(id) ? "dying" : ""].join(" ");
+    const g = svgEl("g", { class: cls, "data-id": id, transform: `translate(${p.x},${p.y})` });
+    g.append(svgEl("rect", { x: -34, y: -22, width: 68, height: 44, rx: 8 }));
+    g.append(svgEl("text", { y: -2 }, `obj ${id}`));
+    if (mode === "refcount") g.append(svgEl("text", { y: 14, class: "rc" }, `count ${o.rc}`));
+    svg.append(g);
+  }
+  document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === mode));
+  $("#collect").hidden = mode !== "marksweep";
+  $("#hint").textContent = mode === "refcount" ? "Objects are freed the instant their count reaches 0." : "Nothing is freed until you run a collection.";
+  $("#freed").textContent = heap.freed.length ? `Freed so far: ${heap.freed.map(i => "obj " + i).join(", ")}` : "";
+}
+$("#heap").addEventListener("click", e => {
+  if (busy) return;
+  const o = e.target.closest("[data-id]"), r = e.target.closest("[data-root]");
+  if (r) {
+    const name = r.dataset.root;
+    if (sel != null) { heap.setRoot(name, sel); say(`${name} now points to obj ${sel}.`); sel = null; }
+    else if (heap.roots.has(name)) { const was = heap.roots.get(name); heap.setRoot(name, null); say(`Cleared ${name} (it pointed to obj ${was}).` + (mode === "refcount" ? (heap.objs.has(was) ? ` obj ${was} survives with count ${heap.objs.get(was).rc}.` : ` obj ${was}'s count hit 0, so it was freed.`) : " Run a collection to reclaim anything unreachable.")); }
+    render(); return;
+  }
+  if (!o) { sel = null; render(); return; }
+  const id = +o.dataset.id;
+  if (sel == null) { sel = id; say(`Selected obj ${id}. Click another object to toggle a reference, or a variable to point it here.`); }
+  else if (sel === id) { sel = null; say(""); }
+  else { const a = sel; if (!heap.unlink(a, id)) { heap.link(a, id); say(`obj ${a} → obj ${id}`); } else say(`Removed obj ${a} → obj ${id}` + (mode === "refcount" && !heap.objs.has(id) ? `. obj ${id}'s count hit 0, so it was freed.` : ".")); sel = null; }
+  render();
+});
+$("#new").onclick = () => {
+  if (busy) return;
+  const root = sel == null ? ROOTS.find(r => !heap.roots.has(r)) ?? null : null;
+  const id = alloc(root); if (id == null) return;
+  if (sel != null) { heap.link(sel, id); say(`New obj ${id}, referenced by obj ${sel}.`); sel = null; }
+  else say(root ? `New obj ${id}, stored in ${root}.` : `New obj ${id}. No free variable, so nothing points to it. It's garbage already.`);
+  render();
+};
+$("#collect").onclick = async () => {
+  if (busy) return; busy = true; sel = null;
+  const { order } = heap.reachable(); marking = { marked: new Set() };
+  say("Mark: following references from the roots…");
+  for (const id of order) { marking.marked.add(id); render(); await sleep(350); }
+  const dead = [...heap.objs.keys()].filter(id => !marking.marked.has(id));
+  marking.dying = new Set(dead); say(dead.length ? `Sweep: ${dead.length} unmarked object${dead.length > 1 ? "s" : ""} can't be reached. Freeing.` : "Sweep: everything is reachable. Nothing to free."); render(); await sleep(700);
+  heap.collect(); marking = null; busy = false; render();
+};
+document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { if (busy) return; mode = b.dataset.mode; scenario("cycle"); });
+$("#sChain").onclick = () => !busy && scenario("chain");
+$("#sCycle").onclick = () => !busy && scenario("cycle");
+$("#sEmpty").onclick = () => !busy && scenario("empty");
+scenario("chain");
+</script>
+</body>
+</html>

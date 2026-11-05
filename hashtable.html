@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hash Tables</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; align-items: start; }
+  .slot { border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface-2); min-height: 62px; display: flex; flex-direction: column; transition: border-color .15s, background .15s; }
+  .slot .ix { font-size: 10.5px; color: var(--muted); font-family: var(--mono); padding: 3px 6px 0; }
+  .slot .items { display: flex; flex-direction: column; gap: 3px; padding: 4px; }
+  .item { background: var(--blue-soft); border: 1px solid var(--blue); border-radius: 5px; font-family: var(--mono); font-size: 12px; padding: 2px 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: background .15s; }
+  .item.displaced { background: var(--accent-soft); border-color: var(--accent); }
+  .item.tomb { background: transparent; border-style: dashed; border-color: var(--muted); color: var(--muted); text-align: center; }
+  .slot.probe { border-color: var(--accent); background: var(--accent-soft); }
+  .slot.hit { border-color: var(--green); background: var(--green-soft); }
+  .slot.miss { border-color: var(--red); background: var(--red-soft); }
+  .item.probe { outline: 2px solid var(--accent); }
+  .item.hit { outline: 2px solid var(--green); background: var(--green-soft); }
+  .row input[type=text] { flex: 1 1 160px; font-family: var(--mono); }
+  .calc { font-family: var(--mono); font-size: 13px; min-height: 1.6em; margin-top: 10px; word-break: break-all; }
+  .stats { gap: 10px; margin-top: 12px; }
+  .stat { padding: 8px 12px; }
+  .stat b { font-size: 20px; }
+  .loadbar { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; margin-top: 10px; position: relative; }
+  .loadbar div { height: 100%; background: var(--green); transition: width .2s, background .2s; }
+  .loadbar span { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Hash tables</h1>
+  <p class="lede">How does a dictionary find one key among a million without searching? It turns the key into a number, uses that number as an array index, and goes straight there. The interesting part is what happens when two keys want the same spot.</p>
+
+  <div class="panel">
+    <div class="row">
+      <input id="key" type="text" value="kiwi" aria-label="Key" spellcheck="false" autocomplete="off">
+      <button id="ins" class="primary">Insert</button>
+      <button id="find">Find</button>
+      <button id="del">Delete</button>
+      <button id="rand">+ 5 random</button>
+      <button id="reset">Reset</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label class="inline">Collisions <select id="strategy"><option value="chaining">separate chaining</option><option value="probing">linear probing</option></select></label>
+      <label class="inline">Hash <select id="hash"></select></label>
+      <label class="inline"><input type="checkbox" id="auto" checked> grow when load &gt; <select id="maxLoad"><option>0.5</option><option selected>0.75</option><option>0.9</option></select></label>
+    </div>
+    <div class="calc" id="calc">Type a key and insert it.</div>
+    <div class="loadbar" title="load factor"><div id="lbar"></div><span id="lmark"></span></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel"><div class="slots" id="slots"></div></div>
+
+  <h2>How it works</h2>
+  <p><b>Hash, then mod.</b> A hash function scrambles the key into a big number. Taking it modulo the array size gives the key's <i>home slot</i>. A good hash spreads keys evenly, so most slots hold zero or one key, and a lookup costs about one step however big the table gets.</p>
+  <p><b>Collisions are inevitable.</b> With 23 keys and 365 slots there's already a 50% chance two share a slot (the birthday paradox). There are two classic fixes:</p>
+  <ul>
+    <li><b>Separate chaining:</b> each slot holds a small list. Colliding keys line up in it.</li>
+    <li><b>Linear probing:</b> if your slot is taken, try the next, and the next. It's cache-friendly, but neighbouring keys pile into <i>clusters</i> (orange = not in its home slot). Deleting can't just empty a slot, or lookups for keys that probed past it would stop early, so it leaves a <b>tombstone</b> instead.</li>
+  </ul>
+  <p><b>Load factor and resizing.</b> As the table fills, collisions multiply, especially with probing. So when <code>size / capacity</code> crosses a threshold, the table doubles and re-inserts every key. A key's home slot depends on the capacity, so every key has to move. Doubling makes this rare enough that inserts stay cheap on average (<i>amortised O(1)</i>).</p>
+  <div class="note">Try it: switch to <b>first letter only</b>, turn growth off, and add keys. Everything starting with the same letter lands in one slot, and the table degrades into a slow list. Switch back to FNV-1a and see the keys spread out.</div>
+</main>
+<script type="module">
+import { chrome, $, sleep, escapeHtml, statTile } from "./common.js";
+import { HashTable, HASHES, TOMBSTONE } from "./lib/hashtable.js";
+chrome();
+
+const WORDS = "apple banana cherry date fig grape kiwi lemon mango olive peach pear plum quince lime melon guava papaya apricot avocado berry coconut".split(" ");
+$("#hash").innerHTML = Object.entries(HASHES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("");
+let t, busy = false;
+
+function make(keepKeys = true) {
+  const keys = keepKeys && t ? t.entries().map(e => e.key) : [];
+  t = new HashTable({ strategy: $("#strategy").value, hash: $("#hash").value, capacity: 8, autoResize: $("#auto").checked, maxLoad: +$("#maxLoad").value });
+  for (const k of keys) { try { t.set(k, 1); } catch { break; } }
+  render();
+}
+
+function render(mark = {}) {
+  const el = $("#slots");
+  el.innerHTML = Array.from({ length: t.capacity }, (_, i) => {
+    const s = t.slots[i];
+    let items = "";
+    if (t.strategy === "chaining") items = s.map((e, p) => `<div class="item${mark.item?.[i + ":" + p] ? " " + mark.item[i + ":" + p] : ""}" title="${escapeHtml(e.key)}">${escapeHtml(e.key)}</div>`).join("");
+    else if (s === TOMBSTONE) items = `<div class="item tomb" title="tombstone">✝</div>`;
+    else if (s) items = `<div class="item${t.home(s.key) !== i ? " displaced" : ""}" title="${escapeHtml(s.key)} (home slot ${t.home(s.key)})">${escapeHtml(s.key)}</div>`;
+    return `<div class="slot${mark.slot?.[i] ? " " + mark.slot[i] : ""}"><div class="ix">[${i}]</div><div class="items">${items}</div></div>`;
+  }).join("");
+  const st = t.stats();
+  $("#lbar").style.width = Math.min(100, st.load * 100) + "%";
+  $("#lbar").style.background = st.load > 0.9 ? "var(--red)" : st.load > 0.7 ? "var(--accent)" : "var(--green)";
+  $("#lmark").style.left = t.autoResize ? `calc(${t.maxLoad * 100}% - 1px)` : "-10px";
+  $("#stats").innerHTML = [
+    [st.size, "keys"], [st.capacity, "slots"], [st.load.toFixed(2), "load factor"],
+    [st.avgProbes.toFixed(2), "avg steps per lookup"],
+    [st.worst, t.strategy === "chaining" ? "longest chain" : "longest cluster"],
+    ...(t.strategy === "probing" ? [[st.tombstones, "tombstones"]] : []),
+  ].map(statTile).join("");
+}
+
+async function animate(r, verdict) {
+  // walk the probe sequence one step at a time
+  for (let i = 0; i < r.probes.length; i++) {
+    const mark = { slot: {}, item: {} };
+    r.probes.slice(0, i + 1).forEach((p, j) => {
+      const last = j === i;
+      const cls = last && i === r.probes.length - 1 ? verdict : "probe";
+      if (p.pos != null && p.pos >= 0) mark.item[p.slot + ":" + p.pos] = cls; else mark.slot[p.slot] = cls;
+      if (p.pos != null) mark.slot[p.slot] = mark.slot[p.slot] || (cls === "probe" ? "probe" : cls);
+    });
+    render(mark);
+    await sleep(r.probes.length > 6 ? 110 : 260);
+  }
+}
+
+async function op(kind, key = $("#key").value.trim()) {
+  if (busy || !key) return;
+  busy = true;
+  const hv = t.h(key), home = hv % t.capacity, cap = t.capacity;
+  let r, msg;
+  try {
+    if (kind === "find") { r = t.find(key); }
+    else if (kind === "del") { r = t.delete(key); }
+    else { r = t.set(key, 1); }
+  } catch (e) { $("#calc").textContent = "✖ " + e.message + ". Turn growth back on."; busy = false; return; }
+  const steps = r.probes.length;
+  const what = kind === "find" ? (r.found ? "found" : "not found") : kind === "del" ? (r.found ? "deleted" : "not found, nothing to delete") : r.op === "update" ? "already present (updated)" : `stored in slot ${r.index}`;
+  msg = `${HASHES[t.hash].label.split(" (")[0]}("${escapeHtml(key)}") = ${hv} &nbsp;→&nbsp; ${hv} mod ${cap} = <b>${home}</b> &nbsp;→&nbsp; ${what} after ${steps} step${steps === 1 ? "" : "s"}`;
+  $("#calc").innerHTML = msg;
+  // render the table as it was before a resize so the probe animation lines up
+  if (r.resized) {
+    const snapshot = t; // animate on the exact pre-resize layout
+    const pre = new HashTable({ strategy: t.strategy, hash: t.hash, capacity: cap, autoResize: false });
+    pre.slots = r.resized.before.slots; pre.size = snapshot.size;
+    t = pre; await animate(r, "hit"); t = snapshot;
+    $("#calc").innerHTML = msg + `<br>Load passed ${t.maxLoad}, so the table grew from ${r.resized.from} to ${r.resized.to} slots and re-inserted all ${r.resized.moves} keys.`;
+    await sleep(300);
+    render();
+  } else {
+    await animate(r, kind === "ins" || r.found ? "hit" : "miss");
+  }
+  busy = false;
+}
+
+$("#ins").onclick = () => op("ins");
+$("#find").onclick = () => op("find");
+$("#del").onclick = () => op("del");
+$("#key").addEventListener("keydown", e => { if (e.key === "Enter") op("ins"); });
+$("#rand").onclick = async () => {
+  for (let i = 0; i < 5; i++) {
+    const have = new Set(t.entries().map(e => e.key));
+    const pool = WORDS.filter(w => !have.has(w));
+    const w = pool.length ? pool[Math.random() * pool.length | 0] : "key" + (Math.random() * 1e4 | 0);
+    $("#key").value = w; await op("ins", w); await sleep(150);
+  }
+};
+$("#reset").onclick = () => { if (!busy) { t = null; make(false); $("#calc").textContent = "Empty table, 8 slots."; } };
+for (const id of ["strategy", "hash", "auto", "maxLoad"]) $("#" + id).addEventListener("change", () => { if (!busy) { make(true); $("#calc").textContent = "Rebuilt the table with the new settings, same keys."; } });
+make(false);
+for (const w of ["apple", "banana", "cherry", "kiwi"]) t.set(w, 1);
+render();
+</script>
+</body>
+</html>

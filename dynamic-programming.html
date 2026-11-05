@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dynamic Programming</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .row { gap: 10px; margin-top: 8px; }
+  .row input[type=text] { width: 9em; font-family: var(--mono); }
+  .table { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 3px; margin-top: 10px; }
+  .cell { border-radius: 6px; background: var(--surface-2); text-align: center; padding: 3px 0 2px; font-family: var(--mono); cursor: pointer; }
+  .cell small { display: block; font-size: 9px; color: var(--muted); }
+  .cell b { font-size: 14px; }
+  .cell i { display: block; font-size: 9px; font-style: normal; color: var(--accent); min-height: 11px; }
+  .cell.path { background: var(--accent-soft); outline: 1.5px solid var(--accent); }
+  .cell.target { background: var(--accent); color: #fff; }
+  .cell.target small, .cell.target i { color: #fff; }
+  .cell.cur { outline: 2px solid var(--blue); }
+  .cell.dep { background: var(--blue-soft); }
+  .coins { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; min-height: 34px; }
+  .coin { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 12px; font-weight: 700; background: #d9b44a; color: #3b2f0a; border: 2px solid #b8932c; }
+  .cmp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 10px; }
+  @media (max-width: 560px) { .cmp { grid-template-columns: minmax(0, 1fr); } }
+  .bad { color: var(--red); font-weight: 700; } .good { color: var(--green); font-weight: 700; }
+  .stats { --stat-min: 140px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Dynamic programming</h1>
+  <p class="lede">Make 6p from coins worth 1, 3 and 4. Grabbing the biggest coin each time gives 4 + 1 + 1, three coins, but 3 + 3 does it in two. Finding the true best seems to mean trying every combination, and there are astronomically many. Dynamic programming finds it by never solving the same small problem twice.</p>
+
+  <div class="panel">
+    <div class="row" style="margin-top:0">
+      <label class="inline">coins <select id="sys"><option value="1,3,4">1, 3, 4</option><option value="1,2,5,10,20,50">1, 2, 5, 10, 20, 50</option><option value="1,5,6,9">1, 5, 6, 9</option><option value="1,7,10">1, 7, 10</option><option value="4,7">4, 7 (no 1)</option><option value="custom">custom…</option></select></label>
+      <input type="text" id="custom" placeholder="e.g. 1,6,10" hidden aria-label="Custom coins">
+      <label class="inline">amount <input type="range" id="amt" min="1" max="60" value="6"> <b id="av"></b></label>
+      <button id="fill" class="primary">▶ Fill the table</button><button id="worst">Find where greedy loses</button>
+    </div>
+    <div class="table" id="tbl"></div>
+    <p class="status" style="margin:4px 0 0">Each cell: amount (small), fewest coins to make it (bold), and the last coin used. Hover a cell to see which smaller answers it was built from.</p>
+    <div class="cmp">
+      <div><b>Greedy</b> <span id="gn"></span><div class="coins" id="gc"></div></div>
+      <div><b>Dynamic programming</b> <span id="dn"></span><div class="coins" id="dc"></div></div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Break it into smaller versions of itself.</b> The best way to make 6 ends with <i>some</i> coin. If it's a 3, the rest is the best way to make 3, and if it's a 4, the best way to make 2. So best(6) = 1 + min(best(5), best(3), best(2)). Each answer is built from answers to smaller amounts.</p>
+  <p><b>Overlapping subproblems.</b> Written as plain recursion, best(6) asks for best(5), which asks for best(4)… and best(3) gets recomputed again and again along different branches. The work explodes exponentially (see the call counts). Remember each answer the first time (<i>memoisation</i>), or fill a table from 0 upwards as here, and every subproblem is solved exactly once.</p>
+  <p><b>Greedy isn't always wrong.</b> For everyday coin systems, taking the biggest coin is optimal, and currencies are designed that way. Pick the 1, 3, 4 or 1, 7, 10 systems and press “Find where greedy loses”.</p>
+  <p class="status">The same pattern solves edit distance (spell checkers, <a href="diff.html">diff</a>), shortest paths (Bellman-Ford, as in <a href="routing.html">routing</a>), sequence alignment in genomics, the knapsack problem, speech recognition (Viterbi), and how a typesetter breaks a paragraph into lines.</p>
+</main>
+<script type="module">
+import { chrome, $, sleep, statTile } from "./common.js";
+import { greedy, dp, calls } from "./lib/dp.js";
+chrome();
+
+let anim = 0, filling = false;
+function coins() {
+  const raw = $("#sys").value === "custom" ? $("#custom").value : $("#sys").value;
+  const c = [...new Set(raw.split(/[^0-9]+/).map(Number).filter(x => x > 0 && x <= 100))].sort((a, b) => a - b);
+  return c.length ? c : [1];
+}
+const chips = cs => cs ? cs.sort((a, b) => b - a).map(c => `<span class="coin">${c}</span>`).join("") : `<span class="bad">impossible</span>`;
+function render(upto = Infinity, cur = -1) {
+  const C = coins(), A = +$("#amt").value, r = dp(C, A); $("#av").textContent = A;
+  const path = new Set(); if (r.coins && upto >= A) for (let a = A; a > 0; a -= r.pick[a]) path.add(a);
+  const deps = new Set(cur > 0 ? C.filter(c => c <= cur).map(c => cur - c) : []);
+  $("#tbl").innerHTML = r.best.map((b, a) => {
+    const shown = a <= upto, cls = a === A && shown ? "target" : path.has(a) || (a === 0 && path.size) ? "path" : deps.has(a) ? "dep" : "";
+    return `<div class="cell ${cls}${a === cur ? " cur" : ""}" data-a="${a}"><small>${a}</small><b>${shown ? (b === Infinity ? "✗" : b) : "?"}</b><i>${shown && r.pick[a] ? "+" + r.pick[a] : ""}</i></div>`;
+  }).join("");
+  if (upto < A) return;
+  const g = greedy(C, A);
+  $("#gc").innerHTML = chips(g ? [...g] : null); $("#dc").innerHTML = chips(r.coins ? [...r.coins] : null);
+  const gl = g ? g.length : Infinity, dl = r.coins ? r.coins.length : Infinity;
+  $("#gn").innerHTML = g ? `${gl} coin${gl === 1 ? "" : "s"} ${gl > dl ? `<span class="bad">(not optimal)</span>` : ""}` : `<span class="bad">gets stuck</span>`;
+  $("#dn").innerHTML = r.coins ? `${dl} coin${dl === 1 ? "" : "s"} <span class="good">(optimal)</span>` : "";
+  if (cur >= 0) return; // hovering: the table changed, the stats didn't
+  const k = calls(C, A, 2e6);
+  $("#stats").innerHTML = [[(k.capped ? "> " : "") + k.plain.toLocaleString(), "calls, plain recursion"], [k.memo.toLocaleString(), "calls, memoised"], [A + 1, "table cells (one per amount)"]].map(statTile).join("");
+}
+async function fill() {
+  const my = ++anim, A = +$("#amt").value; filling = true;
+  for (let a = 0; a <= A; a++) { if (my !== anim) { filling = false; return; } render(a, a); await sleep(Math.max(60, 1500 / (A + 1))); }
+  filling = false; render();
+}
+$("#fill").onclick = fill;
+$("#amt").oninput = () => { anim++; filling = false; render(); };
+$("#sys").onchange = () => { $("#custom").hidden = $("#sys").value !== "custom"; anim++; render(); };
+$("#custom").oninput = () => { anim++; render(); };
+$("#worst").onclick = () => {
+  const C = coins(); for (let a = 1; a <= 60; a++) { const g = greedy(C, a), d = dp(C, a).coins; if (d && (!g || g.length > d.length)) { $("#amt").value = a; anim++; render(); return; } }
+  $("#gn").innerHTML = `<span class="good">Greedy is optimal for every amount up to 60 with these coins.</span>`;
+};
+$("#tbl").addEventListener("mouseover", e => { const c = e.target.closest("[data-a]"); if (c && !filling) render(Infinity, +c.dataset.a); });
+$("#tbl").addEventListener("mouseleave", () => { if (!filling) render(); });
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PCA</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+  @media (max-width: 820px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  #plot { width: 100%; display: block; touch-action: none; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .grid label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+  .grid label b { color: var(--text); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .bar { height: 14px; border-radius: 4px; background: var(--surface-2); overflow: hidden; display: flex; margin-top: 4px; }
+  .bar div { height: 100%; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Principal component analysis</h1>
+  <p class="lede">Data with many columns is hard to see and slow to work with. PCA finds the directions along which the data actually varies, so you can keep the few that matter and drop the rest. Here it is in two dimensions, where you can watch it. <b>Click to add points.</b></p>
+
+  <div class="two">
+    <div class="panel"><svg id="plot" viewBox="-6 -6 12 12" role="img" aria-label="Scatter plot with principal axes"></svg>
+      <p class="status"><span style="color:var(--accent)">━</span> PC1, the direction of most spread · <span style="color:var(--blue)">━</span> PC2, at right angles · grey ticks = each point dropped onto PC1.</p></div>
+    <div class="panel">
+      <div class="grid">
+        <label>Stretch <b id="vs"></b><input type="range" id="spread" min="0.5" max="4" step="0.1" value="3"></label>
+        <label>Thickness <b id="vt"></b><input type="range" id="thin" min="0.1" max="3" step="0.1" value="0.6"></label>
+        <label>Angle <b id="va"></b><input type="range" id="angle" min="0" max="3.14" step="0.02" value="0.6"></label>
+        <label class="inline" style="flex-direction:row"><input type="checkbox" id="proj" checked> show 1-D projection</label>
+      </div>
+      <div class="controls" style="margin:8px 0 0"><button id="reroll">🎲 New sample</button><button id="clear">Clear points</button></div>
+      <b style="display:block;margin-top:12px">Variance explained</b>
+      <div class="bar" id="bar"></div>
+      <div class="stats" id="stats"></div>
+    </div>
+  </div>
+
+  <h2>What's going on</h2>
+  <p><b>Find the long axis.</b> PC1 is the line through the centre of the cloud along which the points are most spread out. PC2 is perpendicular to it. With more dimensions you keep going: each new component is the direction of most remaining spread, at right angles to all the previous ones.</p>
+  <p><b>Compress by dropping the short axes.</b> Project every point onto PC1 (the grey ticks) and you've described 2-D data with one number per point. The lost information is only the spread along PC2. For a long, thin cloud that's almost nothing, and the "variance explained" bar says how much you keep. Make the cloud round and PCA has nothing to offer: both directions matter equally.</p>
+  <p><b>Under the hood</b>, the components are the eigenvectors of the data's covariance matrix, and their eigenvalues are the variance along each one. In 2-D that's a formula. For real data with thousands of columns it's computed with the SVD.</p>
+  <p><b>Where it's used:</b> squashing embeddings or gene-expression data down to 2-D for plotting (the <a href="embeddings.html">embeddings</a> map on this site is drawn with PCA), denoising, compressing features before training a model, and finding the main "modes" of variation, such as in faces or stock returns.</p>
+  <p class="status">PCA only finds straight-line structure, and it's sensitive to scale: standardise columns measured in different units first, or the one with the biggest numbers dominates. t-SNE and UMAP can find curved structure but don't give a clean linear projection.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "./common.js";
+import { cloud, pca2, reconstruct, reconError } from "./lib/pca.js";
+chrome();
+
+let pts = [], seed = 1;
+const regen = () => { pts = cloud(140, { spread: +$("#spread").value, thin: +$("#thin").value, angle: +$("#angle").value, seed }); render(); };
+function render() {
+  $("#vs").textContent = $("#spread").value; $("#vt").textContent = $("#thin").value; $("#va").textContent = Math.round(+$("#angle").value * 180 / Math.PI) + "°";
+  const svg = $("#plot"); svg.replaceChildren();
+  for (let v = -5; v <= 5; v++) { svg.append(svgEl("line", { x1: v, x2: v, y1: -6, y2: 6, stroke: "var(--border)", "stroke-width": 0.02 })); svg.append(svgEl("line", { y1: v, y2: v, x1: -6, x2: 6, stroke: "var(--border)", "stroke-width": 0.02 })); }
+  if (pts.length < 3) { for (const [x, y] of pts) svg.append(svgEl("circle", { cx: x, cy: -y, r: 0.09, fill: "var(--text)", opacity: 0.6 })); $("#stats").innerHTML = `<span class="status">Need at least 3 points.</span>`; $("#bar").innerHTML = ""; return; }
+  const m = pca2(pts), rec = reconstruct(pts, m), [mx, my] = m.mean;
+  if ($("#proj").checked) rec.forEach((r, i) => svg.append(svgEl("line", { x1: pts[i][0], y1: -pts[i][1], x2: r.back[0], y2: -r.back[1], stroke: "var(--muted)", "stroke-width": 0.025, opacity: 0.6 })));
+  for (const [x, y] of pts) svg.append(svgEl("circle", { cx: x, cy: -y, r: 0.09, fill: "var(--text)", opacity: 0.6 }));
+  if ($("#proj").checked) for (const r of rec) svg.append(svgEl("circle", { cx: r.back[0], cy: -r.back[1], r: 0.06, fill: "var(--accent)" }));
+  m.vectors.forEach(([ux, uy], i) => {
+    const L = Math.min(4.6, 2 * Math.sqrt(m.values[i]) + 0.05);
+    svg.append(svgEl("line", { x1: mx - ux * L, y1: -(my - uy * L), x2: mx + ux * L, y2: -(my + uy * L), stroke: i ? "var(--blue)" : "var(--accent)", "stroke-width": 0.09, "stroke-linecap": "round" }));
+    svg.append(svgEl("text", { x: mx + ux * (L + 0.25), y: -(my + uy * (L + 0.25)), "font-size": 0.4, fill: i ? "var(--blue)" : "var(--accent)", "font-weight": 700 }, "PC" + (i + 1)));
+  });
+  const e = m.explained;
+  $("#bar").innerHTML = `<div style="width:${e[0] * 100}%;background:var(--accent)"></div><div style="width:${e[1] * 100}%;background:var(--blue)"></div>`;
+  $("#stats").innerHTML = [[Math.round(e[0] * 100) + "%", "variance kept by PC1 alone"], [Math.round(e[1] * 100) + "%", "lost by dropping PC2"], [reconError(pts, rec).toFixed(3), "avg squared error of the 1-D version"], [pts.length, "points"]].map(statTile).join("");
+}
+for (const id of ["spread", "thin", "angle"]) $("#" + id).addEventListener("input", regen);
+$("#proj").onchange = render; $("#reroll").onclick = () => { seed++; regen(); }; $("#clear").onclick = () => { pts = []; render(); };
+$("#plot").addEventListener("pointerdown", e => { const s = $("#plot"), p = s.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(s.getScreenCTM().inverse()); pts.push([q.x, -q.y]); render(); });
+regen();
+</script>
+</body>
+</html>

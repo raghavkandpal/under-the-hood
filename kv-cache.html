@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The KV Cache</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 10px; }
+  @media (max-width: 680px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  .grid { display: grid; gap: 2px; margin-top: 6px; }
+  .grid span { height: 16px; border-radius: 3px; background: transparent; }
+  .grid span.calc { background: var(--accent); }
+  .grid span.reuse { background: var(--blue-soft); outline: 1px solid var(--blue); }
+  .grid span.new { background: var(--green); }
+  .toks { display: flex; gap: 4px; flex-wrap: wrap; font-family: var(--mono); font-size: 13px; }
+  .toks span { padding: 2px 6px; border-radius: 5px; background: var(--surface-2); }
+  .toks span.p { background: var(--blue-soft); }
+  .toks span.last { background: var(--green-soft); outline: 1.5px solid var(--green); }
+  .row { gap: 10px; margin-top: 8px; }
+  .big { font-size: 22px; font-weight: 700; }
+  .lg { font-size: 13px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+  .lg i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
+  .stats { --stat-min: 130px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>The KV cache</h1>
+  <p class="lede">A language model writes one token at a time, and each new token has to look back at every token before it. Done naively, writing token 1,000 means reprocessing the 999 before it, every single step. One cache fixes that. It's why a chatbot pauses before the first word and then streams quickly, and why long conversations use so much GPU memory.</p>
+
+  <div class="panel">
+    <div class="toks" id="toks"></div>
+    <div class="row"><button id="step" class="primary">Generate next token ▶</button><button id="ten">+10</button><button id="reset">Reset</button></div>
+    <div class="two">
+      <div><b>Without a cache</b><div class="grid" id="g0"></div></div>
+      <div><b>With a KV cache</b><div class="grid" id="g1"></div></div>
+    </div>
+    <div class="lg"><span><i style="background:var(--accent)"></i>key &amp; value computed</span><span><i style="background:var(--blue-soft);outline:1px solid var(--blue)"></i>read from cache</span><span><i style="background:var(--green)"></i>new token</span></div>
+    <p class="status" style="margin:4px 0 0">Each row is one generation step, each column one token. The first row is the prompt, processed all at once (“prefill”).</p>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel">
+    <b>The price: memory</b>
+    <div class="row">
+      <label class="inline">model <select id="shape"></select></label>
+      <label class="inline">context <input type="range" id="ctx" min="10" max="20" step="0.5" value="15"> <b id="ctxv"></b> tokens</label>
+      <label class="inline">cache stored as <select id="bytes"><option value="2">16-bit</option><option value="1">8-bit</option></select></label>
+    </div>
+    <p style="margin:8px 0 0">KV cache for one conversation: <span class="big" id="gb"></span> <span class="status" id="per"></span></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Attention looks back.</b> In every layer, each token makes a <i>query</i> (“what am I looking for?”), a <i>key</i> (“what do I contain?”) and a <i>value</i> (“what do I pass on?”). The newest token compares its query with every earlier key and takes a weighted mix of their values. See <a href="attention.html">attention</a>.</p>
+  <p><b>Old keys and values never change.</b> The model is causal: earlier tokens can't see later ones, so token 5's key is the same whether we're generating token 6 or token 600. Recomputing it every step is pure waste. Store it once, and each new step only computes keys and values for the <i>one</i> new token. The work per step goes from growing with the length to constant, and total work from quadratic to linear. The outputs are bit-for-bit identical.</p>
+  <p><b>Prefill vs decode.</b> The prompt is processed in one big parallel pass that fills the cache, which is the pause before the first word. Then decoding adds one token at a time, reading the whole cache each step, so speed is limited by memory bandwidth.</p>
+  <p><b>The memory bill</b> grows with layers × heads × context length. Long contexts and many simultaneous users quickly need more memory for caches than for the model itself. Hence the tricks: <i>grouped-query attention</i> shares each key/value head among several query heads (compare the two 8B shapes), the cache can be <a href="quantization.html">quantized</a> to 8 bits, and servers page it in blocks like <a href="virtual-memory.html">virtual memory</a> (vLLM's PagedAttention). Prompt caching reuses the cache for a shared prefix, such as a long system prompt, across requests.</p>
+  <p class="status">Model shapes are illustrative of their size class. Attention scores still compare against every past key, which also grows with length, but that's a cheap dot product compared with recomputing every layer for every past token.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile } from "./common.js";
+import { work, cacheBytes, SHAPES } from "./lib/kvcache.js";
+chrome();
+
+const PROMPT = ["Explain", "why", "the", "sky"], GEN = ["looks", "blue", ":", "air", "scatters", "short", "blue", "light", "more", "than", "red", ",", "so", "it", "reaches", "your", "eyes", "from", "every", "direction", "."];
+let n = 0;
+function cells(cached) {
+  const P = PROMPT.length, T = P + n, rows = [];
+  for (let s = 0; s <= n; s++) {
+    const len = s === 0 ? P : P + s, row = [];
+    for (let c = 0; c < T; c++) {
+      if (c >= len) row.push("");
+      else if (s === 0) row.push("calc");
+      else if (c === len - 1) row.push("new");
+      else row.push(cached ? "reuse" : "calc");
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+function grid(el, rows) { const T = rows[0].length; el.style.gridTemplateColumns = `repeat(${T}, minmax(0, 1fr))`; el.innerHTML = rows.flat().map(c => `<span class="${c}"></span>`).join(""); }
+function render() {
+  const P = PROMPT.length;
+  $("#toks").innerHTML = PROMPT.map(t => `<span class="p">${t}</span>`).join("") + GEN.slice(0, n).map((t, i) => `<span class="${i === n - 1 ? "last" : ""}">${t}</span>`).join("");
+  grid($("#g0"), cells(false)); grid($("#g1"), cells(true));
+  const noCache = P + work(P, n, false), withCache = work(P, n, true); // prefill computes the P prompt tokens either way
+  $("#stats").innerHTML = [[noCache, "K/V computed, no cache"], [withCache, "K/V computed, with cache"], [(noCache / withCache).toFixed(1) + "×", "work saved"], [n ? P + n : P, "K/V computed for the next token without the cache"]]
+    .map(statTile).join("");
+  $("#step").disabled = $("#ten").disabled = n >= GEN.length;
+}
+$("#step").onclick = () => { n = Math.min(GEN.length, n + 1); render(); };
+$("#ten").onclick = () => { n = Math.min(GEN.length, n + 10); render(); };
+$("#reset").onclick = () => { n = 0; render(); };
+
+$("#shape").innerHTML = Object.entries(SHAPES).map(([k, s]) => `<option value="${k}">${s.name}</option>`).join("");
+function mem() {
+  const tokens = Math.round(2 ** +$("#ctx").value), s = SHAPES[$("#shape").value], b = cacheBytes(s, tokens, +$("#bytes").value), gb = b / 2 ** 30;
+  $("#ctxv").textContent = tokens >= 1e6 ? (tokens / 2 ** 20).toFixed(0) + "M" : (tokens / 1024).toFixed(0) + "k";
+  $("#gb").textContent = gb >= 1 ? gb.toFixed(1) + " GB" : (gb * 1024).toFixed(0) + " MB";
+  $("#per").textContent = `(${(b / tokens / 1024).toFixed(0)} KB per token: 2 × ${s.layers} layers × ${s.kvHeads} KV heads × ${s.headDim} dims × ${$("#bytes").value} byte${$("#bytes").value === "1" ? "" : "s"})`;
+}
+$("#shape").onchange = $("#ctx").oninput = $("#bytes").onchange = mem;
+render(); mem();
+</script>
+</body>
+</html>

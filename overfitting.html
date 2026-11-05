@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overfitting</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+  @media (max-width: 820px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  svg.plot { width: 100%; display: block; }
+  .axis { stroke: var(--border); }
+  .truth { stroke: var(--muted); stroke-dasharray: 5 5; stroke-width: 2; fill: none; }
+  .fitc { stroke: var(--accent); stroke-width: 3; fill: none; }
+  .tr { fill: var(--blue); stroke: var(--surface); stroke-width: 1.5; }
+  .te { fill: none; stroke: var(--green); stroke-width: 1.5; opacity: .7; }
+  .lt { stroke: var(--blue); stroke-width: 2.5; fill: none; }
+  .lv { stroke: var(--green); stroke-width: 2.5; fill: none; }
+  .mark { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 3 3; }
+  svg text { font-size: 11px; fill: var(--muted); font-family: var(--mono); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 16px; }
+  .grid label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .grid label b { color: var(--text); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .stats { grid-template-columns: repeat(3, 1fr); }
+  .verdict { font-weight: 600; margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Overfitting</h1>
+  <p class="lede">A model that aces its training data can still be useless. The real test is data it has never seen. Here's the central tension of machine learning in one slider.</p>
+
+  <div class="panel">
+    <div class="grid">
+      <label>Model complexity (polynomial degree) <b id="vdeg"></b><input type="range" id="deg" min="0" max="15" value="3"></label>
+      <label>Regularisation λ <b id="vlam"></b><input type="range" id="lam" min="-9" max="0" step="0.25" value="-9"></label>
+      <label>Training points <b id="vn"></b><input type="range" id="n" min="5" max="80" value="14"></label>
+      <label>Noise <b id="vnoise"></b><input type="range" id="noise" min="0" max="0.6" step="0.02" value="0.25"></label>
+    </div>
+    <div class="controls" style="margin:12px 0 0">
+      <label class="inline">True pattern <select id="truth"></select></label>
+      <button id="resample">🎲 New sample</button>
+      <label class="inline"><input type="checkbox" id="showTest" checked> show unseen test data</label>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <svg class="plot" id="plot" viewBox="0 0 600 380" role="img" aria-label="Data and fitted curve"></svg>
+      <p class="status"><span style="color:var(--blue)">●</span> training data the model sees · <span style="color:var(--green)">○</span> new data it's judged on · <span style="color:var(--accent)">━</span> model · <span>╌</span> the true pattern</p>
+    </div>
+    <div class="panel">
+      <b>Error vs complexity</b>
+      <svg class="plot" id="curve" viewBox="0 0 400 260" role="img" aria-label="Training and test error by degree"></svg>
+      <p class="status" style="margin:0"><span style="color:var(--blue)">━</span> training error · <span style="color:var(--green)">━</span> test error (log scale) · dashed line = your current degree</p>
+      <div class="stats" id="stats"></div>
+      <p class="verdict" id="verdict"></p>
+    </div>
+  </div>
+
+  <h2>What's going on</h2>
+  <p><b>Underfitting (high bias).</b> A straight line can't follow a wave, however much data you give it. Training and test error are both high, because the model is too simple for the pattern.</p>
+  <p><b>Overfitting (high variance).</b> A degree-15 polynomial can pass through almost every training point, noise included. Training error drops toward zero while test error shoots up. Press 🎲 a few times and the wild curve changes completely with each sample. That instability is what "variance" means.</p>
+  <p><b>The sweet spot</b> sits at the bottom of the green U. The usual ways to get there are to:</p>
+  <ul>
+    <li><b>Hold out data</b> to measure test error honestly. You can't see the green curve without a held-out set, which is why every ML project starts by splitting its data.</li>
+    <li><b>Get more data.</b> Push "training points" to 80 and even degree 15 behaves, because the noise averages out.</li>
+    <li><b>Regularise.</b> Raise λ to penalise large coefficients. The model can stay complex but is pushed toward smooth answers. Weight decay and dropout in neural networks are the same idea.</li>
+  </ul>
+  <div class="note">Try it: set degree 12 with 14 points and watch the curve go wild at the edges. Without changing the degree, raise λ to about 10<sup>-2</sup>. Test error falls by orders of magnitude.</div>
+  <p class="status">Fits use least squares on a Legendre polynomial basis (numerically stabler than raw powers). Errors are mean squared error. The test set is 300 fresh points from the same process.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "./common.js";
+import { TRUTHS, sample, fit, mse, errorCurve } from "./lib/regression.js";
+chrome();
+
+$("#truth").innerHTML = Object.entries(TRUTHS).map(([k, t]) => `<option value="${k}">${t.label}</option>`).join("");
+let seed = 1;
+const v = id => +$("#" + id).value;
+const lam = () => (v("lam") <= -9 ? 0 : 10 ** v("lam"));
+
+function render() {
+  const truth = $("#truth").value, n = v("n"), noise = v("noise"), deg = v("deg");
+  const train = sample(truth, n, noise, seed), test = sample(truth, 300, noise, seed + 1000);
+  const model = fit(train, deg, lam());
+  $("#vdeg").textContent = deg + (deg === 0 ? " (constant)" : deg === 1 ? " (line)" : "");
+  $("#vlam").textContent = lam() ? lam().toExponential(0) : "off";
+  $("#vn").textContent = n; $("#vnoise").textContent = noise.toFixed(2);
+
+  // data plot
+  const svg = $("#plot"); svg.replaceChildren();
+  const X = x => 30 + (x + 1) / 2 * 550, Y = y => 190 - y * 120;
+  svg.append(svgEl("line", { x1: 30, x2: 580, y1: Y(0), y2: Y(0), class: "axis" }));
+  const curve = f => { let d = ""; for (let i = 0; i <= 300; i++) { const x = -1 + i / 150; const y = Math.max(-1.5, Math.min(1.5, f(x))); d += (i ? "L" : "M") + X(x).toFixed(1) + " " + Y(y).toFixed(1); } return d; };
+  svg.append(svgEl("path", { d: curve(TRUTHS[truth].f), class: "truth" }));
+  if ($("#showTest").checked) for (const p of test.slice(0, 120)) svg.append(svgEl("circle", { cx: X(p.x), cy: Y(p.y), r: 3, class: "te" }));
+  svg.append(svgEl("path", { d: curve(model.predict), class: "fitc" }));
+  for (const p of train) svg.append(svgEl("circle", { cx: X(p.x), cy: Y(p.y), r: 5, class: "tr" }));
+
+  // error curve
+  const c = errorCurve(train, test, 15, lam());
+  const cs = $("#curve"); cs.replaceChildren();
+  const cap = Math.max(0.05, Math.min(3, Math.max(...c.map(e => e.test)) * 1.05));
+  const lo = 1e-3, LX = d => 36 + d / 15 * 350, LY = e => 230 - (Math.log10(Math.max(lo, Math.min(cap, e))) - Math.log10(lo)) / (Math.log10(cap) - Math.log10(lo)) * 210;
+  cs.append(svgEl("line", { x1: 36, x2: 386, y1: 230, y2: 230, class: "axis" }), svgEl("line", { x1: 36, x2: 36, y1: 20, y2: 230, class: "axis" }));
+  cs.append(svgEl("text", { x: 36, y: 248 }, "simple"), svgEl("text", { x: 330, y: 248 }, "complex"), svgEl("text", { x: 2, y: 26 }, "err"));
+  cs.append(svgEl("polyline", { points: c.map(e => `${LX(e.deg)},${LY(e.train)}`).join(" "), class: "lt" }));
+  cs.append(svgEl("polyline", { points: c.map(e => `${LX(e.deg)},${LY(e.test)}`).join(" "), class: "lv" }));
+  cs.append(svgEl("line", { x1: LX(deg), x2: LX(deg), y1: 20, y2: 230, class: "mark" }));
+
+  const best = c.reduce((a, b) => (b.test < a.test ? b : a));
+  const trE = mse(model, train), teE = mse(model, test), floor = noise * noise;
+  $("#stats").innerHTML = [[trE.toFixed(3), "training error"], [teE.toFixed(3), "test error"], [best.deg, "best degree here"]].map(statTile).join("");
+  const near = teE <= best.test * 1.25 + 0.005;
+  $("#verdict").innerHTML = near
+    ? `<span style="color:var(--green)">About right.</span> Test error is near the best this data allows. The noise floor (no model can beat it) is ${floor.toFixed(3)}.`
+    : deg > best.deg ? `<span style="color:var(--red)">Overfitting:</span> ${trE < teE / 2 ? "great on training data, much worse on new data" : "fitting noise, so new data suffers"}.`
+    : `<span style="color:var(--accent)">Underfitting:</span> too simple to capture the pattern. Both errors are high.`;
+}
+for (const id of ["deg", "lam", "n", "noise"]) $("#" + id).addEventListener("input", render);
+$("#truth").onchange = render; $("#showTest").onchange = render;
+$("#resample").onclick = () => { seed++; render(); };
+render();
+</script>
+</body>
+</html>

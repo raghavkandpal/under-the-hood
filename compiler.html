@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How a Compiler Works</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  textarea { font-size: 15px; }
+  .toks { display: flex; flex-wrap: wrap; gap: 4px; font-family: var(--mono); font-size: 13px; }
+  .tok { padding: 2px 7px; border-radius: 5px; background: var(--surface-2); }
+  .tok.num { background: var(--blue-soft); } .tok.id { background: var(--green-soft); } .tok.op { background: var(--accent-soft); }
+  #ast { display: block; }
+  #ast circle, #ast rect { stroke-width: 1.5; }
+  #ast text { font-family: var(--mono); font-size: 12px; text-anchor: middle; fill: var(--text); }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  @media (max-width: 760px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  ol.code { font-family: var(--mono); font-size: 13px; margin: 0; padding-left: 30px; max-height: 320px; overflow: auto; }
+  ol.code li.cur { background: var(--accent-soft); font-weight: 700; }
+  .stack { display: flex; flex-direction: column-reverse; gap: 3px; min-height: 140px; justify-content: flex-start; }
+  .stack div { font-family: var(--mono); font-size: 14px; background: var(--blue-soft); border: 1.5px solid var(--blue); border-radius: 6px; padding: 4px 10px; text-align: center; }
+  .err { color: var(--red); font-family: var(--mono); }
+  .out { font-family: var(--mono); font-size: 15px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>How a compiler works</h1>
+  <p class="lede">Every program you run was text first. A compiler turns that text into instructions a machine can execute, through a pipeline of small, well-defined steps. Here's the whole pipeline for a tiny calculator language. <b>Edit the code</b> and every stage updates.</p>
+
+  <div class="panel">
+    <textarea id="src" rows="3" spellcheck="false">price = 20; tax = price * 0.2; price + tax * (2 - 1)</textarea>
+    <div class="controls" style="margin:8px 0 0"><span class="status">Try:</span><button data-s="1 + 2 * 3">1 + 2 * 3</button><button data-s="2 ^ 3 ^ 2">2 ^ 3 ^ 2</button><button data-s="-(4 - 6) * 3">-(4 - 6) * 3</button><button data-s="(1 + 2">(1 + 2</button>
+      <label class="inline"><input type="checkbox" id="fold"> constant folding (optimise)</label></div>
+    <p class="err" id="err"></p>
+  </div>
+
+  <div class="panel"><b>1. Lexer: text → tokens</b><div class="toks" id="toks" style="margin-top:8px"></div></div>
+  <div class="panel"><b>2. Parser: tokens → syntax tree</b> <span class="status">(precedence comes from the grammar: deeper nodes are computed first)</span><div class="scroll-x"><svg id="ast" role="img" aria-label="Abstract syntax tree"></svg></div></div>
+
+  <div class="two">
+    <div class="panel"><b>3. Code generator: tree → bytecode</b> <span class="status" id="ncode"></span><ol class="code" id="code" style="margin-top:6px"></ol></div>
+    <div class="panel"><b>4. Virtual machine: run it</b>
+      <div class="controls" style="margin:6px 0"><button id="step" class="primary">Step ▶</button><button id="runall">Run all</button><button id="rewind">⏮</button></div>
+      <span class="status">the stack</span><div class="stack" id="stack"></div>
+      <p class="out" id="out"></p></div>
+  </div>
+
+  <h2>What each stage does</h2>
+  <p><b>Lexing</b> chops characters into meaningful chunks: numbers, names, operators. Spaces disappear, and <code>0.2</code> becomes one number token rather than three characters.</p>
+  <p><b>Parsing</b> checks the tokens follow the grammar and builds a tree. This is where <code>1 + 2 * 3</code> becomes "add 1 to (2 × 3)". The grammar has one rule per precedence level, so multiplication sits deeper than addition. It's a <i>recursive-descent</i> parser, the same technique used by many real compilers, including GCC's and Clang's C/C++ front ends.</p>
+  <p><b>Code generation</b> walks the tree and emits instructions for a stack machine: push the operands, then apply the operator. The order of the tree becomes the order of the code. Python, the JVM and WebAssembly all compile to stack-based bytecode like this.</p>
+  <p><b>Optimisation</b> rewrites the program to do less work without changing the result. Tick "constant folding": any sub-expression with no variables, like <code>2 - 1</code>, is computed once at compile time. Real compilers run dozens of such passes.</p>
+  <p class="status">Grammar: assignments, + − × ÷ %, right-associative ^, unary minus and parentheses. Real compilers add type checking, many more optimisations, and register allocation when targeting real CPUs.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, escapeHtml } from "./common.js";
+import { tokenize, parse, fold, compile, run } from "./lib/compiler.js";
+chrome();
+
+let code = [], res = null, pc = 0;
+function build() {
+  $("#err").textContent = ""; let toks, ast;
+  try { toks = tokenize($("#src").value); } catch (e) { $("#err").textContent = "Lexer error: " + e.message; $("#toks").innerHTML = ""; return clear(); }
+  $("#toks").innerHTML = toks.filter(t => t.t !== "eof").map(t => `<span class="tok ${t.t === "num" ? "num" : t.t === "id" ? "id" : "op"}">${escapeHtml(t.t === "num" || t.t === "id" ? String(t.v) : t.t)}</span>`).join("");
+  try { ast = parse(toks); } catch (e) { $("#err").textContent = "Parse error: " + e.message; return clear(true); }
+  if ($("#fold").checked) ast = fold(ast);
+  drawTree(ast); code = compile(ast); pc = 0;
+  try { res = run(code); } catch (e) { res = null; $("#err").textContent = "Runtime error: " + e.message; }
+  $("#ncode").textContent = `(${code.length} instructions)`;
+  render();
+}
+function clear(keepToks) { $("#ast").replaceChildren(); code = []; res = null; $("#code").innerHTML = ""; $("#stack").innerHTML = ""; $("#out").textContent = ""; }
+function label(n) { return n.k === "num" ? String(+n.v.toFixed(6)) : n.k === "var" ? n.name : n.k === "bin" ? n.op : n.k === "neg" ? "−x" : n.k === "assign" ? n.name + " =" : n.k === "exprstmt" ? "print" : "program"; }
+function kids(n) { return n.k === "prog" ? n.body : n.k === "assign" || n.k === "exprstmt" ? [n.value] : n.k === "bin" ? [n.l, n.r] : n.k === "neg" ? [n.a] : []; }
+function drawTree(ast) {
+  const svg = $("#ast"); svg.replaceChildren(); let leaf = 0, maxD = 0; const GX = 58, GY = 52;
+  (function place(n, d) { n._d = d; maxD = Math.max(maxD, d); const ks = kids(n); if (!ks.length) n._x = leaf++; else { ks.forEach(k => place(k, d + 1)); n._x = (ks[0]._x + ks.at(-1)._x) / 2; } })(ast, 0);
+  const W = Math.max(300, leaf * GX + 40), H = (maxD + 1) * GY + 20; svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const X = n => 30 + n._x * GX, Y = n => 24 + n._d * GY;
+  (function edges(n) { for (const k of kids(n)) { svg.append(svgEl("line", { x1: X(n), y1: Y(n) + 13, x2: X(k), y2: Y(k) - 13, stroke: "var(--muted)", "stroke-width": 1.5 })); edges(k); } })(ast);
+  (function nodes(n) {
+    const col = n.k === "num" ? ["var(--blue-soft)", "var(--blue)"] : n.k === "var" ? ["var(--green-soft)", "var(--green)"] : n.k === "bin" || n.k === "neg" ? ["var(--accent-soft)", "var(--accent)"] : ["var(--surface-2)", "var(--border)"];
+    svg.append(svgEl("rect", { x: X(n) - 26, y: Y(n) - 13, width: 52, height: 26, rx: 13, fill: col[0], stroke: col[1] }), svgEl("text", { x: X(n), y: Y(n) + 4 }, label(n)));
+    kids(n).forEach(nodes);
+  })(ast);
+}
+function render() {
+  $("#code").innerHTML = code.map(([op, a], i) => `<li class="${i === pc - 1 ? "cur" : ""}">${op}${a !== undefined ? " " + escapeHtml(String(a)) : ""}</li>`).join("");
+  if (!res) { $("#stack").innerHTML = ""; $("#out").textContent = ""; return; }
+  const st = pc ? res.trace[pc - 1].stack : [];
+  $("#stack").innerHTML = st.map(v => `<div>${+v.toFixed(6)}</div>`).join("") || `<span class="status">empty</span>`;
+  const printed = res.trace.slice(0, pc).filter(t => t.op === "PRINT").length, stored = Object.entries(res.trace.slice(0, pc).reduce((env, t, i) => t.op === "STORE" ? { ...env, [t.arg]: res.trace[i - 1]?.stack.at(-1) } : env, {}));
+  $("#out").innerHTML = (stored.length ? `variables: ${stored.map(([k, v]) => `${k} = ${+(+v).toFixed(6)}`).join(", ")}<br>` : "") + (printed ? `output: <b>${res.out.slice(0, printed).map(v => +v.toFixed(6)).join(", ")}</b>` : pc >= code.length ? "" : `<span class="status">step through, or run all</span>`);
+  $("#step").disabled = pc >= code.length;
+}
+$("#src").addEventListener("input", build); $("#fold").onchange = build;
+$("#step").onclick = () => { if (pc < code.length) { pc++; render(); } };
+$("#runall").onclick = () => { pc = code.length; render(); };
+$("#rewind").onclick = () => { pc = 0; render(); };
+document.querySelectorAll("[data-s]").forEach(b => b.onclick = () => { $("#src").value = b.dataset.s; build(); });
+build();
+</script>
+</body>
+</html>

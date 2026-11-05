@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heaps &amp; Priority Queues</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .row input[type=number] { width: 5em; font-family: var(--mono); }
+  #tree { width: 100%; height: auto; display: block; margin-top: 8px; }
+  #tree text { font-family: var(--mono); font-size: 14px; font-weight: 700; text-anchor: middle; fill: var(--text); }
+  #tree text.ix { font-size: 9px; font-weight: 400; fill: var(--muted); }
+  .arr { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 8px; }
+  .arr span { min-width: 30px; text-align: center; font-family: var(--mono); font-size: 13px; padding: 4px 2px 2px; border-radius: 5px; background: var(--surface-2); position: relative; }
+  .arr span small { display: block; font-size: 9px; color: var(--muted); }
+  .arr span.hot { background: var(--accent); color: #fff; }
+  .arr span.hot small { color: #fff; }
+  .msg { min-height: 1.5em; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Heaps &amp; priority queues</h1>
+  <p class="lede">An emergency room doesn't treat patients in arrival order, a game engine fires whichever timer is due soonest, and a route planner always expands the closest unexplored spot next. Each needs “give me the smallest, fast” while new items keep arriving. A heap does both in a handful of steps, and it's just an array.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">push <input type="number" id="v" value="7" min="0" max="99"></label><button id="push" class="primary">Push</button>
+      <button id="rand">Push random</button><button id="pop">Pop smallest</button><button id="build">Heapify 15 random</button><button id="clear">Clear</button>
+    </div>
+    <svg id="tree" viewBox="0 0 640 250" role="img" aria-label="Heap drawn as a tree"></svg>
+    <div class="arr" id="arr"></div>
+    <p class="status" style="margin:4px 0 0">The same data as the array the computer actually stores. The children of slot i live at 2i+1 and 2i+2.</p>
+    <p class="msg" id="msg"></p>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The rule.</b> Every parent is smaller than its children. That's all. Siblings can be in any order, so it's far looser than a sorted list, but it guarantees the smallest item sits at the top.</p>
+  <p><b>A tree with no pointers.</b> The tree is always filled level by level, left to right, so it fits in an array with no gaps. Parent and children are found by arithmetic, which is compact and cache-friendly.</p>
+  <p><b>Push</b> appends at the end, then <i>sifts up</i>: while it's smaller than its parent, swap. <b>Pop</b> takes the root, moves the last item into its place, then <i>sifts down</i>, swapping with the smaller child until the rule holds. Either way the item travels at most the tree's height, which is log₂ n: about 20 swaps for a million items.</p>
+  <p><b>Heapify</b> builds a heap from scratch in linear time by sifting down from the last parent backwards. Most nodes are near the bottom and barely move. Pop everything and you get <i>heapsort</i>.</p>
+  <p class="status">Used in Dijkstra's and A* <a href="pathfinding.html">pathfinding</a>, OS <a href="scheduling.html">schedulers</a>, Huffman coding, timer wheels, merging sorted files, and “top 10 of a billion” queries: keep a heap of the best 10 and discard anything smaller than its root.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, sleep, statTile } from "./common.js";
+import { Heap, heapify } from "./lib/heap.js";
+chrome();
+
+let h = new Heap(), view = [], hot = new Set(), busy = false, swaps = 0;
+function pos(i) { const d = Math.floor(Math.log2(i + 1)), k = i - (2 ** d - 1), n = 2 ** d; return [640 * (k + 0.5) / n, 26 + d * 52]; }
+function draw() {
+  const svg = $("#tree"); svg.replaceChildren();
+  view.forEach((_, i) => { if (i) { const [x1, y1] = pos((i - 1) >> 1), [x2, y2] = pos(i); svg.append(svgEl("line", { x1, y1, x2, y2, stroke: "var(--border)", "stroke-width": 2 })); } });
+  view.forEach((v, i) => { const [x, y] = pos(i), on = hot.has(i);
+    svg.append(svgEl("circle", { cx: x, cy: y, r: 17, fill: on ? "var(--accent)" : i === 0 ? "var(--green-soft)" : "var(--surface-2)", stroke: on ? "var(--accent)" : i === 0 ? "var(--green)" : "var(--border)", "stroke-width": 2 }));
+    svg.append(svgEl("text", { x, y: y + 5, style: on ? "fill:#fff" : "" }, v), svgEl("text", { x: x + 20, y: y - 12, class: "ix" }, i)); });
+  $("#arr").innerHTML = view.map((v, i) => `<span class="${hot.has(i) ? "hot" : ""}">${v}<small>${i}</small></span>`).join("") || `<span class="status">empty</span>`;
+  $("#stats").innerHTML = [[view.length, "items"], [view.length ? Math.floor(Math.log2(view.length)) + 1 : 0, "levels (height)"], [view.length ? view[0] : "–", "smallest (the root)"], [swaps, "swaps last operation"]]
+    .map(statTile).join("");
+  document.querySelectorAll("button").forEach(b => (b.disabled = busy && !b.closest("header")));
+}
+// replay the heap's recorded steps on a display copy
+async function replay(before, log, popped) {
+  busy = true; view = [...before]; swaps = 0;
+  for (const [op, i, j] of log) {
+    if (op === "remove") { hot = new Set([0]); draw(); await sleep(350); }
+    else if (op === "move") { view[0] = view[i]; view.length = i; hot = new Set([0]); }
+    else if (op === "swap") { swaps++; hot = new Set([i, j]); draw(); await sleep(320); [view[i], view[j]] = [view[j], view[i]]; }
+    draw(); await sleep(320);
+  }
+  view = [...h.a]; hot = new Set(); busy = false; draw();
+}
+async function push(x) {
+  if (busy) return; if (h.size >= 31) { $("#msg").textContent = "Full for this demo (31 items = 5 levels)."; return; }
+  const before = [...h.a]; h.log = []; h.push(x); const log = h.log;
+  busy = true; view = [...before, x]; hot = new Set([before.length]); draw(); await sleep(350);
+  $("#msg").textContent = `Pushed ${x} at the end (slot ${before.length}), then sifted it up.`;
+  await replay([...before, x], log.slice(1)); // skip the "add" entry: x is already drawn at the end
+  $("#msg").textContent = `Pushed ${x}: ${swaps} swap${swaps === 1 ? "" : "s"} up the tree. At most ${Math.floor(Math.log2(h.size))} ever needed at this size.`;
+}
+async function pop() {
+  if (busy || !h.size) return; const before = [...h.a]; h.log = []; const x = h.pop();
+  await replay(before, h.log);
+  $("#msg").textContent = `Popped ${x}, the smallest. The last item moved to the root and sank ${swaps} level${swaps === 1 ? "" : "s"}.`;
+}
+$("#push").onclick = () => push(Math.max(0, Math.min(99, Math.round(+$("#v").value || 0))));
+$("#rand").onclick = () => push(Math.floor(Math.random() * 100));
+$("#pop").onclick = pop;
+$("#build").onclick = () => { if (busy) return; const xs = Array.from({ length: 15 }, () => Math.floor(Math.random() * 100)), r = heapify(xs); h = new Heap(); h.a = r.a; view = [...h.a]; swaps = r.swaps; $("#msg").textContent = `Heapified 15 random numbers with ${r.swaps} swaps, fewer than one per item. Pushing them one by one can take more.`; draw(); };
+$("#clear").onclick = () => { if (busy) return; h = new Heap(); view = []; swaps = 0; $("#msg").textContent = ""; draw(); };
+for (const x of [5, 12, 8, 20, 15, 9, 30]) h.push(x); view = [...h.a]; draw();
+$("#msg").textContent = "Push a few numbers, then pop. The smallest is always at the top.";
+</script>
+</body>
+</html>

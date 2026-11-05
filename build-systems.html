@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build Systems</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  #dag { display: block; }
+  #dag .nd rect { stroke-width: 1.8; cursor: pointer; }
+  #dag .nd.src rect { fill: var(--surface-2); stroke: var(--border); }
+  #dag .nd.out rect { fill: var(--blue-soft); stroke: var(--blue); }
+  #dag .nd.dirty rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 3; }
+  #dag .nd.changed rect { fill: var(--red-soft); stroke: var(--red); stroke-width: 3; }
+  #dag .nd.crit rect { stroke-dasharray: 5 3; }
+  #dag text { font-family: var(--mono); font-size: 11.5px; text-anchor: middle; fill: var(--text); pointer-events: none; }
+  #dag text.c { font-size: 10px; fill: var(--muted); }
+  .gantt { position: relative; margin-top: 8px; }
+  .gantt .row { display: grid; grid-template-columns: 100px 1fr; gap: 8px; align-items: center; height: 22px; font-family: var(--mono); font-size: 11.5px; }
+  .gantt .bar { position: relative; height: 16px; }
+  .gantt .bar div { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--accent); }
+  .gantt .bar div.crit { background: var(--red); }
+  .stats { --stat-min: 130px; }
+  .err { color: var(--red); font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Build systems</h1>
+  <p class="lede">Change one file in a big project and <code>make</code>, Bazel or your bundler rebuilds only what's affected, in the right order, using every CPU core. Underneath is a graph of "this depends on that", and an algorithm that has been around since 1962.</p>
+
+  <div class="panel">
+    <div class="controls" style="margin:0"><button id="full" class="primary">🔨 Clean build</button><button id="none">Nothing changed</button>
+      <label class="inline"><input type="checkbox" id="cycle"> add a circular dependency</label></div>
+    <p class="status" style="margin:6px 0 0"><b>Click a source file</b> (grey) to pretend you edited it. Orange = must rebuild. Each box shows its compile time.</p>
+    <div class="scroll-x"><svg id="dag" role="img" aria-label="Dependency graph"></svg></div>
+    <p id="msg"></p>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel"><b>The build, with unlimited parallel workers</b> <span class="status">(red = critical path: the chain that sets the total time)</span><div class="gantt" id="gantt"></div></div>
+
+  <h2>How it works</h2>
+  <p><b>A dependency graph.</b> Each output (an object file, a library, the app, the tests) lists what it's built from. Since nothing may depend on itself, even indirectly, it's a <i>directed acyclic graph</i>.</p>
+  <p><b>Topological order.</b> To build, repeatedly pick anything whose inputs are all ready. That's Kahn's algorithm. Everything ready at the same moment forms a "wave" that can run in parallel, which is how <code>make -j</code> keeps all your cores busy.</p>
+  <p><b>Incremental builds.</b> Editing a file dirties it and everything downstream of it, nothing else. Edit <code>util.h</code> and much of the project rebuilds. Edit <code>test_util.c</code> and only the tests do. Make compares file timestamps. Bazel and modern bundlers compare content hashes, so touching a file without changing it costs nothing.</p>
+  <p><b>The critical path.</b> With enough cores, the build takes as long as its longest chain of dependencies, not the sum of everything. Speeding up anything off that path changes nothing. Speeding up the red bars does.</p>
+  <p><b>Cycles</b> make an order impossible. Tick the box and the build fails with the loop it found, the same "circular dependency" error package managers and module bundlers report.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, escapeHtml, statTile } from "./common.js";
+import { topo, dirty, schedule, nodesOf } from "./lib/toposort.js";
+chrome();
+
+const BASE = {
+  "util.o": ["util.c", "util.h"], "net.o": ["net.c", "net.h", "util.h"], "main.o": ["main.c", "net.h", "util.h"],
+  "libcore.a": ["util.o", "net.o"], "app": ["main.o", "libcore.a"], "test_util.o": ["test_util.c", "util.h"], "tests": ["test_util.o", "libcore.a"], "docs": ["main.c", "net.h"],
+};
+const COST = { "util.o": 3, "net.o": 5, "main.o": 4, "libcore.a": 1, "app": 2, "test_util.o": 2, "tests": 1, "docs": 6 };
+let changed = new Set(), all = false;
+const deps = () => ($("#cycle").checked ? { ...BASE, "util.h": ["app"] } : BASE);
+function render() {
+  const D = deps(), t = topo(D), svg = $("#dag"); svg.replaceChildren();
+  if (t.cycle) {
+    $("#msg").innerHTML = `<span class="err">Build failed: circular dependency</span> ${t.cycle.map(escapeHtml).join(" → ")}`;
+    $("#stats").innerHTML = ""; $("#gantt").innerHTML = ""; drawGraph(svg, D, null, new Set()); return;
+  }
+  const dset = all ? new Set(t.order) : dirty(D, [...changed]), toBuild = new Set([...dset].filter(n => D[n]));
+  const s = schedule(D, COST, toBuild), crit = new Set(toBuild.size ? s.path : []);
+  drawGraph(svg, D, t, dset, crit);
+  $("#msg").innerHTML = all ? "Clean build: everything compiles." : changed.size ? `You edited ${[...changed].map(c => `<b>${escapeHtml(c)}</b>`).join(", ")}: ${toBuild.size} target${toBuild.size === 1 ? "" : "s"} must rebuild.` : "Nothing changed, so there's nothing to do. That's the point of incremental builds.";
+  $("#stats").innerHTML = [[toBuild.size + " / " + Object.keys(D).length, "targets rebuilt"], [s.serial + " s", "one worker (sum)"], [s.total + " s", "unlimited workers (critical path)"], [t.waves.length, "waves of parallel work"]].map(statTile).join("");
+  const rows = t.order.filter(n => toBuild.has(n)), T = Math.max(1, s.total);
+  $("#gantt").innerHTML = rows.length ? rows.map(n => { const end = s.finish[n], st = end - COST[n]; return `<div class="row"><span>${escapeHtml(n)}</span><div class="bar"><div class="${crit.has(n) ? "crit" : ""}" style="left:${st / T * 100}%;width:${COST[n] / T * 100}%" title="${st}–${end} s"></div></div></div>`; }).join("") : `<p class="status">Nothing to build.</p>`;
+}
+function drawGraph(svg, D, t, dset, crit = new Set()) {
+  // columns by longest distance from sources
+  const nodes = nodesOf(D), level = {}; const lv = n => level[n] ??= (D[n] && D[n].length ? 1 + Math.max(...D[n].map(d => (d === n ? 0 : (level[d] ?? (level[d] = -1, lv(d)))))) : 0);
+  try { nodes.forEach(lv); } catch { nodes.forEach(n => (level[n] = D[n] ? 1 : 0)); }
+  for (const n of nodes) if (!(level[n] >= 0)) level[n] = D[n] ? 1 : 0;
+  const cols = {}; for (const n of nodes.sort()) (cols[level[n]] ||= []).push(n);
+  const NW = 96, NH = 34, CX = 136, RY = 46, H = Math.max(...Object.values(cols).map(c => c.length)) * RY + 20, W = (Math.max(...Object.keys(cols).map(Number)) + 1) * CX + 20;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const pos = {}; for (const [c, ns] of Object.entries(cols)) ns.forEach((n, i) => (pos[n] = [16 + c * CX + NW / 2, 14 + i * RY + NH / 2 + (H - 20 - ns.length * RY) / 2]));
+  const defs = svgEl("defs"), mk = svgEl("marker", { id: "ba", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto" });
+  mk.append(svgEl("path", { d: "M0 0L10 5L0 10z", fill: "var(--muted)" })); defs.append(mk); svg.append(defs);
+  for (const [tg, ds] of Object.entries(D)) for (const d of ds) { const [x1, y1] = pos[d], [x2, y2] = pos[tg], back = x2 <= x1;
+    svg.append(svgEl("path", { d: back ? `M${x1} ${y1 - NH / 2} C ${x1} ${y1 - 80}, ${x2} ${y2 - 80}, ${x2} ${y2 - NH / 2 - 2}` : `M${x1 + NW / 2} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2 - NW / 2 - 2} ${y2}`, fill: "none", stroke: back ? "var(--red)" : "var(--muted)", "stroke-width": back ? 2.5 : 1.2, opacity: back ? 1 : 0.6, "marker-end": "url(#ba)" })); }
+  for (const n of nodes) { const [x, y] = pos[n], src = !D[n] || ($("#cycle").checked && n === "util.h");
+    const g = svgEl("g", { class: `nd ${src ? "src" : "out"}${changed.has(n) ? " changed" : dset.has(n) && !src ? " dirty" : ""}${crit.has(n) ? " crit" : ""}`, "data-n": n, transform: `translate(${x},${y})` });
+    g.append(svgEl("rect", { x: -NW / 2, y: -NH / 2, width: NW, height: NH, rx: 7 }), svgEl("text", { y: COST[n] ? -2 : 4 }, n)); if (COST[n]) g.append(svgEl("text", { y: 11, class: "c" }, COST[n] + " s")); svg.append(g); }
+}
+$("#dag").addEventListener("click", e => { const g = e.target.closest("[data-n]"); if (!g || BASE[g.dataset.n]) return; all = false; const n = g.dataset.n; changed.has(n) ? changed.delete(n) : changed.add(n); render(); });
+$("#full").onclick = () => { all = true; changed.clear(); render(); };
+$("#none").onclick = () => { all = false; changed.clear(); render(); };
+$("#cycle").onchange = render;
+changed.add("util.h"); render();
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memory Allocators</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .heap { display: flex; height: 54px; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--border); margin-top: 8px; }
+  .heap div { border-right: 1px solid var(--surface); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; color: #fff; overflow: hidden; cursor: pointer; min-width: 1px; }
+  .heap div.free { background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 5px, var(--surface) 5px, var(--surface) 10px); color: var(--muted); cursor: default; }
+  .row input[type=number] { width: 5em; font-family: var(--mono); }
+  .msg { font-size: 15px; min-height: 1.6em; }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Memory allocators</h1>
+  <p class="lede">Every <code>new</code>, every string, every list grabs memory from the heap, and gives it back later. The allocator behind <code>malloc</code> and <code>free</code> has to find space fast and avoid leaving the heap full of useless little gaps. Allocate and free, and watch the holes appear.</p>
+
+  <div class="panel">
+    <div class="row">
+      <div class="tabs" id="strat"></div>
+      <label class="inline"><input type="checkbox" id="co" checked> coalesce neighbouring free blocks</label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label class="inline">malloc( <input type="number" id="n" min="1" max="128" value="12"> )</label><button id="alloc" class="primary">Allocate</button>
+      <button id="rand">10 random operations</button><button id="frag">Make Swiss cheese</button><button id="reset">Reset</button>
+    </div>
+    <div class="heap" id="heap"></div>
+    <p class="status" style="margin:4px 0 0">128 bytes of heap. Coloured blocks are in use (click one to free it). Striped gaps are free.</p>
+    <p class="msg" id="msg"></p>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel scroll-x"><b>Same random workload, each strategy</b> <span class="status">(400 operations on a 256-byte heap, averaged over 20 runs)</span><table class="data" id="cmp" style="margin-top:6px"></table></div>
+
+  <h2>How it works</h2>
+  <p><b>The free list.</b> The allocator tracks which ranges are free. <code>malloc(n)</code> finds a free block at least n bytes long, carves off what's needed (<i>splitting</i>), and returns its address. <code>free</code> marks it free again. Merging it with free neighbours (<i>coalescing</i>) stops the heap shattering into ever-smaller pieces. Untick it to see what happens without.</p>
+  <p><b>Which hole?</b> <b>First fit</b> takes the first hole that's big enough, which is fast. <b>Best fit</b> takes the tightest fit, saving big holes for big requests but leaving slivers too small to use. <b>Worst fit</b> takes the biggest hole so the leftover stays useful, and in practice usually does worst.</p>
+  <p><b>Fragmentation</b> is the real enemy: plenty of free memory in total, yet no single hole big enough. Press "Make Swiss cheese", then try to allocate 10 bytes. There's 64 bytes free, and it still fails. The garbage-collected languages solve this by <i>moving</i> objects to compact the heap, which C's <code>malloc</code> can't do because programs hold raw addresses.</p>
+  <p class="status">Real allocators (glibc's ptmalloc, jemalloc, mimalloc) use size classes: separate pools for small sizes so most requests are instant, plus per-thread caches, and they ask the OS for more memory with mmap when needed. Block headers that store sizes are left out here.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile } from "./common.js";
+import { Heap, workload, STRATEGIES } from "./lib/alloc.js";
+chrome();
+
+let strat = "first", h;
+$("#strat").innerHTML = Object.entries(STRATEGIES).map(([k, l]) => `<button data-s="${k}" aria-pressed="${k === strat}">${l}</button>`).join("");
+const COL = id => `hsl(${(id * 47) % 360} 55% 48%)`;
+function reset() { h = new Heap(128, strat, { coalesce: $("#co").checked }); $("#msg").textContent = "An empty heap: one free block of 128 bytes."; render(); }
+function render() {
+  $("#heap").innerHTML = h.blocks.map(b => `<div class="${b.free ? "free" : ""}" style="flex:${b.size};${b.free ? "" : `background:${COL(b.id)}`}" ${b.free ? "" : `data-id="${b.id}"`} title="${b.free ? "free" : "block #" + b.id}: ${b.size} bytes at ${b.start}">${b.size >= 5 ? b.size : ""}</div>`).join("");
+  const s = h.stats();
+  $("#stats").innerHTML = [[s.used + " B", "in use"], [s.totalFree + " B", "free in total"], [s.largest + " B", "largest free hole"], [s.holes, "free holes"], [Math.round(s.fragmentation * 100) + "%", "fragmentation"]].map(statTile).join("");
+}
+function table() {
+  $("#cmp").innerHTML = `<tr><th>Strategy</th><th>Failed mallocs</th><th>Fragmentation at end</th><th>Free holes at end</th><th>Blocks scanned</th></tr>` + Object.entries(STRATEGIES).map(([k, l]) => {
+    let f = 0, fr = 0, ho = 0, sc = 0; for (let s = 1; s <= 20; s++) { const w = workload(k, { seed: s, coalesce: $("#co").checked }); f += w.failed; fr += w.fragmentation; ho += w.holes; sc += w.scanned; }
+    return `<tr><td>${l}</td><td class="num">${(f / 20).toFixed(1)}</td><td class="num">${Math.round(fr / 20 * 100)}%</td><td class="num">${(ho / 20).toFixed(1)}</td><td class="num">${Math.round(sc / 20).toLocaleString()}</td></tr>`;
+  }).join("");
+}
+$("#alloc").onclick = () => { const n = +$("#n").value, id = h.malloc(n), s = h.stats(); $("#msg").innerHTML = id ? `malloc(${n}) → block #${id} at byte ${h.blocks.find(b => b.id === id).start}.` : `<span style="color:var(--red)">malloc(${n}) failed!</span> ${s.totalFree >= n ? `${s.totalFree} bytes are free in total, but the largest hole is only ${s.largest}. That's fragmentation.` : "The heap is simply full."}`; render(); };
+$("#heap").onclick = e => { const d = e.target.closest("[data-id]"); if (!d) return; h.free(+d.dataset.id); $("#msg").textContent = `Freed block #${d.dataset.id}.` + ($("#co").checked ? " Neighbouring free blocks were merged." : ""); render(); };
+$("#rand").onclick = () => { for (let k = 0; k < 10; k++) { const live = h.blocks.filter(b => !b.free); if (live.length && Math.random() < 0.45) h.free(live[Math.floor(Math.random() * live.length)].id); else h.malloc(1 + Math.floor(Math.random() * 20)); } $("#msg").textContent = "Ran 10 random mallocs and frees."; render(); };
+$("#frag").onclick = () => { reset(); const ids = []; for (let i = 0; i < 16; i++) ids.push(h.malloc(8)); for (let i = 0; i < 16; i += 2) h.free(ids[i]); $("#n").value = 10; $("#msg").textContent = "Allocated sixteen 8-byte blocks, then freed every other one. Now try malloc(10)."; render(); };
+$("#reset").onclick = reset;
+$("#co").onchange = () => { reset(); table(); };
+$("#strat").onclick = e => { const b = e.target.closest("[data-s]"); if (!b) return; strat = b.dataset.s; document.querySelectorAll("#strat button").forEach(x => x.setAttribute("aria-pressed", x === b)); reset(); };
+reset(); table();
+</script>
+</body>
+</html>

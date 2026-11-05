@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transaction Isolation</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .tl { display: grid; grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr); gap: 4px 10px; font-family: var(--mono); font-size: 13px; }
+  .tl .h { font-weight: 700; font-family: var(--sans); font-size: 14px; }
+  .tl .n { color: var(--muted); text-align: right; }
+  .tl .c { padding: 4px 8px; border-radius: 6px; }
+  .tl .c.read { background: var(--blue-soft); }
+  .tl .c.write { background: var(--accent-soft); }
+  .tl .c.commit { background: var(--green-soft); font-weight: 700; }
+  .tl .c.abort { background: var(--red-soft); color: var(--red); font-weight: 700; }
+  .tl .c.skip { color: var(--muted); }
+  .banner { font-size: 16px; font-weight: 700; margin-top: 12px; }
+  .ok { color: var(--green); } .bad { color: var(--red); }
+  table.matrix td, table.matrix th { text-align: center; padding: 6px 10px; border: 1px solid var(--border); font-size: 13.5px; }
+  table.matrix th:first-child, table.matrix td:first-child { text-align: left; }
+  table.matrix td.cell { cursor: pointer; }
+  table.matrix td.cur { outline: 3px solid var(--accent); outline-offset: -3px; }
+  table.matrix td.y { background: var(--red-soft); color: var(--red); }
+  table.matrix td.n { background: var(--green-soft); color: var(--green); }
+  .final { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Transaction isolation</h1>
+  <p class="lede">Databases run many transactions at once, but each is supposed to act as if it had the database to itself. How strictly that's enforced is the <b>isolation level</b>. Each step up blocks another kind of bug, and costs a little more. Pick a bug and a level, then watch two transactions collide.</p>
+
+  <div class="panel">
+    <div class="tabs" id="scen"></div>
+    <div class="tabs" id="lvl"></div>
+    <p id="story" style="margin:4px 0 12px"></p>
+    <div class="tl" id="tl"></div>
+    <p class="banner" id="banner"></p>
+    <p class="final" id="final"></p>
+  </div>
+
+  <div class="panel scroll-x">
+    <b>The whole picture</b> <span class="status">(run live, not looked up. Click any cell.)</span>
+    <table class="matrix" id="matrix" style="margin-top:8px;border-collapse:collapse"></table>
+  </div>
+
+  <h2>The four anomalies</h2>
+  <p><b>Dirty read:</b> seeing another transaction's uncommitted change, which may be rolled back. Almost every real database prevents this by default.</p>
+  <p><b>Non-repeatable read:</b> reading the same row twice in one transaction and getting different answers, because someone committed in between. A report that adds up figures can contradict itself.</p>
+  <p><b>Lost update:</b> two read-modify-write cycles overlap and the second write silently overwrites the first. It's the database version of the <a href="race-conditions.html">race condition</a>.</p>
+  <p><b>Write skew:</b> two transactions each read the same facts, each check a rule, and each change a <i>different</i> row. Neither conflicts with the other directly, yet together they break the rule. Snapshot isolation misses this. Only true serializability catches it.</p>
+
+  <h2>How the levels work</h2>
+  <p><b>Read committed</b> (PostgreSQL's default) reads the latest <i>committed</i> value at each statement. <b>Snapshot isolation</b> (PostgreSQL's "repeatable read") gives each transaction a frozen snapshot from its start and aborts the second of two transactions that write the same row. <b>Serializable</b> additionally aborts a transaction if something it <i>read</i> was changed underneath it, so the result always matches some one-at-a-time order.</p>
+  <p><b>Prevention means aborting.</b> At the stricter levels the database doesn't magically merge conflicting work. It refuses one transaction with a serialization error, and your application has to <b>retry</b> it. That's the cost of correctness, and the reason defaults are usually weaker.</p>
+  <p class="status">Simplified multi-version model in the style of PostgreSQL: snapshot from transaction start, first-committer-wins on write conflicts, and serializability by validating the read set at commit (real SSI tracks dependencies more precisely and aborts less often). Other databases differ: MySQL's default is "repeatable read" with locking reads, SQL Server uses locks unless snapshot is enabled.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml } from "./common.js";
+import { LEVELS, SCENARIOS, runScenario } from "./lib/isolation.js";
+chrome();
+
+let sc = "lost", lv = "rc";
+const tabs = () => {
+  $("#scen").innerHTML = `<span class="status" style="align-self:center">Bug:</span>` + Object.entries(SCENARIOS).map(([k, s]) => `<button data-s="${k}" aria-pressed="${k === sc}">${s.label}</button>`).join("");
+  $("#lvl").innerHTML = `<span class="status" style="align-self:center">Level:</span>` + Object.entries(LEVELS).map(([k, l]) => `<button data-l="${k}" aria-pressed="${k === lv}">${l}</button>`).join("");
+};
+function render() {
+  tabs();
+  const S = SCENARIOS[sc], r = runScenario(sc, lv);
+  $("#story").textContent = S.story;
+  $("#tl").innerHTML = `<span></span><span class="h">T1</span><span class="h">T2</span>` + r.log.map((e, i) => `<span class="n">${i + 1}</span>${e.name === "T1" ? `<span class="c ${e.kind}">${escapeHtml(e.text)}</span><span></span>` : `<span></span><span class="c ${e.kind}">${escapeHtml(e.text)}</span>`}`).join("");
+  $("#banner").innerHTML = (r.anomaly ? `<span class="bad">✗ ${S.label} happened.</span> ` : `<span class="ok">✓ Prevented.</span> `) + escapeHtml(r.what);
+  $("#final").textContent = "Committed state afterwards: " + Object.entries(r.final).map(([k, v]) => `${k} = ${v}`).join(", ");
+  $("#matrix").innerHTML = `<tr><th></th>${Object.values(LEVELS).map(l => `<th>${l}</th>`).join("")}</tr>` + Object.entries(SCENARIOS).map(([k, s]) => `<tr><td>${s.label}</td>${Object.keys(LEVELS).map(l => { const a = runScenario(k, l).anomaly; return `<td class="cell ${a ? "y" : "n"}${k === sc && l === lv ? " cur" : ""}" data-s="${k}" data-l="${l}">${a ? "happens" : "prevented"}</td>`; }).join("")}</tr>`).join("");
+}
+document.addEventListener("click", e => {
+  const s = e.target.closest("[data-s]"), l = e.target.closest("[data-l]");
+  if (s && s.closest("#scen, #matrix")) sc = s.dataset.s;
+  if (l && l.closest("#lvl, #matrix")) lv = l.dataset.l;
+  if ((s && s.closest("#scen, #matrix")) || (l && l.closest("#lvl, #matrix"))) render();
+});
+render();
+</script>
+</body>
+</html>

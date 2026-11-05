@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hash Functions</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .row input[type=text] { flex: 1 1 240px; font-family: var(--mono); }
+  .bitgrid { display: grid; grid-template-columns: repeat(40, 1fr); gap: 2px; margin-top: 8px; }
+  .bitgrid div { aspect-ratio: 1; border-radius: 2px; background: var(--surface-2); }
+  .bitgrid div.on { background: var(--blue); }
+  .bitgrid div.diff { background: var(--red); }
+  .hx { font-family: var(--mono); font-size: 13px; word-break: break-all; }
+  .hx .d { color: var(--red); font-weight: 700; }
+  .big { font-size: 22px; font-weight: 800; }
+  svg.chart { width: 100%; display: block; }
+  svg.chart text { font-size: 10px; fill: var(--muted); font-family: var(--mono); }
+  input[type=range] { accent-color: var(--accent); }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Hash functions</h1>
+  <p class="lede">A cryptographic hash turns any input, a password or an entire movie, into a short fixed-size fingerprint. Change one letter and the fingerprint becomes unrecognisable. Yet fingerprints still collide much sooner than intuition says, thanks to the birthday paradox.</p>
+
+  <h2>1. The avalanche effect</h2>
+  <div class="panel">
+    <div class="row"><input id="a" type="text" value="Transfer $100 to Alice" aria-label="Message A"></div>
+    <div class="row" style="margin-top:6px"><input id="b" type="text" value="Transfer $900 to Alice" aria-label="Message B"></div>
+    <p class="hx" id="ha" style="margin:10px 0 2px"></p><p class="hx" id="hb" style="margin:0"></p>
+    <div class="bitgrid" id="bits"></div>
+    <p id="aval" style="margin:8px 0 0"></p>
+  </div>
+
+  <h2>2. The birthday paradox</h2>
+  <div class="panel">
+    <label class="inline">People in the room <input type="range" id="n" min="2" max="80" value="23"> <b id="vn"></b></label>
+    <p class="big" id="bday"></p>
+    <svg class="chart" id="bcurve" viewBox="0 0 600 130" preserveAspectRatio="none"></svg>
+    <p class="status">Chance that at least two people share a birthday. It reaches 50% at just 23 people, because 23 people make 253 pairs.</p>
+  </div>
+
+  <h2>3. Find a collision yourself</h2>
+  <div class="panel">
+    <div class="controls" style="margin:0"><label class="inline">Keep only the first <select id="bitsSel"><option>16</option><option selected>20</option><option>24</option><option>28</option></select> bits of SHA-1</label><button id="hunt" class="primary">🔎 Hunt for a collision</button></div>
+    <p id="huntOut"></p>
+    <div class="scroll-x"><table class="data" id="scale"></table></div>
+  </div>
+
+  <h2>What's going on</h2>
+  <p><b>What a good hash promises.</b> It's quick to compute, but you can't run it backwards to find an input for a given hash (<i>preimage resistance</i>), and you can't find two inputs with the same hash (<i>collision resistance</i>). The avalanche effect is a symptom: each output bit should flip with probability ½ whenever anything in the input changes, so the output reveals nothing about how similar two inputs were.</p>
+  <p><b>Collisions come at √N, not N.</b> With N possible hashes you'd think you need about N tries to hit a repeat. But every new value can collide with <i>every</i> earlier one, so the number of pairs grows like n². A repeat becomes likely after only about √N values. For a 20-bit hash (a million values) that's around a thousand tries, and the hunt above usually finds one in a blink.</p>
+  <p><b>Why output size matters.</b> A b-bit hash only gives about b/2 bits of collision resistance. SHA-1's 160 bits mean about 2⁸⁰ work by brute force, and cryptographers found shortcuts well below that. A real SHA-1 collision was published in 2017, which is why it's retired for security. SHA-256 gives 2¹²⁸, far beyond any computer.</p>
+  <p class="status">Uses SHA-1 (via this site's own implementation, verified against real git) so the page runs synchronously. SHA-1 is fine for illustrating hash behaviour and still used by Git for content addressing, but not for new security designs.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml } from "./common.js";
+import { H, toBits, bitDiff, birthdayP, birthday50, findCollision } from "./lib/hashing.js";
+chrome();
+
+function aval() {
+  const ha = H($("#a").value), hb = H($("#b").value), A = toBits(ha), B = toBits(hb), d = bitDiff(ha, hb);
+  $("#ha").innerHTML = "A: " + ha; $("#hb").innerHTML = "B: " + [...hb].map((c, i) => c === ha[i] ? c : `<span class="d">${c}</span>`).join("");
+  $("#bits").innerHTML = A.map((x, i) => `<div class="${x !== B[i] ? "diff" : x ? "on" : ""}"></div>`).join("");
+  $("#aval").innerHTML = $("#a").value === $("#b").value ? "Identical inputs give identical hashes. Now change one character." : `<b>${d} of 160 bits</b> differ (${Math.round(d / 1.6)}%), red in the grid. A good hash flips about half, with no visible pattern.`;
+}
+function bday() {
+  const n = +$("#n").value, p = birthdayP(n, 365); $("#vn").textContent = n;
+  $("#bday").textContent = `${(p * 100).toFixed(1)}% chance of a shared birthday`;
+  const svg = $("#bcurve"); svg.innerHTML = "";
+  const NS = "http://www.w3.org/2000/svg", mk = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); svg.append(e); return e; };
+  mk("polyline", { points: Array.from({ length: 79 }, (_, i) => `${10 + i / 78 * 580},${120 - birthdayP(i + 2, 365) * 110}`).join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": 2.5, "vector-effect": "non-scaling-stroke" });
+  mk("line", { x1: 10, x2: 590, y1: 65, y2: 65, stroke: "var(--border)", "stroke-dasharray": "4 3", "vector-effect": "non-scaling-stroke" });
+  mk("circle", { cx: 10 + (n - 2) / 78 * 580, cy: 120 - p * 110, r: 5, fill: "var(--text)" });
+  const t = mk("text", { x: 14, y: 61 }); t.textContent = "50%";
+}
+function scale() {
+  $("#scale").innerHTML = `<tr><th>Hash size</th><th>Possible values</th><th>~50% collision after</th></tr>` + [16, 20, 32, 64, 128, 160, 256].map(b => `<tr><td>${b} bits</td><td class="num">2^${b}</td><td class="num">${b <= 32 ? Math.round(birthday50(2 ** b)).toLocaleString() : "≈ 2^" + (b / 2).toFixed(0)}</td></tr>`).join("");
+}
+let seed = 1;
+$("#hunt").onclick = () => {
+  const bits = +$("#bitsSel").value, t0 = performance.now(), c = findCollision(bits, seed++), ms = performance.now() - t0;
+  $("#huntOut").innerHTML = c ? `After <b>${c.tries.toLocaleString()}</b> random messages (${ms.toFixed(0)} ms): “${escapeHtml(c.a)}” and “${escapeHtml(c.b)}” both start with <code>${c.hash}</code>. Brute-force intuition says ~${(2 ** bits).toLocaleString()} tries; the birthday estimate says ~${Math.round(birthday50(2 ** bits)).toLocaleString()}.` : "No collision within the limit.";
+};
+$("#a").addEventListener("input", aval); $("#b").addEventListener("input", aval); $("#n").addEventListener("input", bday);
+aval(); bday(); scale();
+</script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OAuth Login Flow</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  #seq text { font-size: 12.5px; fill: var(--text); }
+  #seq text.d { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); }
+  #seq text.h { font-weight: 700; font-size: 13px; text-anchor: middle; }
+  #seq .life { stroke: var(--border); stroke-dasharray: 4 4; }
+  #seq .msg { opacity: 0; transition: opacity .3s; }
+  #seq .msg.on { opacity: 1; }
+  #seq .msg.cur text:not(.d) { font-weight: 700; }
+  .outcome { padding: 10px 14px; border-radius: 10px; margin-top: 10px; font-weight: 600; }
+  .outcome.good { background: var(--green-soft); color: var(--green); }
+  .outcome.bad { background: var(--red-soft); color: var(--red); }
+  .row { gap: 10px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>OAuth: “Sign in with…”</h1>
+  <p class="lede">When an app asks to “Sign in with Google” or read your GitHub repos, you never give it your password. OAuth lets the provider hand the app a limited, revocable key instead. Step through the dance, then turn off the safety features and let an attacker in.</p>
+
+  <div class="panel">
+    <div class="row"><b>Attack:</b><div class="tabs" id="atk"></div></div>
+    <div class="row">
+      <label class="inline"><input type="checkbox" id="pkce" checked> PKCE</label>
+      <label class="inline"><input type="checkbox" id="state" checked> state parameter</label>
+      <span style="flex:1"></span>
+      <button id="step" class="primary">Next step ▶</button><button id="all">Show all</button><button id="restart">Restart</button>
+    </div>
+    <div class="scroll-x" style="margin-top:8px"><svg id="seq" role="img" aria-label="Sequence diagram"></svg></div>
+    <div id="out"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Four parties.</b> You (in a browser), the <b>app</b> that wants access, the <b>authorization server</b> (Google, GitHub) that knows your password, and the <b>API</b> holding your data. The app bounces your browser to the provider. You log in <i>there</i> and approve a <i>scope</i> such as “read your photos”. The provider bounces you back with a one-time <b>code</b>.</p>
+  <p><b>Why a code, and not the token directly?</b> The redirect travels through the browser, where URLs leak into history, logs and other apps. The code is single-use and short-lived. The app trades it for the real access token over a direct server-to-server request.</p>
+  <p><b>PKCE</b> (“pixie”). Before starting, the app makes a random secret, the <i>verifier</i>, and sends only its hash, the <i>challenge</i>. To redeem the code it must show the verifier. Whoever intercepts the code doesn't have it. Mobile and single-page apps can't keep a client secret, so PKCE is what protects them, and OAuth 2.1 requires it for everyone.</p>
+  <p><b>state</b> is a random value the app remembers in your session and expects back on the callback. It proves the login was one <i>you</i> started. Without it, an attacker can plant their own code and log you in to <i>their</i> account (login CSRF), then collect whatever you type.</p>
+  <p class="status">Access tokens are short-lived. A refresh token gets new ones without asking again, and revoking the app in your account settings kills both. “Sign in with…” adds OpenID Connect, an ID token saying who you are, on top of this same flow. Hashes here are shortened stand-ins for SHA-256.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl } from "./common.js";
+import { run } from "./lib/oauth.js";
+chrome();
+
+const ATTACKS = { none: "None", "steal-code": "Steal the code", csrf: "Login CSRF" };
+const NAMES = { user: "You (browser)", app: "App", auth: "Provider", api: "Photos API", evil: "Attacker" };
+const COLOR = { normal: "var(--text)", attack: "var(--red)", blocked: "var(--green)", secret: "var(--blue)" };
+let attack = "none", r, shown = 0;
+$("#atk").innerHTML = Object.entries(ATTACKS).map(([k, l]) => `<button data-a="${k}" aria-pressed="${k === attack}">${l}</button>`).join("");
+
+function build() {
+  r = run({ pkce: $("#pkce").checked, state: $("#state").checked, attack });
+  const actors = ["user", "app", "auth", "api", ...(attack !== "none" ? ["evil"] : [])];
+  const LW = 130, W = actors.length * LW, RH = 46, H = 50 + r.steps.length * RH + 10, x = a => actors.indexOf(a) * LW + LW / 2;
+  const svg = $("#seq"); svg.replaceChildren(); svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const defs = svgEl("defs");
+  for (const [k, c] of Object.entries(COLOR)) { const m = svgEl("marker", { id: "ar-" + k, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }); m.append(svgEl("path", { d: "M0 0L10 5L0 10z", fill: c })); defs.append(m); }
+  svg.append(defs);
+  for (const a of actors) { svg.append(svgEl("text", { x: x(a), y: 20, class: "h", style: a === "evil" ? "fill:var(--red)" : "" }, NAMES[a]), svgEl("line", { x1: x(a), x2: x(a), y1: 30, y2: H - 6, class: "life" })); }
+  r.steps.forEach((s, i) => {
+    const y = 58 + i * RH, g = svgEl("g", { class: "msg" }), c = COLOR[s.kind], x1 = x(s.from), x2 = x(s.to);
+    if (s.from === s.to) g.append(svgEl("path", { d: `M${x1} ${y} h28 v14 h-26`, fill: "none", stroke: c, "stroke-width": 1.6, "marker-end": `url(#ar-${s.kind})` }));
+    else g.append(svgEl("line", { x1: x1 + (x2 > x1 ? 3 : -3), x2: x2 + (x2 > x1 ? -3 : 3), y1: y, y2: y, stroke: c, "stroke-width": 1.6, "marker-end": `url(#ar-${s.kind})` }));
+    const lx = s.from === s.to ? x1 + 34 : Math.min(x1, x2) + 6;
+    const t = svgEl("text", { x: lx, y: y - 6, style: `fill:${c}` }, `${i + 1}. ${s.label}`); g.append(t);
+    if (s.detail) g.append(svgEl("text", { x: lx, y: y + 14 + (s.from === s.to ? 4 : 0), class: "d" }, s.detail.length > 90 ? s.detail.slice(0, 88) + "…" : s.detail));
+    if (s.detail) g.append(svgEl("title", {}, s.detail));
+    svg.append(g);
+  });
+  shown = 0; show();
+}
+function show() {
+  document.querySelectorAll("#seq .msg").forEach((g, i) => { g.classList.toggle("on", i < shown); g.classList.toggle("cur", i === shown - 1); });
+  const done = shown >= r.steps.length;
+  $("#out").innerHTML = done ? `<div class="outcome ${r.outcome.ok ? "good" : "bad"}">${r.outcome.ok ? "✓" : "✗"} ${r.outcome.text}</div>` : `<p class="status">Step ${shown} of ${r.steps.length}.</p>`;
+  $("#step").disabled = done;
+}
+$("#step").onclick = () => { shown++; show(); };
+$("#all").onclick = () => { shown = r.steps.length; show(); };
+$("#restart").onclick = build;
+$("#pkce").onchange = $("#state").onchange = build;
+$("#atk").onclick = e => { const b = e.target.closest("[data-a]"); if (!b) return; attack = b.dataset.a; document.querySelectorAll("#atk button").forEach(x => x.setAttribute("aria-pressed", x === b)); build(); };
+build();
+</script>
+</body>
+</html>

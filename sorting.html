@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sorting Algorithms</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .race { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .lane { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
+  .lane.done { border-color: var(--green); }
+  .lane h3 { margin: 0; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
+  .lane h3 small { color: var(--muted); font-weight: 400; font-size: 11px; }
+  .lane canvas { width: 100%; height: 120px; display: block; margin: 6px 0; }
+  .lane .ops { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .lane .place { font-weight: 700; color: var(--green); }
+  input[type=range] { accent-color: var(--accent); }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sorting algorithms</h1>
+  <p class="lede">Six ways to put things in order, racing on the same data. Every algorithm gets the same budget of operations per frame, so the race measures <i>work done</i>, not hardware.</p>
+
+  <div class="panel">
+    <div class="controls" style="margin:0">
+      <label class="inline">Input <select id="input"></select></label>
+      <label class="inline">Size <input type="range" id="n" min="10" max="300" step="10" value="80"> <b id="vn"></b></label>
+      <label class="inline">Speed <input type="range" id="speed" min="1" max="200" value="12"></label>
+      <button id="go" class="primary">▶ Race</button>
+      <button id="shuffle">🎲 New data</button>
+    </div>
+  </div>
+
+  <div class="race" id="race"></div>
+
+  <div class="panel scroll-x">
+    <b>Total work for this input</b> <span class="status">(computed instantly, without animation)</span>
+    <table class="data" id="totals" style="margin-top:6px"></table>
+  </div>
+
+  <h2>What to notice</h2>
+  <p><b>n² vs n log n.</b> Bubble, insertion and selection sort compare roughly every pair, about n²/2 operations. Merge, quick and heap sort split the problem in halves, about n·log₂n. At n = 300 that's ~45,000 against ~2,500. At a million items it's the difference between seconds and days.</p>
+  <p><b>Input matters.</b> On <i>nearly sorted</i> data, insertion sort finishes almost immediately, because each item only moves a step or two. That's why real libraries switch to it for small or almost-ordered chunks. Selection sort doesn't care and always does all n²/2 comparisons.</p>
+  <p><b>Trade-offs among the fast ones.</b> Merge sort is predictable and <i>stable</i> (equal items keep their order) but needs extra memory. Quicksort is usually fastest in practice thanks to cache-friendly access, but can degrade to n² on unlucky pivots; this one uses median-of-three to dodge the easy traps. Heapsort guarantees n log n in place, but jumps around memory.</p>
+  <p><b>What real languages use:</b> Python and Java (for objects) use Timsort, a merge/insertion hybrid that exploits existing runs. C++ <code>std::sort</code> and Rust's unstable sort use introsort-style quicksorts that fall back to heapsort.</p>
+  <p class="status">Bars are coloured where the current operation is: orange = comparing, red = writing. Each comparison counts as one operation, a swap as two writes.</p>
+</main>
+<script type="module">
+import { chrome, $ } from "./common.js";
+import { ALGOS, INPUTS, count } from "./lib/sorting.js";
+import { mulberry } from "./lib/autograd.js";
+chrome();
+
+$("#input").innerHTML = Object.entries(INPUTS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("");
+let base = [], lanes = [], raf = null, seed = 1, finishOrder = 0;
+$("#race").innerHTML = Object.entries(ALGOS).map(([k, a]) => `<div class="lane" id="lane-${k}"><h3>${a.label}<small>${a.big}</small></h3><canvas width="520" height="240"></canvas><div class="ops"></div></div>`).join("");
+
+function makeData() { base = INPUTS[$("#input").value].gen(+$("#n").value, mulberry(seed)); $("#vn").textContent = base.length; reset(); totals(); }
+function reset() {
+  cancelAnimationFrame(raf); raf = null; $("#go").textContent = "▶ Race"; finishOrder = 0;
+  lanes = Object.keys(ALGOS).map(k => { const a = base.slice(); return { k, a, it: ALGOS[k].gen(a), ops: 0, cmps: 0, writes: 0, done: false, hl: null, place: 0 }; });
+  lanes.forEach(draw);
+}
+function draw(L) {
+  const el = $("#lane-" + L.k), cv = el.querySelector("canvas"), ctx = cv.getContext("2d"), W = cv.width, H = cv.height, n = L.a.length, mx = Math.max(...base, 1);
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  ctx.clearRect(0, 0, W, H);
+  const bw = W / n;
+  for (let i = 0; i < n; i++) {
+    let c = L.done ? css("--green") : css("--blue");
+    if (L.hl && (L.hl.i === i || L.hl.j === i)) c = L.hl.type === "cmp" ? css("--accent") : css("--red");
+    ctx.fillStyle = c; const h = L.a[i] / mx * (H - 4);
+    ctx.fillRect(i * bw + (bw > 3 ? 0.5 : 0), H - h, Math.max(1, bw - (bw > 3 ? 1 : 0)), h);
+  }
+  el.classList.toggle("done", L.done);
+  el.querySelector(".ops").innerHTML = `${L.cmps.toLocaleString()} comparisons · ${L.writes.toLocaleString()} writes` + (L.done ? ` · <span class="place">#${L.place}</span>` : "");
+}
+function frame() {
+  const budget = +$("#speed").value;
+  let alive = false;
+  for (const L of lanes) {
+    if (L.done) continue;
+    // every lane gets the same budget, charged at the same cost as the totals table (cmp 1, set 1, swap 2)
+    L.credit = (L.credit || 0) + budget;
+    while (L.credit > 0) {
+      const r = L.it.next();
+      if (r.done) { L.done = true; L.hl = null; L.place = ++finishOrder; break; }
+      const op = r.value, cost = op.type === "swap" ? 2 : 1; L.hl = op; L.ops++; L.credit -= cost;
+      if (op.type === "cmp") L.cmps++; else L.writes += cost;
+    }
+    if (!L.done) alive = true;
+    draw(L);
+  }
+  if (alive) raf = requestAnimationFrame(frame); else { raf = null; $("#go").textContent = "↺ Again"; }
+}
+function totals() {
+  const rows = Object.entries(ALGOS).map(([k, a]) => ({ a, ...count(k, base) })), best = Math.min(...rows.map(r => r.cmps + r.writes));
+  $("#totals").innerHTML = `<tr><th>Algorithm</th><th>Comparisons</th><th>Writes</th><th>Total ops</th><th>vs. least</th></tr>` +
+    rows.sort((x, y) => (x.cmps + x.writes) - (y.cmps + y.writes)).map(r => `<tr><td>${r.a.label}</td><td class="num">${r.cmps.toLocaleString()}</td><td class="num">${r.writes.toLocaleString()}</td><td class="num">${(r.cmps + r.writes).toLocaleString()}</td><td class="num">${((r.cmps + r.writes) / best).toFixed(1)}×</td></tr>`).join("");
+}
+$("#go").onclick = () => { if (raf) { cancelAnimationFrame(raf); raf = null; $("#go").textContent = "▶ Race"; return; } if (lanes.every(l => l.done)) reset(); $("#go").textContent = "⏸ Pause"; raf = requestAnimationFrame(frame); };
+$("#shuffle").onclick = () => { seed++; makeData(); };
+$("#input").onchange = makeData;
+$("#n").oninput = makeData;
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => lanes.forEach(draw));
+makeData();
+</script>
+</body>
+</html>

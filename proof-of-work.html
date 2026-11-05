@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proof of Work</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .chain { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .blk { border: 2px solid var(--green); border-radius: 12px; padding: 10px; background: var(--surface); }
+  .blk.bad { border-color: var(--red); background: var(--red-soft); }
+  .blk h3 { margin: 0 0 6px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .blk label { font-size: 11px; color: var(--muted); display: block; margin-top: 6px; }
+  .blk textarea { font-family: var(--sans); font-size: 13px; }
+  .h { font-family: var(--mono); font-size: 11px; word-break: break-all; background: var(--surface-2); border-radius: 6px; padding: 4px 6px; }
+  .h .z { color: var(--green); font-weight: 800; }
+  .blk.bad .h .z { color: var(--red); }
+  .stats { --stat-min: 130px; }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Proof of work</h1>
+  <p class="lede">How does a blockchain stop someone from rewriting history? It makes every block expensive to create. You have to find a number that, hashed with the block, gives a hash starting with zeros, and the only way is to guess billions of times. Here's a real one, using your browser's SHA-256.</p>
+
+  <div class="panel">
+    <div class="controls" style="margin:0">
+      <label class="inline">Difficulty: hash must start with <select id="z"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select> zeros</label>
+      <button id="mineAll" class="primary">⛏ Mine the whole chain</button><button id="reset">Reset</button>
+      <span class="status" id="prog"></span>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="chain" id="chain"></div>
+  <p class="status">Edit any block's data. Its hash changes, so it no longer starts with enough zeros, <i>and</i> the next block's "previous hash" no longer matches. Everything after it turns red.</p>
+
+  <div class="panel scroll-x"><b>What each extra zero costs</b> <span class="status">(at the speed this tab measured)</span><table class="data" id="cost" style="margin-top:6px"></table></div>
+
+  <h2>How it works</h2>
+  <p><b>A block</b> holds some data, the hash of the previous block, and a <b>nonce</b>, a number the miner is free to change. Its hash is SHA-256 of all three. Change any character and the hash changes completely and unpredictably.</p>
+  <p><b>The puzzle.</b> The block only counts if its hash starts with a certain number of zeros. Since hashes are unpredictable, the only strategy is to try nonce 0, 1, 2… Each extra hex zero makes it 16 times harder on average. Checking an answer takes a single hash, so work is expensive to do and cheap to verify.</p>
+  <p><b>Why history becomes hard to rewrite.</b> To alter an old block you must redo its work, which changes its hash, which breaks the next block's link, so you must redo that one's work too, and every block after it, faster than the rest of the network keeps adding new ones. With enough honest computing power, that race can't be won. Bitcoin's network collectively computes hundreds of quintillions of hashes per second.</p>
+  <p><b>The cost is the point, and the problem.</b> Security comes from burning electricity, which is why many newer blockchains use proof of stake instead. The hash-chaining idea itself, with each record committing to the one before, is the same one Git and <a href="merkle.html">Merkle trees</a> use without any mining.</p>
+  <p class="status">Toy chain: the hash covers "previous hash | data | nonce" as text. Real Bitcoin hashes a binary header twice with SHA-256 and compares against a numeric target rather than counting zeros.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml, statTile } from "./common.js";
+import { sha256hex, mine, blockText, meets, expectedTries } from "./lib/pow.js";
+chrome();
+
+const DATA = ["Genesis: the chain begins", "Alice pays Bob 5 coins", "Bob pays Carol 2 coins", "Carol pays Dan 1 coin"];
+let blocks, busy = false, stop = false, rate = null;
+const Z = () => +$("#z").value;
+function reset() { blocks = DATA.map(d => ({ data: d, nonce: 0, hash: "", prev: "" })); refresh(); }
+async function refresh() {
+  for (let i = 0; i < blocks.length; i++) { blocks[i].prev = i ? blocks[i - 1].hash : "0".repeat(64); blocks[i].hash = await sha256hex(blockText(blocks[i].prev, blocks[i].data, blocks[i].nonce)); }
+  render();
+}
+function render() {
+  const z = Z(); let broken = false;
+  $("#chain").innerHTML = blocks.map((b, i) => {
+    const ok = meets(b.hash, z) && !broken; if (!ok) broken = true;
+    const lead = b.hash.match(/^0*/)[0].length;
+    return `<div class="blk${ok ? "" : " bad"}"><h3>Block ${i + 1}<button data-m="${i}" ${busy ? "disabled" : ""}>⛏ Mine</button></h3>
+      <label>data</label><textarea data-d="${i}" rows="2">${escapeHtml(b.data)}</textarea>
+      <label>previous hash</label><div class="h">${b.prev.slice(0, 24)}…</div>
+      <label>nonce</label><div class="h">${b.nonce}</div>
+      <label>hash ${ok ? "✓" : meets(b.hash, z) ? "✗ (an earlier block is broken)" : `✗ (needs ${z} leading zeros)`}</label><div class="h"><span class="z">${b.hash.slice(0, lead)}</span>${b.hash.slice(lead)}</div></div>`;
+  }).join("");
+  $("#stats").innerHTML = [[`~${expectedTries(z).toLocaleString()}`, "expected guesses per block"], [rate ? Math.round(rate).toLocaleString() + "/s" : "—", "hashes per second, this tab"], [rate ? (expectedTries(z) / rate).toFixed(2) + " s" : "—", "expected time per block"]].map(statTile).join("");
+  if (rate) $("#cost").innerHTML = `<tr><th>Leading zeros</th><th>Expected guesses</th><th>Time at this speed</th></tr>` + [3, 4, 5, 6, 8, 10, 12, 16, 19].map(k => { const s = expectedTries(k) / rate; return `<tr><td>${k}</td><td class="num">16^${k} ≈ ${expectedTries(k).toExponential(1)}</td><td class="num">${s < 60 ? s.toFixed(1) + " s" : s < 86400 ? (s / 3600).toFixed(1) + " h" : s < 3.15e9 ? (s / 3.15e7).toFixed(1) + " years" : `10^${Math.round(Math.log10(s / 3.15e7))} years`}</td></tr>`; }).join("");
+  else $("#cost").innerHTML = `<tr><td class="status">Mine a block to measure your speed.</td></tr>`;
+}
+async function mineOne(i) {
+  const b = blocks[i], t0 = performance.now();
+  const r = await mine(b.prev, b.data, Z(), { onProgress: n => { $("#prog").textContent = `block ${i + 1}: tried ${n.toLocaleString()} nonces…`; }, shouldStop: () => stop });
+  if (!r) return false;
+  const secs = (performance.now() - t0) / 1000; if (r.tries > 200) rate = r.tries / Math.max(secs, 1e-3);
+  b.nonce = r.nonce; $("#prog").textContent = `block ${i + 1}: found nonce ${r.nonce} after ${r.tries.toLocaleString()} tries (${secs.toFixed(2)} s)`;
+  await refresh(); return true;
+}
+$("#chain").addEventListener("click", async e => { const b = e.target.closest("[data-m]"); if (!b || busy) return; busy = true; stop = false; render(); await mineOne(+b.dataset.m); busy = false; render(); });
+$("#chain").addEventListener("input", e => { const i = e.target.dataset.d; if (i == null) return; blocks[+i].data = e.target.value; const pos = e.target.selectionStart; refresh().then(() => { const t = document.querySelector(`[data-d="${i}"]`); t.focus(); t.setSelectionRange(pos, pos); }); });
+$("#mineAll").onclick = async () => {
+  if (busy) { stop = true; return; }
+  busy = true; stop = false; $("#mineAll").textContent = "■ Stop";
+  for (let i = 0; i < blocks.length && !stop; i++) { if (!meets(blocks[i].hash, Z()) || (i && blocks[i].prev !== blocks[i - 1].hash)) await mineOne(i); }
+  busy = false; $("#mineAll").textContent = "⛏ Mine the whole chain"; render();
+};
+$("#z").onchange = render; $("#reset").onclick = () => { stop = true; reset(); };
+reset();
+</script>
+</body>
+</html>

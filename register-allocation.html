@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Register Allocation</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 10px; }
+  @media (max-width: 760px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  .code { font-family: var(--mono); font-size: 13px; }
+  .code .ln { display: grid; grid-template-columns: 22px 150px minmax(0, 1fr); align-items: center; height: 24px; }
+  .code .no { color: var(--muted); font-size: 11px; }
+  .lanes { position: relative; height: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(14px, 1fr); gap: 3px; }
+  .seg { height: 18px; border-radius: 3px; }
+  .seg.def { border-radius: 9px 3px 3px 9px; }
+  .seg.spill { background: repeating-linear-gradient(45deg, var(--muted), var(--muted) 3px, transparent 3px, transparent 6px) !important; }
+  .heads { display: grid; grid-template-columns: 22px 150px minmax(0, 1fr); font-family: var(--mono); font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+  #graph text { font-family: var(--mono); font-size: 13px; text-anchor: middle; font-weight: 700; fill: #fff; pointer-events: none; }
+  .row { gap: 12px; }
+  .regs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .regs span { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 6px; color: #fff; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Register allocation</h1>
+  <p class="lede">A CPU has a handful of registers, the only places it can do arithmetic, and programs have far more variables. The compiler decides which variable lives in which register, line by line. When it runs out, it <i>spills</i> a variable to slow memory. Underneath it's a puzzle you may know: colouring a map so that no neighbours match.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">registers <input type="range" id="k" min="1" max="6" value="4"> <b id="kv"></b></label>
+      <label class="inline">order <select id="order"></select></label>
+      <button id="rand">Random program</button><button id="reset">Example program</button>
+    </div>
+    <div class="regs" id="regs"></div>
+    <div class="two">
+      <div class="scroll-x"><div style="min-width:320px"><div class="heads"><span></span><span>code</span><span id="vh"></span></div><div class="code" id="code"></div></div></div>
+      <div><svg id="graph" viewBox="0 0 280 280" style="width:100%;max-width:300px;height:auto;display:block;margin:0 auto" role="img" aria-label="Interference graph"></svg>
+        <p class="status" style="text-align:center;margin:0">Interference graph: a line joins variables alive at the same time.</p></div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <p id="msg" style="margin-bottom:0"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Liveness.</b> A variable is <i>live</i> from where it's assigned to its last use. After that its register is free for someone else. The bars show each variable's live range, line by line.</p>
+  <p><b>Interference.</b> Two variables alive at the same moment can't share a register. Draw each variable as a dot and join every pair that's alive together. Giving each register a colour, the job becomes: colour the dots so no two joined dots match, using at most k colours. That's graph colouring.</p>
+  <p><b>Hard in general, easy here.</b> Finding the fewest colours for an arbitrary graph is NP-hard. Live ranges in straight-line code are intervals, though, and for intervals a greedy sweep in start order, which is <b>linear scan</b> allocation, is provably optimal: it needs exactly as many registers as the most variables alive at once. JIT compilers such as V8 and HotSpot use linear scan because it's fast. Ahead-of-time compilers such as GCC and LLVM spend longer on smarter colouring, because loops and branches make the graph messier.</p>
+  <p><b>Spilling.</b> With too few registers some variables get stored to the stack and reloaded when needed (striped). Each spill costs memory traffic, so compilers prefer to spill variables that are used rarely or outside hot loops. Drag the register count down to 1 and watch.</p>
+  <p class="status">Real allocators also coalesce copies (<code>x = y</code> can reuse y's register), respect registers that a call or instruction clobbers, and can split a long live range so only part of it spills. x86-64 has 16 general-purpose registers. ARM64 has 31.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, escapeHtml, statTile } from "./common.js";
+import { interference, maxPressure, colour, ORDERS } from "./lib/coloring.js";
+import { mulberry } from "./lib/autograd.js";
+chrome();
+
+const PAL = ["#4f7cff", "#e8743b", "#19a979", "#c0457e", "#8a6cd8", "#c9a227"];
+const EXAMPLE = [["a", ["p"]], ["b", ["q"]], ["c", ["a", "b"]], ["d", ["a"]], ["e", ["c", "d"]], ["f", ["b"]], ["g", ["e", "f"]], ["h", ["g", "a"]], ["ret", ["h", "c"]]];
+const OPS = { 1: " ", 2: " + " };
+let prog = EXAMPLE;
+$("#order").innerHTML = Object.entries(ORDERS).map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
+
+function text([v, uses], i) {
+  if (v === "ret") return `return ${uses.join(" + ")}`;
+  if (uses.length === 1 && (uses[0] === "p" || uses[0] === "q")) return `${v} = load ${uses[0]}`;
+  return `${v} = ${uses.join([" * ", " + ", " - "][i % 3])}${uses.length === 1 ? " + 1" : ""}`;
+}
+function ranges(p) {
+  const R = {};
+  p.forEach(([v, uses], i) => { for (const u of uses) if (R[u]) R[u][1] = Math.max(R[u][1], i); if (v !== "ret") R[v] = [i, i + 1]; });
+  return R; // [def line, last-use line): at the last use the register can be reused for the result
+}
+function randomProg() {
+  const rnd = mulberry(Date.now() & 0xffff), vars = [], p = [];
+  for (let i = 0; i < 9; i++) {
+    const v = String.fromCharCode(97 + i), live = vars.slice(-5);
+    const uses = vars.length < 2 ? [["p", "q"][i]] : [...new Set([live[Math.floor(rnd() * live.length)], vars[Math.floor(rnd() * vars.length)]])];
+    p.push([v, uses]); vars.push(v);
+  }
+  p.push(["ret", vars.slice(-2)]); return p;
+}
+
+function render() {
+  const k = +$("#k").value, order = $("#order").value, R = ranges(prog), adj = interference(R), res = colour(adj, { order, k, ranges: R });
+  const last = {}; prog.forEach(([, uses], i) => uses.forEach(u => (last[u] = i)));
+  const names = Object.keys(R), need = maxPressure(R), best = colour(adj, { order: "start", ranges: R }).used;
+  $("#kv").textContent = k;
+  $("#regs").innerHTML = PAL.slice(0, k).map((c, i) => `<span style="background:${c}">r${i}</span>`).join("");
+  $("#vh").style.cssText = `display:grid;grid-template-columns:repeat(${names.length},minmax(14px,1fr));gap:3px;text-align:center`;
+  $("#vh").innerHTML = names.map(n => `<span>${n}</span>`).join("");
+  $("#code").innerHTML = prog.map((l, i) => `<div class="ln"><span class="no">${i + 1}</span><span>${escapeHtml(text(l, i))}</span><div class="lanes" style="grid-template-columns:repeat(${names.length},minmax(14px,1fr))">${names.map(n => {
+    const s = R[n][0], live = i >= s && i <= (last[n] ?? s);
+    if (!live) return `<span></span>`;
+    const c = res.col[n]; return `<span class="seg${i === s ? " def" : ""}${c == null ? " spill" : ""}" style="background:${c == null ? "" : PAL[c]}" title="${n}${c == null ? " (spilled)" : " in r" + c}"></span>`;
+  }).join("")}</div></div>`).join("");
+  // graph on a circle
+  const g = $("#graph"); g.replaceChildren(); const N = names.length, pos = {};
+  names.forEach((n, i) => (pos[n] = [140 + 110 * Math.cos(-Math.PI / 2 + 2 * Math.PI * i / N), 140 + 110 * Math.sin(-Math.PI / 2 + 2 * Math.PI * i / N)]));
+  for (const a of names) for (const b of adj[a]) if (a < b) {
+    const clash = res.col[a] != null && res.col[a] === res.col[b];
+    g.append(svgEl("line", { x1: pos[a][0], y1: pos[a][1], x2: pos[b][0], y2: pos[b][1], stroke: clash ? "var(--red)" : "var(--muted)", "stroke-width": clash ? 3 : 1.3, opacity: 0.7 }));
+  }
+  for (const n of names) { const c = res.col[n];
+    g.append(svgEl("circle", { cx: pos[n][0], cy: pos[n][1], r: 17, fill: c == null ? "var(--surface-2)" : PAL[c], stroke: c == null ? "var(--muted)" : "none", "stroke-width": 2, "stroke-dasharray": c == null ? "4 3" : "" }));
+    g.append(svgEl("text", { x: pos[n][0], y: pos[n][1] + 4.5, style: c == null ? "fill:var(--text)" : "" }, n)); }
+  $("#stats").innerHTML = [[need, "most alive at once"], [res.used, "registers used"], [res.spilled.length, "variables spilled"], [Object.values(adj).reduce((s, x) => s + x.size, 0) / 2, "interference edges"]].map(statTile).join("");
+  const wasted = res.spilled.length && k >= best;
+  $("#msg").innerHTML = res.spilled.length
+    ? (wasted ? `Spilled <b>${res.spilled.join(", ")}</b>, though ${best} registers would have been enough with linear scan. This visiting order painted itself into a corner.` : `Only ${k} register${k === 1 ? "" : "s"}, but ${need} variables are alive at once, so <b>${res.spilled.join(", ")}</b> must live in memory (striped) and get reloaded each time ${res.spilled.length === 1 ? "it's" : "they're"} used.`)
+    : `Everything fits in ${res.used} register${res.used === 1 ? "" : "s"}, the minimum, since ${need} variables are alive at the same time.`;
+}
+$("#k").oninput = $("#order").onchange = render;
+$("#rand").onclick = () => { prog = randomProg(); render(); };
+$("#reset").onclick = () => { prog = EXAMPLE; render(); };
+render();
+</script>
+</body>
+</html>

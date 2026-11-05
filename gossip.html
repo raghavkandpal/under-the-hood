@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gossip Protocols</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .row { gap: 10px; margin-top: 8px; }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 10px; align-items: start; }
+  @media (max-width: 680px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  .nodes { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 3px; max-width: 360px; }
+  .nodes span { aspect-ratio: 1; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); transition: background .25s; }
+  .nodes span.k { background: var(--accent); border-color: var(--accent); }
+  .nodes span.new { background: var(--green); border-color: var(--green); }
+  .nodes span.dead { background: transparent; border-style: dashed; opacity: .5; }
+  .nodes span.src { outline: 2px solid var(--text); }
+  #curve { width: 100%; height: auto; display: block; }
+  #curve text { font-size: 11px; fill: var(--muted); }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Gossip protocols</h1>
+  <p class="lede">How do you tell 10,000 servers that one of them just died, with no central coordinator and with messages getting lost? Do what rumours do. Each node tells a couple of random others, who tell a couple more. News reaches everyone astonishingly fast, and no single failure can stop it.</p>
+
+  <div class="panel">
+    <div class="row" style="margin-top:0"><div class="tabs" id="mode"></div></div>
+    <div class="row">
+      <label class="inline">contacts per round <input type="range" id="fan" min="1" max="4" value="1"> <b id="fanv"></b></label>
+      <label class="inline">messages lost <input type="range" id="loss" min="0" max="0.6" step="0.05" value="0"> <b id="lossv"></b></label>
+      <label class="inline">nodes crashed <input type="range" id="dead" min="0" max="0.5" step="0.05" value="0"> <b id="deadv"></b></label>
+      <button id="go" class="primary">▶ Spread a rumour</button>
+    </div>
+    <div class="two">
+      <div><div class="nodes" id="nodes"></div><p class="status" style="margin:4px 0 0">400 nodes. Outlined: the source. Green: learned this round.</p></div>
+      <div><svg id="curve" viewBox="0 0 320 200" role="img" aria-label="Informed nodes per round"></svg></div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel scroll-x"><b>Bigger clusters barely take longer</b> <span class="status">(push, 1 contact per round, average of several runs)</span><table class="data" id="scale" style="margin-top:6px"></table></div>
+
+  <h2>How it works</h2>
+  <p><b>Exponential spread.</b> In round 1 one node knows. If each informed node tells one random peer, about 2 know after round 1, 4 after round 2, 8 after round 3. Doubling alone would reach n nodes in log₂ n rounds. The slow finish described below adds about ln n more, so going from a thousand nodes to a million adds only about 17 rounds. The curve is the S-shape of any epidemic: slow start, explosive middle, slow finish.</p>
+  <p><b>The slow finish</b> is because, near the end, informed nodes keep picking peers who already know. <b>Pull</b> fixes it: every uninformed node asks a random peer “anything new?”, and when most know, almost every ask succeeds. <b>Push-pull</b> combines the fast start of push with the fast finish of pull.</p>
+  <p><b>Robust by redundancy.</b> Nothing depends on any particular node or message. Drop 30% of messages, crash a fifth of the nodes, and the rumour still gets through to every live node a few rounds later. The price is duplicate messages: each node hears the news several times.</p>
+  <p class="status">Used for cluster membership and failure detection (Cassandra, Consul's Serf, SWIM), spreading database updates between replicas (“anti-entropy” in Dynamo-style stores), Bitcoin transaction relay, and aggregating counts across huge systems. Related: <a href="crdt.html">CRDTs</a>, which make merging the gossiped state safe.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, sleep, statTile } from "./common.js";
+import { spread, avgRounds } from "./lib/gossip.js";
+import { mulberry } from "./lib/autograd.js";
+chrome();
+
+const MODES = { push: "Push", pull: "Pull", pushpull: "Push-pull" }, N = 400;
+let mode = "push", run = 0;
+$("#mode").innerHTML = Object.entries(MODES).map(([k, l]) => `<button data-m="${k}" aria-pressed="${k === mode}">${l}</button>`).join("");
+$("#nodes").innerHTML = Array.from({ length: N }, () => "<span></span>").join("");
+const dots = [...document.querySelectorAll("#nodes span")];
+function labels() { $("#fanv").textContent = $("#fan").value; $("#lossv").textContent = Math.round($("#loss").value * 100) + "%"; $("#deadv").textContent = Math.round($("#dead").value * 100) + "%"; }
+function curve(r, upto) {
+  const svg = $("#curve"); svg.replaceChildren(); const L = 34, R = 312, T = 10, B = 170, maxR = Math.max(r.rounds, 8), X = i => L + (R - L) * i / maxR, Y = v => B - (B - T) * v / N;
+  for (const v of [0, 200, 400]) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(v), y2: Y(v), stroke: "var(--border)" }), svgEl("text", { x: L - 4, y: Y(v) + 4, "text-anchor": "end" }, v));
+  if (r.target < N) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(r.target), y2: Y(r.target), stroke: "var(--muted)", "stroke-dasharray": "4 3" }));
+  svg.append(svgEl("polyline", { points: r.curve.slice(0, upto + 1).map((v, i) => `${X(i)},${Y(v)}`).join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": 2.5 }));
+  r.curve.slice(0, upto + 1).forEach((v, i) => svg.append(svgEl("circle", { cx: X(i), cy: Y(v), r: 3, fill: "var(--accent)" })));
+  for (let i = 0; i <= maxR; i += Math.ceil(maxR / 8)) svg.append(svgEl("text", { x: X(i), y: B + 15, "text-anchor": "middle" }, i));
+  svg.append(svgEl("text", { x: (L + R) / 2, y: 198, "text-anchor": "middle" }, "round → (y: nodes that know)"));
+}
+async function go() {
+  const my = ++run, r = spread({ n: N, mode, fanout: +$("#fan").value, loss: +$("#loss").value, dead: +$("#dead").value, rnd: mulberry(Date.now() & 0xffff) });
+  for (let k = 0; k <= r.rounds; k++) {
+    if (my !== run) return;
+    dots.forEach((d, i) => { d.className = !r.alive[i] ? "dead" : r.when[i] >= 0 && r.when[i] < k ? "k" : r.when[i] === k ? (k ? "new" : "k") : ""; if (i === 0) d.classList.add("src"); });
+    curve(r, k);
+    $("#stats").innerHTML = [[k, "round"], [`${r.curve[k]} / ${r.target}`, "live nodes informed"], [(r.messages / N).toFixed(1), "messages per node (whole run)"], ...(k === r.rounds && !r.done ? [["gave up", `not everyone reached after ${r.rounds} rounds`]] : [])].map(statTile).join("");
+    await sleep(380);
+  }
+}
+$("#mode").onclick = e => { const b = e.target.closest("[data-m]"); if (!b) return; mode = b.dataset.m; document.querySelectorAll("#mode button").forEach(x => x.setAttribute("aria-pressed", x === b)); go(); };
+$("#go").onclick = go;
+["#fan", "#loss", "#dead"].forEach(s => ($(s).oninput = labels));
+labels(); go();
+// scaling table, computed once
+const rnd = mulberry(5);
+$("#scale").innerHTML = `<tr><th>Nodes</th><th>Rounds to reach all</th><th>log₂ n + ln n</th></tr>` + [100, 1000, 10000, 100000].map(n => `<tr><td class="num">${n.toLocaleString()}</td><td class="num">${avgRounds({ n }, n > 10000 ? 2 : 6, rnd).toFixed(1)}</td><td class="num">${(Math.log2(n) + Math.log(n)).toFixed(1)}</td></tr>`).join("");
+</script>
+</body>
+</html>

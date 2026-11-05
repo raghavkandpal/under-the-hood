@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neural Networks</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  #graph { width: 100%; display: block; }
+  .gn rect { fill: var(--surface-2); stroke: var(--border); stroke-width: 1.5; }
+  .gn.leaf rect { fill: var(--blue-soft); stroke: var(--blue); }
+  .gn.param rect { fill: var(--accent-soft); stroke: var(--accent); }
+  .gn.loss rect { fill: var(--red-soft); stroke: var(--red); }
+  .gn.now rect { stroke-width: 3.5; stroke: var(--green); }
+  .gn text { font-family: var(--mono); font-size: 11px; text-anchor: middle; fill: var(--text); }
+  .gn text.nm { font-weight: 700; font-size: 12px; }
+  .gn text.g { fill: var(--green); font-weight: 600; }
+  .gn text.op { fill: var(--muted); }
+  .ge { stroke: var(--border); stroke-width: 1.5; fill: none; }
+  .ge.hot { stroke: var(--green); stroke-width: 3; }
+  .explain { font-family: var(--mono); font-size: 13px; min-height: 2.6em; margin-top: 8px; }
+  .play { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  @media (max-width: 820px) { .play { grid-template-columns: minmax(0, 1fr); } }
+  canvas#boundary { width: 100%; aspect-ratio: 1; display: block; border-radius: 8px; }
+  #net { width: 100%; display: block; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 14px; }
+  .grid label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .grid label b { color: var(--text); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .stats { grid-template-columns: repeat(3, 1fr); }
+  #lossChart { width: 100%; height: 80px; display: block; margin-top: 8px; }
+  .sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px 14px; margin-top: 10px; }
+  .sliders label { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Neural networks &amp; backprop</h1>
+  <p class="lede">A neural network is a big formula with adjustable numbers in it. Training means nudging those numbers to make the error smaller. <b>Backpropagation</b> is how it figures out which way to nudge every one of them at once, using the chain rule from calculus.</p>
+
+  <h2>1. One neuron, by hand</h2>
+  <p>This neuron computes <code>a = σ(w₁x₁ + w₂x₂ + b)</code> and is scored by <code>L = (a − y)²</code>. Orange boxes are the parameters it can learn. Run the forward pass, then walk the gradient backwards one node at a time.</p>
+  <div class="panel">
+    <div class="controls">
+      <button id="fwd">Forward pass</button>
+      <button id="back" class="primary">Backward step ◀</button>
+      <button id="backAll">Full backward</button>
+      <button id="learn">Apply update (lr = 0.5)</button>
+      <button id="nreset">Reset</button>
+    </div>
+    <div class="scroll-x"><svg id="graph" viewBox="0 0 900 330" style="min-width:640px" role="img" aria-label="Computation graph"></svg></div>
+    <div class="explain" id="explain"></div>
+    <div class="sliders" id="sliders"></div>
+  </div>
+  <p><b>Green numbers are gradients</b>: how much the loss would change if you wiggled that box. Each node only needs its own <i>local</i> derivative. Multiply it by the gradient flowing in from the right and pass the result left. That's the chain rule, and backprop is just doing it in the right order so nothing is computed twice. A network with a billion parameters does exactly this, over many more boxes.</p>
+  <p>Press <b>Apply update</b> a few times. Each parameter moves a little against its gradient, and the loss drops. That's one step of gradient descent, and training is millions of these.</p>
+
+  <h2>2. A real (small) network</h2>
+  <p>Stack neurons in layers and the network can bend its decision boundary into almost any shape. Pick a dataset and watch it learn. Orange and blue are the two classes, and the shading is what the network currently predicts everywhere.</p>
+  <div class="play">
+    <div class="panel">
+      <canvas id="boundary" width="320" height="320" aria-label="Decision boundary"></canvas>
+    </div>
+    <div class="panel">
+      <div class="grid">
+        <label>Dataset <select id="data"></select></label>
+        <label>Hidden layers <select id="arch"><option value="">none (linear)</option><option value="4">4</option><option value="8" selected>8</option><option value="8,8">8 → 8</option><option value="16,16,16">16 → 16 → 16</option></select></label>
+        <label>Activation <select id="act"><option>tanh</option><option>relu</option></select></label>
+        <label>Learning rate <b id="vlr"></b><input type="range" id="lr" min="-3" max="0" step="0.1" value="-0.7"></label>
+        <label>Noise <b id="vnoise"></b><input type="range" id="noise" min="0" max="0.6" step="0.05" value="0.05"></label>
+      </div>
+      <div class="controls" style="margin:12px 0 0"><button id="train" class="primary">▶ Train</button><button id="step">1 step</button><button id="rw">New weights</button></div>
+      <div class="stats" id="stats"></div>
+      <svg id="lossChart" viewBox="0 0 300 80" preserveAspectRatio="none"></svg>
+      <svg id="net" viewBox="0 0 300 170" role="img" aria-label="Network diagram"></svg>
+      <p class="status">Edges: blue = positive weight, red = negative, thickness = size.</p>
+    </div>
+  </div>
+  <div class="note">Try it: the <b>spiral</b> with no hidden layer can only draw a straight line, so it gets stuck near 50%. Give it 16 → 16 → 16 and it winds the boundary around the arms. XOR with no hidden layer is the famous case that stalled neural network research in 1969.</div>
+  <p class="status">Part 1's gradients come from a small autograd engine in <code>lib/autograd.js</code>, written for this site and checked against numerical derivatives. Part 2 trains with a hand-written backprop over plain arrays. It's the same maths, tested to give identical updates, but around 100× faster, much as real frameworks compute whole layers at once instead of one number at a time.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, escapeHtml, statTile } from "./common.js";
+import { V, MLP, trainStepFast as trainStep } from "./lib/autograd.js";
+import { DATASETS, makeDataset } from "./lib/datasets.js";
+chrome();
+
+// ---------------- Part 1: computation graph ----------------
+const INIT = { x1: 1.5, w1: -0.8, x2: -0.5, w2: 1.2, b: 0.3, y: 1 };
+let P = { ...INIT }, G, phase = "none", backIdx = 0;
+const LAYOUT = {
+  x1: [60, 40, "leaf"], w1: [60, 105, "param"], x2: [60, 175, "leaf"], w2: [60, 240, "param"], b: [60, 300, "param"], y: [560, 300, "leaf"],
+  m1: [200, 72, "op", "×"], m2: [200, 207, "op", "×"], s: [330, 140, "op", "+"], z: [450, 200, "op", "+"],
+  a: [570, 200, "op", "σ"], d: [690, 240, "op", "−"], L: [810, 240, "loss", "²"],
+};
+const EDGES = [["x1", "m1"], ["w1", "m1"], ["x2", "m2"], ["w2", "m2"], ["m1", "s"], ["m2", "s"], ["s", "z"], ["b", "z"], ["z", "a"], ["a", "d"], ["y", "d"], ["d", "L"]];
+const BACK = [
+  ["L", () => `∂L/∂L = 1. Start here: the loss changes one-for-one with itself.`],
+  ["d", () => `L = d², so ∂L/∂d = 2d = 2 × ${f(G.d.data)} = ${f(G.d.grad)}`],
+  ["a", () => `d = a − y, so ∂d/∂a = 1. Chain rule: ∂L/∂a = ${f(G.d.grad)} × 1 = ${f(G.a.grad)}. (y gets −${f(G.d.grad)}, but it's data, not something we learn.)`, ["y"]],
+  ["z", () => `a = σ(z), and σ′(z) = a(1−a) = ${f(G.a.data * (1 - G.a.data))}. So ∂L/∂z = ${f(G.a.grad)} × ${f(G.a.data * (1 - G.a.data))} = ${f(G.z.grad)}`],
+  ["s", () => `z = s + b. Addition passes the gradient through unchanged, so ∂L/∂s = ∂L/∂b = ${f(G.z.grad)}`, ["b"]],
+  ["m1", () => `s = m₁ + m₂: same again, both get ${f(G.s.grad)}`, ["m2"]],
+  ["w1", () => `m₁ = w₁·x₁, so ∂m₁/∂w₁ = x₁ = ${f(P.x1)}. So ∂L/∂w₁ = ${f(G.m1.grad)} × ${f(P.x1)} = ${f(G.w1.grad)}. Likewise for x₁, w₂, x₂.`, ["x1", "w2", "x2"]],
+];
+const f = v => (Math.abs(v) < 1e-3 && v !== 0 ? v.toExponential(1) : v.toFixed(3));
+function buildGraph() {
+  const n = {}; for (const k of ["x1", "w1", "x2", "w2", "b", "y"]) n[k] = new V(P[k]);
+  n.m1 = n.w1.mul(n.x1); n.m2 = n.w2.mul(n.x2); n.s = n.m1.add(n.m2); n.z = n.s.add(n.b);
+  n.a = n.z.sigmoid(); n.d = n.a.sub(n.y); n.L = n.d.pow(2);
+  n.L.backward(); G = n;
+}
+function revealed() {
+  const r = new Set();
+  BACK.slice(0, backIdx).forEach(([k, , extra]) => { r.add(k); (extra || []).forEach(e => r.add(e)); });
+  return r;
+}
+function drawGraph() {
+  const svg = $("#graph"); svg.replaceChildren();
+  const rv = revealed(), cur = backIdx ? BACK[backIdx - 1][0] : null;
+  for (const [a, b] of EDGES) {
+    const [x1, y1] = LAYOUT[a], [x2, y2] = LAYOUT[b];
+    const mx = (x1 + x2) / 2;
+    svg.append(svgEl("path", { d: `M${x1 + 42} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2 - 42} ${y2}`, class: "ge" + (rv.has(a) && rv.has(b) ? " hot" : "") }));
+  }
+  const names = { x1: "x₁", w1: "w₁", x2: "x₂", w2: "w₂", b: "b", y: "y (target)", m1: "m₁", m2: "m₂", s: "s", z: "z", a: "a", d: "d", L: "L" };
+  for (const [k, [x, y, kind, op]] of Object.entries(LAYOUT)) {
+    const g = svgEl("g", { class: `gn ${kind}${k === cur ? " now" : ""}`, transform: `translate(${x},${y})` });
+    g.append(svgEl("rect", { x: -42, y: -27, width: 84, height: 54, rx: 8 }));
+    g.append(svgEl("text", { y: -11, class: "nm" }, names[k] + (op ? `  ${op}` : "")));
+    const showVal = phase !== "none" || kind === "leaf" || kind === "param";
+    g.append(svgEl("text", { y: 5 }, showVal ? f(G[k].data) : "?"));
+    if (rv.has(k)) g.append(svgEl("text", { y: 20, class: "g" }, "∇ " + f(G[k].grad)));
+    svg.append(g);
+  }
+}
+function sliders() {
+  $("#sliders").innerHTML = ["x1", "w1", "x2", "w2", "b", "y"].map(k => `<label>${k} = <b id="sv-${k}">${f(P[k])}</b><input type="range" data-k="${k}" min="${k === "y" ? 0 : -2}" max="${k === "y" ? 1 : 2}" step="0.05" value="${P[k]}"></label>`).join("");
+}
+function part1(msg) { buildGraph(); drawGraph(); if (msg != null) $("#explain").textContent = msg; for (const k in P) { const el = $("#sv-" + k); if (el) el.textContent = f(P[k]); } }
+$("#fwd").onclick = () => { phase = "fwd"; backIdx = 0; part1(`Forward: z = ${f(G.z.data)}, a = σ(z) = ${f(G.a.data)}, loss L = (${f(G.a.data)} − ${P.y})² = ${f(G.L.data)}`); };
+$("#back").onclick = () => {
+  if (phase === "none") $("#fwd").onclick();
+  if (backIdx >= BACK.length) { $("#explain").textContent = "Done. Every box has its gradient. Now apply the update."; return; }
+  backIdx++; part1(BACK[backIdx - 1][1]());
+};
+$("#backAll").onclick = () => { phase = "fwd"; backIdx = BACK.length; part1(`All gradients computed. ∂L/∂w₁ = ${f(G.w1.grad)}, ∂L/∂w₂ = ${f(G.w2.grad)}, ∂L/∂b = ${f(G.b.grad)}.`); };
+$("#learn").onclick = () => {
+  buildGraph(); const before = G.L.data;
+  for (const k of ["w1", "w2", "b"]) P[k] = +(P[k] - 0.5 * G[k].grad).toFixed(4);
+  phase = "fwd"; backIdx = 0; sliders(); part1(); $("#explain").textContent = `w ← w − 0.5 × ∇w for each parameter. Loss went ${f(before)} → ${f(G.L.data)}.`;
+};
+$("#nreset").onclick = () => { P = { ...INIT }; phase = "none"; backIdx = 0; sliders(); part1("Values are set. Run the forward pass."); };
+$("#sliders").oninput = e => { const k = e.target.dataset.k; if (!k) return; P[k] = +e.target.value; backIdx = 0; part1(); };
+sliders(); part1("Values are set. Run the forward pass.");
+
+// ---------------- Part 2: playground ----------------
+$("#data").innerHTML = Object.entries(DATASETS).map(([k, d]) => `<option value="${k}"${k === "circles" ? " selected" : ""}>${d.label}</option>`).join("");
+let data, model, steps = 0, training = false, hist = [], last = { loss: NaN, acc: NaN };
+const lr = () => 10 ** +$("#lr").value;
+function newData() { data = makeDataset($("#data").value, { n: 160, seed: 3, noise: +$("#noise").value }); }
+function newModel() {
+  const hidden = $("#arch").value ? $("#arch").value.split(",").map(Number) : [];
+  model = new MLP([2, ...hidden, 1], { act: $("#act").value, seed: (Math.random() * 1e9) | 0 });
+  steps = 0; hist = []; last = { loss: NaN, acc: NaN };
+}
+const bc = $("#boundary"), bx = bc.getContext("2d"), BW = bc.width, SPAN = 3.2;
+const toPx = v => (v + SPAN) / (2 * SPAN) * BW;
+function drawBoundary() {
+  const N = 64, cell = BW / N, img = bx.createImageData(BW, BW);
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const pos = dark ? [251, 146, 60] : [234, 120, 40], neg = dark ? [96, 140, 255] : [50, 100, 220], mid = dark ? [31, 30, 27] : [255, 255, 255];
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const x = -SPAN + (i + 0.5) / N * 2 * SPAN, y = SPAN - (j + 0.5) / N * 2 * SPAN;
+    const o = Math.tanh(model.predict([x, y])[0]);
+    const c = o > 0 ? pos : neg, t = Math.min(1, Math.abs(o)) * 0.55;
+    const rgb = mid.map((m, k) => m + (c[k] - m) * t);
+    for (let dy = 0; dy < cell; dy++) for (let dx = 0; dx < cell; dx++) {
+      const p = ((j * cell + dy) * BW + i * cell + dx) * 4; img.data[p] = rgb[0]; img.data[p + 1] = rgb[1]; img.data[p + 2] = rgb[2]; img.data[p + 3] = 255;
+    }
+  }
+  bx.putImageData(img, 0, 0);
+  for (const p of data) {
+    bx.beginPath(); bx.arc(toPx(p.x[0]), BW - toPx(p.x[1]), 3.6, 0, 7);
+    bx.fillStyle = p.y > 0 ? `rgb(${pos})` : `rgb(${neg})`; bx.fill();
+    bx.strokeStyle = dark ? "#000" : "#fff"; bx.lineWidth = 1; bx.stroke();
+  }
+}
+function drawNet() {
+  const svg = $("#net"); svg.replaceChildren();
+  const sizes = model.sizes, L = sizes.length;
+  const px = l => 20 + l * (260 / (L - 1)), py = (l, i) => 85 + (i - (sizes[l] - 1) / 2) * Math.min(14, 150 / sizes[l]);
+  let maxW = 1e-6; model.layers.forEach(Lr => Lr.forEach(n => n.w.forEach(w => maxW = Math.max(maxW, Math.abs(w.data)))));
+  model.layers.forEach((Lr, l) => Lr.forEach((n, j) => n.w.forEach((w, i) => {
+    svg.append(svgEl("line", { x1: px(l), y1: py(l, i), x2: px(l + 1), y2: py(l + 1, j), stroke: w.data > 0 ? "var(--blue)" : "var(--red)", "stroke-width": 0.3 + 2.7 * Math.abs(w.data) / maxW, opacity: 0.75 }));
+  })));
+  sizes.forEach((s, l) => { for (let i = 0; i < s; i++) svg.append(svgEl("circle", { cx: px(l), cy: py(l, i), r: 4, fill: "var(--surface)", stroke: "var(--text)", "stroke-width": 1 })); });
+}
+function drawStats() {
+  $("#stats").innerHTML = [[steps, "steps"], [Number.isFinite(last.loss) ? last.loss.toFixed(3) : "—", "loss"], [Number.isFinite(last.acc) ? Math.round(last.acc * 100) + "%" : "—", "accuracy"]]
+    .map(statTile).join("");
+  const svg = $("#lossChart"); svg.replaceChildren();
+  if (hist.length > 1) {
+    const hi = Math.max(...hist), lo = Math.min(...hist, 0);
+    svg.append(svgEl("polyline", { points: hist.map((v, i) => `${i / (hist.length - 1) * 300},${76 - (v - lo) / (hi - lo || 1) * 70}`).join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": 2, "vector-effect": "non-scaling-stroke" }));
+  }
+}
+function trainOnce() {
+  last = trainStep(model, data.map(p => p.x), data.map(p => p.y), { lr: lr(), l2: 1e-4 });
+  steps++; if (steps % 2 === 0) { hist.push(last.loss); if (hist.length > 300) hist = hist.filter((_, i) => i % 2 === 0); }
+}
+function render2() { drawBoundary(); drawNet(); drawStats(); $("#vlr").textContent = lr().toPrecision(2); $("#vnoise").textContent = (+$("#noise").value).toFixed(2); }
+function loop() {
+  if (!training) return;
+  const t0 = performance.now(); while (performance.now() - t0 < 14) trainOnce();
+  render2(); requestAnimationFrame(loop);
+}
+$("#train").onclick = () => { training = !training; $("#train").textContent = training ? "⏸ Pause" : "▶ Train"; if (training) loop(); };
+$("#step").onclick = () => { trainOnce(); render2(); };
+$("#rw").onclick = () => { newModel(); render2(); };
+for (const id of ["data", "noise"]) $("#" + id).addEventListener("input", () => { newData(); render2(); });
+for (const id of ["arch", "act"]) $("#" + id).addEventListener("change", () => { newModel(); render2(); });
+$("#lr").oninput = () => render2();
+newData(); newModel(); render2();
+</script>
+</body>
+</html>

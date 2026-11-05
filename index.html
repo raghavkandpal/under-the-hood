@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How It Works</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .finder { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 8px; }
+  .finder input { font-size: 16px; padding: 10px 14px; width: 100%; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: 13px; padding: 4px 12px; border-radius: 999px; }
+  .chip[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .area h2 { display: flex; align-items: baseline; gap: 8px; }
+  .area h2 small { color: var(--muted); font-weight: 400; font-size: 14px; }
+  .card .meta { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+  .card .meta .tag { margin: 0; min-width: 0; }
+  .lvl { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; white-space: nowrap; flex-shrink: 0; line-height: 1.6; }
+  .card .tags { margin-top: 10px; display: flex; gap: 4px; flex-wrap: wrap; }
+  .card .tags span { font-size: 11px; color: var(--muted); background: var(--surface-2); border-radius: 4px; padding: 1px 6px; }
+  .card .pre { margin-top: 8px; font-size: 12px; color: var(--muted); }
+  #empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>How it works</h1>
+  <p class="lede">Hands-on explainers for the machinery under computing, from networks to neural networks. Each one is a live simulation you can poke at. Change the inputs, step through it, and break it on purpose.</p>
+  <div class="finder">
+    <input id="q" type="search" placeholder="Search: “hashing”, “consensus”, “gradient”…" aria-label="Search explainers" autocomplete="off">
+    <div class="chips" id="chips"></div>
+  </div>
+  <div class="chips" style="margin:4px 0 8px"><span class="status" style="margin-right:4px">View:</span><button class="chip" data-view="cards" aria-pressed="true">Cards</button><button class="chip" data-view="map" aria-pressed="false">Concept map</button></div>
+  <div id="list"></div>
+  <div id="mapWrap" class="panel" hidden>
+    <p class="status" style="margin:0 0 6px">Arrows point from an explainer to the ones that build on it. Left to right is roughly the order to read them. Hover to highlight connections, click to open.</p>
+    <div class="scroll-x"><svg id="map" role="img" aria-label="Concept map of explainers and their prerequisites"></svg></div>
+  </div>
+  <p id="empty" hidden>Nothing matches yet.</p>
+</main>
+<script type="module">
+  import { chrome, escapeHtml } from "./common.js";
+  import { CATALOG, AREAS, LEVELS, byId, hrefOf, search } from "./catalog.js";
+  chrome();
+
+  const params = new URLSearchParams(location.search);
+  let area = params.get("area") || "all";
+  const q = document.getElementById("q");
+  q.value = params.get("q") || "";
+
+  const present = AREAS.filter(a => CATALOG.some(c => c.area === a.id));
+  function chips() {
+    document.getElementById("chips").innerHTML = [["all", "All"], ...present.map(a => [a.id, a.title])]
+      .map(([id, t]) => `<button class="chip" data-area="${id}" aria-pressed="${id === area}">${escapeHtml(t)}</button>`).join("");
+  }
+  const card = c => `
+    <a class="card" href="${hrefOf(c)}">
+      <div class="meta"><span class="tag">${escapeHtml(AREAS.find(a => a.id === c.area).title)}</span><span class="lvl">${LEVELS[c.level]}</span></div>
+      <h3>${escapeHtml(c.title)}</h3>
+      <p>${escapeHtml(c.blurb)}</p>
+      ${c.prereqs.length ? `<div class="pre">Builds on: ${c.prereqs.map(id => escapeHtml(byId(id)?.title ?? id)).join(", ")}</div>` : ""}
+      <div class="tags">${c.tags.slice(0, 4).map(t => `<span>${escapeHtml(t)}</span>`).join("")}</div>
+    </a>`;
+  const order = { intro: 0, core: 1, deep: 2 };
+  function render() {
+    const items = search(q.value, CATALOG.filter(c => area === "all" || c.area === area));
+    const list = document.getElementById("list");
+    if (q.value.trim()) {
+      list.innerHTML = `<div class="cards">${items.map(card).join("")}</div>`;
+    } else {
+      list.innerHTML = present.filter(a => area === "all" || a.id === area).map(a => {
+        const cs = items.filter(c => c.area === a.id).sort((x, y) => order[x.level] - order[y.level]);
+        return cs.length ? `<section class="area"><h2>${escapeHtml(a.title)} <small>${cs.length}</small></h2><div class="cards">${cs.map(card).join("")}</div></section>` : "";
+      }).join("");
+    }
+    document.getElementById("empty").hidden = items.length > 0;
+    const u = new URLSearchParams(); if (q.value.trim()) u.set("q", q.value.trim()); if (area !== "all") u.set("area", area);
+    history.replaceState(null, "", u.toString() ? "?" + u : location.pathname);
+  }
+  document.getElementById("chips").onclick = e => { const b = e.target.closest("[data-area]"); if (!b) return; area = b.dataset.area; chips(); render(); };
+  q.addEventListener("input", render);
+  addEventListener("keydown", e => { if (e.key === "/" && document.activeElement !== q) { e.preventDefault(); q.focus(); } });
+  chips(); render();
+
+  // ---- concept map ----
+  const svgNS = "http://www.w3.org/2000/svg", el = (t, a = {}, txt) => { const e = document.createElementNS(svgNS, t); for (const k in a) e.setAttribute(k, a[k]); if (txt != null) e.textContent = txt; return e; };
+  const depth = new Map(), D = id => { if (depth.has(id)) return depth.get(id); const c = byId(id); const d = c.prereqs.length ? 1 + Math.max(...c.prereqs.map(D)) : 0; depth.set(id, d); return d; };
+  CATALOG.forEach(c => D(c.id));
+  function drawMap(hl = null) {
+    const svg = document.getElementById("map"); svg.replaceChildren();
+    const NW = 150, NH = 30, COLW = 240, ROWH = 40, BANDPAD = 14, LABELW = 200;
+    const maxD = Math.max(...depth.values());
+    let y = 10; const pos = new Map(), bands = [];
+    for (const a of present) {
+      const items = CATALOG.filter(c => c.area === a.id);
+      const cols = Array.from({ length: maxD + 1 }, () => []);
+      items.forEach(c => cols[depth.get(c.id)].push(c));
+      const rows = Math.max(...cols.map(c => c.length));
+      bands.push({ a, y, h: rows * ROWH + BANDPAD });
+      cols.forEach((col, d) => col.sort((p, q) => p.title.localeCompare(q.title)).forEach((c, i) => pos.set(c.id, { x: LABELW + d * COLW + NW / 2, y: y + BANDPAD / 2 + i * ROWH + NH / 2 })));
+      y += rows * ROWH + BANDPAD;
+    }
+    const W = LABELW + (maxD + 1) * COLW, H = y + 4;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
+    const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    bands.forEach((b, i) => { svg.append(el("rect", { x: 0, y: b.y, width: W, height: b.h, fill: i % 2 ? "transparent" : css("--surface-2"), rx: 6 })); svg.append(el("text", { x: 8, y: b.y + 18, "font-size": 12, "font-weight": 700, fill: css("--muted") }, b.a.title)); });
+    const related = hl ? new Set([hl, ...byId(hl).prereqs, ...CATALOG.filter(c => c.prereqs.includes(hl)).map(c => c.id)]) : null;
+    // Edges leave and enter horizontally; the arrowhead is drawn as its own triangle pointing straight
+    // into the target box, so it never tilts with the curve.
+    const AH = 8;
+    for (const c of CATALOG) for (const p of c.prereqs) {
+      const a = pos.get(p), b = pos.get(c.id), on = !hl || hl === c.id || hl === p;
+      const x1 = a.x + NW / 2, x2 = b.x - NW / 2 - 1, end = x2 - AH, k = Math.max(24, (end - x1) * 0.5);
+      const color = on && hl ? css("--accent") : css("--muted"), op = on ? 0.9 : 0.15;
+      svg.append(el("path", { d: `M${x1} ${a.y} C ${x1 + k} ${a.y}, ${end - k} ${b.y}, ${end} ${b.y}`, fill: "none", stroke: color, "stroke-width": on && hl ? 2.5 : 1.3, opacity: op }));
+      svg.append(el("path", { d: `M${end} ${b.y - 4.5} L${x2} ${b.y} L${end} ${b.y + 4.5} Z`, fill: color, opacity: op }));
+    }
+    for (const c of CATALOG) {
+      const p = pos.get(c.id), dim = related && !related.has(c.id);
+      const g = el("a", { href: hrefOf(c), "data-id": c.id, opacity: dim ? 0.3 : 1 });
+      g.append(el("rect", { x: p.x - NW / 2, y: p.y - NH / 2, width: NW, height: NH, rx: 8, fill: css("--surface"), stroke: hl === c.id ? css("--accent") : css("--border"), "stroke-width": hl === c.id ? 2.5 : 1.5 }));
+      g.append(el("text", { x: p.x, y: p.y + 4, "text-anchor": "middle", "font-size": 12, fill: css("--text") }, c.title.length > 22 ? c.title.slice(0, 21) + "…" : c.title));
+      svg.append(g);
+    }
+  }
+  const mapSvg = document.getElementById("map");
+  mapSvg.addEventListener("mouseover", e => { const a = e.target.closest("[data-id]"); if (a) drawMap(a.dataset.id); });
+  mapSvg.addEventListener("mouseleave", () => drawMap());
+  document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => {
+    const map = b.dataset.view === "map";
+    document.querySelectorAll("[data-view]").forEach(x => x.setAttribute("aria-pressed", x === b));
+    document.getElementById("mapWrap").hidden = !map; document.getElementById("list").hidden = map;
+    document.querySelector(".finder").hidden = map; document.getElementById("empty").hidden = map || document.getElementById("empty").hidden;
+    if (map) drawMap();
+  });
+</script>
+</body>
+</html>

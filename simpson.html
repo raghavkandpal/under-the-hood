@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simpson's Paradox</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 760px) { .groups { grid-template-columns: minmax(0, 1fr); } }
+  .g h3 { margin: 0 0 8px; font-size: 14px; }
+  .bar { display: grid; grid-template-columns: 96px 1fr 52px; gap: 8px; align-items: center; font-size: 13px; margin: 6px 0; }
+  .bar .track { height: 18px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+  .bar .fill { height: 100%; }
+  .bar .pct { font-family: var(--mono); text-align: right; }
+  .win { font-weight: 700; }
+  .g.total { border: 2px solid var(--accent); }
+  .cells { display: grid; grid-template-columns: auto repeat(2, minmax(0, 1fr)); gap: 6px 10px; align-items: center; font-size: 13px; }
+  .cells input { width: 100%; font-family: var(--mono); padding: 4px 6px; }
+  .verdict { font-size: 16px; font-weight: 700; margin-top: 10px; }
+  .mix { font-size: 13px; color: var(--muted); margin-top: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Simpson's paradox</h1>
+  <p class="lede">Treatment A beats treatment B for small kidney stones. It also beats B for large stones. So A is better overall, right? In the real data, B "wins" overall. No numbers are wrong. The way the patients were <i>grouped</i> is doing the lying.</p>
+
+  <div class="panel"><div class="controls" style="margin:0"><label class="inline">Example <select id="ex"></select></label></div><p class="status" id="note" style="margin:8px 0 0"></p></div>
+
+  <div class="groups" id="groups"></div>
+  <div class="panel"><p class="verdict" id="verdict" style="margin-top:0"></p><p class="mix" id="mix"></p></div>
+
+  <div class="panel">
+    <b>Edit the counts</b> <span class="status">(successes / patients)</span>
+    <div class="cells" id="cells" style="margin-top:8px"></div>
+    <p class="status">Try making the two arms see the same mix of easy and hard cases (equal patient counts in each group). The paradox disappears.</p>
+  </div>
+
+  <h2>What's going on</h2>
+  <p><b>Overall rates are weighted averages.</b> A's overall success mixes its small-stone rate and its large-stone rate, weighted by how many of <i>its</i> patients had each. Doctors gave A mostly to large stones, the hard cases, so A's average is pulled down by difficulty, not by being a worse treatment. B got mostly easy cases and looks good for the same reason.</p>
+  <p><b>The hidden variable is a confounder.</b> Stone size affects both <i>which treatment</i> a patient got and <i>how well they did</i>. Whenever a third factor drives both, the pooled comparison can point the wrong way.</p>
+  <p><b>Which answer is right?</b> It depends on the causal story, not on the arithmetic. Here severity influenced treatment choice, so the within-group comparison is the fair one, and A is better. That's why medical trials <b>randomise</b>: random assignment breaks the link between the confounder and the treatment, so the overall comparison becomes trustworthy.</p>
+  <p class="status">Kidney-stone figures from Charig et al., BMJ 1986, a classic teaching example of the paradox. The course example is invented.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml } from "./common.js";
+import { analyse, EXAMPLES } from "./lib/simpson.js";
+chrome();
+
+let D;
+$("#ex").innerHTML = Object.entries(EXAMPLES).map(([k, e]) => `<option value="${k}">${escapeHtml(e.label)}</option>`).join("");
+const COL = ["var(--blue)", "var(--accent)"], pct = x => (x * 100).toFixed(0) + "%";
+function load(k) { D = JSON.parse(JSON.stringify(EXAMPLES[k])); $("#note").textContent = D.note; cells(); render(); }
+function bars(rates, ns, winner) { return rates.map((r, a) => `<div class="bar"><span class="${a === winner ? "win" : ""}" style="color:${COL[a]}">${escapeHtml(D.arms[a])}${a === winner ? " ★" : ""}</span><div class="track"><div class="fill" style="width:${r * 100}%;background:${COL[a]}"></div></div><span class="pct">${pct(r)}</span></div><div class="status" style="margin:-4px 0 0 104px;font-size:11px">${ns[a].s} / ${ns[a].n}</div>`).join(""); }
+function render() {
+  const R = analyse(D);
+  $("#groups").innerHTML = D.groups.map((g, gi) => `<div class="panel g"><h3>${escapeHtml(g)}</h3>${bars(R.per[gi], D.cells[gi], R.groupWinners[gi])}</div>`).join("") +
+    `<div class="panel g total"><h3>Everyone combined</h3>${bars(R.tot.map(t => t.r), R.tot, R.overall)}</div>`;
+  $("#verdict").innerHTML = R.paradox ? `<span style="color:var(--red)">Paradox!</span> ${escapeHtml(D.arms[R.groupWinners[0]])} wins in <i>every</i> group, yet ${escapeHtml(D.arms[R.overall])} wins overall.` : `No paradox here: the combined result agrees with the groups.`;
+  $("#mix").innerHTML = D.arms.map((a, ai) => `${escapeHtml(a)}'s patients: ${D.groups.map((g, gi) => `${pct(R.mix[ai][gi])} ${escapeHtml(g.toLowerCase())}`).join(", ")}`).join(" · ");
+}
+function cells() {
+  $("#cells").innerHTML = `<span></span>${D.arms.map(a => `<b>${escapeHtml(a)}</b>`).join("")}` + D.groups.map((g, gi) => `<span>${escapeHtml(g)}</span>${D.arms.map((_, ai) => `<span style="display:flex;gap:4px;align-items:center"><input data-g="${gi}" data-a="${ai}" data-f="s" value="${D.cells[gi][ai].s}" aria-label="${escapeHtml(g)} ${escapeHtml(D.arms[ai])} successes">/<input data-g="${gi}" data-a="${ai}" data-f="n" value="${D.cells[gi][ai].n}" aria-label="${escapeHtml(g)} ${escapeHtml(D.arms[ai])} patients"></span>`).join("")}`).join("");
+}
+$("#cells").addEventListener("input", e => { const t = e.target, v = parseInt(t.value, 10); if (!(v >= 0)) return; const c = D.cells[+t.dataset.g][+t.dataset.a]; c[t.dataset.f] = v; if (c.s > c.n) c.s = c.n; render(); });
+$("#ex").onchange = e => load(e.target.value);
+load("stones");
+</script>
+</body>
+</html>

@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Huffman Coding</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  #forest { width: 100%; display: block; }
+  .node circle { fill: var(--surface-2); stroke: var(--border); stroke-width: 1.5; }
+  .node.leaf circle { fill: var(--blue-soft); stroke: var(--blue); }
+  .node.fresh circle { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2.5; }
+  .node.hl circle { fill: var(--green-soft); stroke: var(--green); stroke-width: 2.5; }
+  .node text { fill: var(--text); font-size: 12px; text-anchor: middle; dominant-baseline: central; }
+  .node text.w { font-size: 10px; fill: var(--muted); }
+  .edge { stroke: var(--border); stroke-width: 1.5; }
+  .edge.hl { stroke: var(--green); stroke-width: 3; }
+  .bitlabel { font-size: 10px; fill: var(--muted); text-anchor: middle; }
+  .bits { font-family: var(--mono); font-size: 13px; word-break: break-all; line-height: 1.9; }
+  .bits span { padding: 1px 1px; border-radius: 3px; cursor: default; }
+  .bits span:nth-child(odd) { background: var(--surface-2); }
+  .bits span.hl { background: var(--green-soft); outline: 1px solid var(--green); }
+  .stats { --stat-min: 150px; gap: 12px; }
+  .stat { padding: 10px 12px; }
+  .stat b { font-size: 22px; }
+  tr.hl td { background: var(--green-soft); }
+  td.sym { font-family: var(--mono); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Huffman coding</h1>
+  <p class="lede">ASCII spends 8 bits on every character. Huffman gives common characters short codes and rare ones long codes, and still guarantees the bit stream decodes with no ambiguity.</p>
+
+  <div class="panel">
+    <label for="input" class="status">Text to compress</label>
+    <textarea id="input" rows="2" spellcheck="false">abracadabra! she sells sea shells</textarea>
+    <div class="controls" style="margin-top:10px">
+      <button id="reset">⏮ Start</button>
+      <button id="back">◀ Step</button>
+      <button id="fwd" class="primary">Step ▶</button>
+      <button id="play">▶ Play</button>
+      <button id="end">⏭ Finish</button>
+      <span class="status" id="stepinfo"></span>
+    </div>
+    <p class="status" id="explain"></p>
+    <div class="scroll-x"><svg id="forest" role="img" aria-label="Huffman forest"></svg></div>
+  </div>
+
+  <h2>The rule, in one line</h2>
+  <p>Take the two lightest trees and join them under a new parent whose weight is their sum. Repeat until one tree is left. Going left adds a <code>0</code> and going right adds a <code>1</code>. Every character sits at a leaf, so no code can be the prefix of another, and that's why the stream needs no separators.</p>
+
+  <div id="result" hidden>
+    <h2>The code table</h2>
+    <p class="status">Hover a row to trace that character's path through the tree and find it in the output.</p>
+    <div class="panel scroll-x"><table class="data" id="table"></table></div>
+
+    <h2>The encoded stream</h2>
+    <div class="panel"><div class="bits" id="bits"></div></div>
+    <div class="stats" id="stats"></div>
+    <div class="note" id="entropy"></div>
+  </div>
+
+  <h2>Try this</h2>
+  <ul>
+    <li>Type <code>aaaaaaaab</code>. One character dominates, so it gets a 1-bit code.</li>
+    <li>Type the alphabet once, all different. Equal frequencies produce codes of almost equal length, so the savings come only from having fewer than 256 symbols.</li>
+    <li>Paste a paragraph of English. It usually lands around 4–4.5 bits per character, close to its entropy.</li>
+  </ul>
+</main>
+<script type="module">
+import { chrome, $, svgEl, escapeHtml, statTile } from "./common.js";
+import { buildSteps, codesFrom, encode, entropyBits, frequencies } from "./lib/huffman.js";
+chrome();
+
+let steps = [], idx = 0, timer = null, hlSym = null;
+const show = s => s === " " ? "␣" : s === "\n" ? "↵" : s;
+
+function layout(root) {
+  // In-order leaf placement; returns nodes with x (in leaf units) and depth.
+  const out = [];
+  let leafX = 0, maxDepth = 0;
+  (function walk(n, d) {
+    maxDepth = Math.max(maxDepth, d);
+    if (n.sym != null) { n._x = leafX++; n._d = d; out.push(n); return; }
+    walk(n.left, d + 1); walk(n.right, d + 1);
+    n._x = (n.left._x + n.right._x) / 2; n._d = d; out.push(n);
+  })(root, 0);
+  return { nodes: out, width: leafX, depth: maxDepth };
+}
+
+function pathTo(root, sym) {
+  const p = new Set();
+  (function walk(n) {
+    if (n.sym != null) { if (n.sym === sym) { p.add(n.id); return true; } return false; }
+    if (walk(n.left) || walk(n.right)) { p.add(n.id); return true; }
+    return false;
+  })(root);
+  return p;
+}
+
+function drawForest() {
+  const svg = $("#forest");
+  svg.replaceChildren();
+  const step = steps[idx];
+  const freshId = step.merged?.node.id;
+  const UNIT = 44, LEVEL = 58, PAD = 26;
+  let offset = 0, maxDepth = 0;
+  const done = idx === steps.length - 1;
+  const hlPath = done && hlSym != null ? pathTo(step.forest[0], hlSym) : new Set();
+  const layouts = step.forest.map(t => { const L = layout(t); maxDepth = Math.max(maxDepth, L.depth); return L; });
+  const g = svgEl("g");
+  layouts.forEach((L, ti) => {
+    const X = n => PAD + (offset + n._x) * UNIT;
+    const Y = n => PAD + n._d * LEVEL;
+    for (const n of L.nodes) if (n.sym == null) {
+      for (const [c, bit] of [[n.left, "0"], [n.right, "1"]]) {
+        const hl = hlPath.has(n.id) && hlPath.has(c.id);
+        g.append(svgEl("line", { x1: X(n), y1: Y(n), x2: X(c), y2: Y(c), class: "edge" + (hl ? " hl" : "") }));
+        g.append(svgEl("text", { x: (X(n) + X(c)) / 2 + (bit === "0" ? -7 : 7), y: (Y(n) + Y(c)) / 2, class: "bitlabel" }, bit));
+      }
+    }
+    for (const n of L.nodes) {
+      const cls = ["node", n.sym != null ? "leaf" : "", n.id === freshId ? "fresh" : "", hlPath.has(n.id) ? "hl" : ""].join(" ");
+      const ng = svgEl("g", { class: cls, transform: `translate(${X(n)},${Y(n)})` });
+      ng.append(svgEl("circle", { r: 16 }));
+      if (n.sym != null) {
+        ng.append(svgEl("text", { y: -3 }, show(n.sym)));
+        ng.append(svgEl("text", { y: 9, class: "w" }, n.weight));
+      } else ng.append(svgEl("text", {}, n.weight));
+      g.append(ng);
+    }
+    offset += L.width + (ti < layouts.length - 1 ? 0.6 : 0);
+  });
+  svg.append(g);
+  const w = PAD * 2 + Math.max(0, offset - 1) * UNIT;
+  const h = PAD * 2 + maxDepth * LEVEL;
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  svg.style.minWidth = Math.min(w, 1400) + "px";
+  svg.style.maxHeight = "460px";
+}
+
+function drawText() {
+  const step = steps[idx];
+  $("#stepinfo").textContent = `step ${idx} / ${steps.length - 1}`;
+  $("#back").disabled = $("#reset").disabled = idx === 0;
+  $("#fwd").disabled = $("#end").disabled = $("#play").disabled = idx === steps.length - 1;
+  if (steps.length === 1 && step.forest.length <= 1) {
+    $("#explain").textContent = step.forest.length ? "Only one distinct character, so it gets the code 0. Huffman needs at least two symbols to do anything interesting." : "Type something above.";
+  } else if (!step.merged) {
+    $("#explain").textContent = `Each distinct character starts as its own tree, weighted by how often it appears. ${step.forest.length} trees.`;
+  } else {
+    const { a, b, node } = step.merged;
+    const name = n => n.sym != null ? `“${show(n.sym)}” (${n.weight})` : `a subtree (${n.weight})`;
+    $("#explain").textContent = `Joined the two lightest: ${name(a)} + ${name(b)} → new node of weight ${node.weight}. ${step.forest.length} tree${step.forest.length > 1 ? "s" : ""} left.`;
+  }
+  drawForest();
+  const done = idx === steps.length - 1;
+  $("#result").hidden = !done;
+  if (done) drawResult();
+}
+
+function drawResult() {
+  const text = $("#input").value;
+  const root = steps.at(-1).forest[0];
+  const codes = codesFrom(root);
+  const freq = frequencies(text);
+  const rows = [...codes.entries()].sort((a, b) => freq.get(b[0]) - freq.get(a[0]) || a[1].length - b[1].length);
+  $("#table").innerHTML = `<tr><th>Char</th><th>Count</th><th>Code</th><th>Bits used</th></tr>` +
+    rows.map(([s, c]) => `<tr data-sym="${escapeHtml(s)}"${s === hlSym ? ' class="hl"' : ""}><td class="sym">${escapeHtml(show(s))}</td><td>${freq.get(s)}</td><td class="mono">${c}</td><td>${c.length * freq.get(s)}</td></tr>`).join("");
+  $("#bits").innerHTML = [...text].map(ch => `<span data-sym="${escapeHtml(ch)}" title="${escapeHtml(show(ch))}"${ch === hlSym ? ' class="hl"' : ""}>${codes.get(ch)}</span>`).join("");
+  const n = [...text].length;
+  const bits = encode(text, codes).length;
+  const fixed = Math.max(1, Math.ceil(Math.log2(codes.size)));
+  $("#stats").innerHTML = [
+    [n * 8, "bits as 8-bit ASCII"],
+    [n * fixed, `bits with a fixed ${fixed}-bit code`],
+    [bits, "bits with Huffman"],
+    [(bits / n).toFixed(2), "bits per character"],
+  ].map(statTile).join("");
+  const H = entropyBits(text);
+  $("#entropy").innerHTML = `The <b>entropy</b> of this text is ${H.toFixed(3)} bits/char, the theoretical floor for any code that encodes one character at a time. Huffman gets ${(bits / n).toFixed(3)}, which is ${((bits / n - H)).toFixed(3)} above it. It can never beat the floor, and it's never more than 1 bit/char above it. In practice you'd also have to send the code table, which is why tiny inputs don't really shrink.`;
+}
+
+function rebuild() {
+  stop();
+  steps = buildSteps($("#input").value);
+  idx = 0; hlSym = null;
+  drawText();
+}
+function go(i) { idx = Math.max(0, Math.min(steps.length - 1, i)); drawText(); }
+function stop() { clearInterval(timer); timer = null; $("#play").textContent = "▶ Play"; }
+
+$("#input").addEventListener("input", rebuild);
+$("#fwd").onclick = () => { stop(); go(idx + 1); };
+$("#back").onclick = () => { stop(); go(idx - 1); };
+$("#reset").onclick = () => { stop(); go(0); };
+$("#end").onclick = () => { stop(); go(steps.length - 1); };
+$("#play").onclick = () => {
+  if (timer) return stop();
+  $("#play").textContent = "⏸ Pause";
+  timer = setInterval(() => { if (idx >= steps.length - 1) stop(); else go(idx + 1); }, 700);
+};
+for (const sel of ["#table", "#bits"]) {
+  $(sel).addEventListener("mouseover", e => {
+    const t = e.target.closest("[data-sym]"); if (!t) return;
+    if (hlSym === t.dataset.sym) return;
+    hlSym = t.dataset.sym; drawForest(); drawResult();
+  });
+  $(sel).addEventListener("mouseleave", () => { hlSym = null; drawForest(); drawResult(); });
+}
+rebuild();
+</script>
+</body>
+</html>

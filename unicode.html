@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UTF-8 &amp; Unicode</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .row input[type=text] { flex: 1 1 240px; font-size: 18px; }
+  .stats { --stat-min: 140px; }
+  .stat b { font-size: 20px; }
+  .clusters { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .cl { border: 1.5px solid var(--border); border-radius: 10px; padding: 8px; min-width: 120px; }
+  .cl .g { font-size: 30px; text-align: center; line-height: 1.2; }
+  .cp { font-family: var(--mono); font-size: 11.5px; margin-top: 6px; border-top: 1px dashed var(--border); padding-top: 4px; }
+  .cp .u { font-weight: 700; }
+  .byte { display: inline-block; margin: 2px 2px 0 0; padding: 1px 3px; border-radius: 3px; background: var(--surface-2); }
+  .byte .pre { color: var(--accent); font-weight: 700; }
+  .tmpl { font-family: var(--mono); font-size: 13px; }
+  .tmpl td, .tmpl th { padding: 4px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  .tmpl .pre { color: var(--accent); font-weight: 700; }
+  .tmpl tr.hl td { background: var(--accent-soft); }
+  .err { color: var(--red); font-family: var(--mono); font-size: 13px; }
+  .mono { font-family: var(--mono); }
+</style>
+</head>
+<body>
+<main>
+  <h1>UTF-8 &amp; Unicode</h1>
+  <p class="lede">What looks like one character to you can be one byte or seventeen, one "character" to Python and four to JavaScript. Unicode gives every character a number. UTF-8 is the clever way almost the entire web turns those numbers into bytes.</p>
+
+  <div class="panel">
+    <div class="row"><input id="txt" type="text" value="café 👍🏽 日本 👨‍👩‍👧" aria-label="Text" spellcheck="false"></div>
+    <div class="controls" style="margin:8px 0 0"><span class="status">Try:</span><button data-t="hello">hello</button><button data-t="naïve">naïve</button><button data-t="naïve">naïve (decomposed)</button><button data-t="🇯🇵🏳️‍🌈">flags</button><button data-t="𝄞 Ω √">symbols</button></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel">
+    <b>Character by character</b> <span class="status">(each box is one user-perceived character; inside are its code points and UTF-8 bytes, prefix bits in orange)</span>
+    <div class="clusters" id="clusters"></div>
+  </div>
+
+  <h2>The UTF-8 recipe</h2>
+  <div class="panel scroll-x">
+    <table class="tmpl" id="tmpl"></table>
+    <p class="status">The orange prefix bits say how long a sequence is. Every continuation byte starts with <span class="mono">10</span>, so a reader dropped into the middle of a stream can always find the next character.</p>
+  </div>
+
+  <h2>Break it</h2>
+  <div class="panel">
+    <div class="row"><label class="status" for="hexin">Bytes (hex)</label><input id="hexin" type="text" class="mono" value="63 61 66 C3 A9 20 C3 28 80" style="font-family:var(--mono);font-size:15px"></div>
+    <p id="decoded" style="font-size:18px;margin:10px 0 4px"></p>
+    <div class="err" id="errs"></div>
+    <p class="status" style="margin-top:12px">Mojibake: the bytes for “<span id="mojiSrc"></span>”, read by a program that assumes the old Windows-1252 encoding, come out as <b id="moji"></b>. You've seen this on badly configured websites and in old email.</p>
+  </div>
+
+  <h2>What's going on</h2>
+  <p><b>Code points.</b> Unicode assigns every character a number: <code>A</code> is U+0041, <code>é</code> is U+00E9, <code>👍</code> is U+1F44D. There's room for 1.1 million of them, and about 150,000 are assigned so far.</p>
+  <p><b>UTF-8</b> stores each number in 1 to 4 bytes. Plain ASCII stays one byte and unchanged, so old English text is already valid UTF-8, which is a big reason it won. Accented Latin, Greek and Cyrillic take 2 bytes, most Chinese and Japanese 3, and emoji 4.</p>
+  <p><b>Characters aren't code points.</b> "👍🏽" is a thumbs-up plus a skin-tone modifier: two code points, one character. The family emoji is several people glued together by invisible zero-width joiners. Flags are pairs of "regional indicator" letters. And <code>é</code> can be one code point or <code>e</code> plus a combining accent, which look identical but compare unequal unless you <i>normalise</i> the text.</p>
+  <p><b>Why JavaScript says <code>"👍".length === 2</code>.</b> JavaScript, Java and Windows use UTF-16 internally. Code points above U+FFFF need two 16-bit "surrogate" units, and <code>.length</code> counts units. Truncating a string by <code>.length</code> can slice an emoji in half.</p>
+  <p class="status">Character boundaries come from your browser's <code>Intl.Segmenter</code>. The UTF-8 encoder and decoder on this page are written by hand and tested against the built-in TextEncoder and TextDecoder.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml, statTile } from "./common.js";
+import { encodeCP, encode, decode, utf16, mojibake, hex } from "./lib/utf8.js";
+chrome();
+
+const seg = typeof Intl !== "undefined" && Intl.Segmenter ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+const graphemes = s => seg ? [...seg.segment(s)].map(x => x.segment) : [...s];
+const NAMES = { 0x200d: "zero-width joiner", 0xfe0f: "emoji style selector", 0x301: "combining acute accent", 0x308: "combining diaeresis", 0x20: "space" };
+function render() {
+  const s = $("#txt").value, gs = graphemes(s), cps = [...s], u8 = encode(s);
+  $("#stats").innerHTML = [[gs.length, "characters you see (graphemes)"], [cps.length, "code points (Python len)"], [s.length, "UTF-16 units (JavaScript .length)"], [u8.length, "UTF-8 bytes (on disk / the wire)"]]
+    .map(statTile).join("");
+  $("#clusters").innerHTML = gs.map(g => `<div class="cl"><div class="g">${escapeHtml(g === " " ? "␣" : g)}</div>${[...g].map(ch => {
+    const cp = ch.codePointAt(0), bytes = encodeCP(cp), n = bytes.length;
+    const bitsHtml = bytes.map((b, i) => { const bin = b.toString(2).padStart(8, "0"), pl = n === 1 ? 1 : i === 0 ? n + 1 : 2; return `<span class="byte" title="0x${hex(b)}"><span class="pre">${bin.slice(0, pl)}</span>${bin.slice(pl)}</span>`; }).join("");
+    return `<div class="cp"><span class="u">U+${hex(cp, 4)}</span> ${NAMES[cp] ? `<span class="status">${NAMES[cp]}</span>` : ""}<br>${bitsHtml}<br><span class="status">${n} byte${n > 1 ? "s" : ""} · UTF-16: ${utf16(cp).map(u => hex(u, 4)).join(" ")}</span></div>`;
+  }).join("")}</div>`).join("");
+  const used = new Set(cps.map(c => encodeCP(c.codePointAt(0)).length));
+  $("#tmpl").innerHTML = `<tr><th>Code point range</th><th>Bytes</th><th>Bit pattern (x = the code point's bits)</th><th>Room for</th></tr>` +
+    [["U+0000–007F", 1, "<span class='pre'>0</span>xxxxxxx", "7 bits · ASCII"], ["U+0080–07FF", 2, "<span class='pre'>110</span>xxxxx <span class='pre'>10</span>xxxxxx", "11 bits"], ["U+0800–FFFF", 3, "<span class='pre'>1110</span>xxxx <span class='pre'>10</span>xxxxxx <span class='pre'>10</span>xxxxxx", "16 bits"], ["U+10000–10FFFF", 4, "<span class='pre'>11110</span>xxx <span class='pre'>10</span>xxxxxx <span class='pre'>10</span>xxxxxx <span class='pre'>10</span>xxxxxx", "21 bits"]]
+      .map(([r, n, p, room]) => `<tr class="${used.has(n) ? "hl" : ""}"><td>${r}</td><td>${n}</td><td>${p}</td><td>${room}</td></tr>`).join("");
+  const word = gs.find(g => /[^\x00-\x7f]/.test(g) && [...g].length === 1) ? s : "café";
+  $("#mojiSrc").textContent = word; $("#moji").textContent = mojibake(encode(word));
+}
+function decodeHex() {
+  const parts = $("#hexin").value.trim().split(/[\s,]+/).filter(Boolean);
+  if (parts.some(p => !/^[0-9a-f]{1,2}$/i.test(p))) { $("#decoded").textContent = ""; $("#errs").textContent = "Use hex bytes separated by spaces, e.g. 41 C3 A9"; return; }
+  const bytes = parts.map(p => parseInt(p, 16)), r = decode(bytes);
+  $("#decoded").innerHTML = `Decodes to: <b>${escapeHtml(r.text)}</b>`;
+  $("#errs").innerHTML = r.errors.length ? r.errors.map(e => `byte ${e.at} (0x${hex(bytes[e.at])}): ${e.why} → shown as �`).join("<br>") : `<span style="color:var(--green)">Valid UTF-8 ✓</span>`;
+}
+$("#txt").addEventListener("input", render);
+$("#hexin").addEventListener("input", decodeHex);
+document.querySelectorAll("[data-t]").forEach(b => b.onclick = () => { $("#txt").value = b.dataset.t; render(); });
+// second "naïve" button is the decomposed form (i + combining diaeresis)
+document.querySelectorAll("[data-t]")[2].dataset.t = "naïve";
+render(); decodeHex();
+</script>
+</body>
+</html>

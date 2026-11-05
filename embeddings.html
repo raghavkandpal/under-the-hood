@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embeddings</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+  @media (max-width: 820px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  #map { width: 100%; display: block; }
+  #map text { font-family: var(--mono); font-size: 11px; fill: var(--text); cursor: pointer; }
+  #map text.dim { opacity: .35; }
+  #map text.sel { font-weight: 700; font-size: 13px; }
+  .bars { display: flex; flex-direction: column; gap: 4px; font-family: var(--mono); font-size: 12.5px; }
+  .bars .b { display: grid; grid-template-columns: 80px 1fr 48px; gap: 8px; align-items: center; cursor: pointer; }
+  .bars .track { height: 11px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+  .bars .fill { height: 100%; background: var(--accent); }
+  .feat { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 4px; }
+  .feat div { font-size: 11px; text-align: center; border-radius: 4px; padding: 4px 2px; font-family: var(--mono); }
+  .row select, .row input { font-family: var(--mono); }
+  .eq { font-family: var(--mono); font-size: 15px; }
+  .sliders { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 14px; }
+  .sliders label { font-size: 12px; color: var(--muted); font-family: var(--mono); display: flex; flex-direction: column; }
+  input[type=range] { accent-color: var(--accent); width: 100%; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Embeddings</h1>
+  <p class="lede">To a model, a word is a list of numbers, a point in space, placed so that words with similar meanings sit close together. Search engines, recommendations and LLMs all run on this idea. Distance becomes meaning, and directions become relationships.</p>
+
+  <div class="two">
+    <div class="panel">
+      <svg id="map" viewBox="-10 -10 520 420" role="img" aria-label="2D map of word vectors"></svg>
+      <p class="status" id="pcaNote"></p>
+    </div>
+    <div class="panel">
+      <div class="row"><label class="inline">Word <input id="word" list="vocab" value="queen" aria-label="Word"></label><datalist id="vocab"></datalist></div>
+      <b style="display:block;margin:10px 0 6px">Nearest neighbours (cosine similarity)</b>
+      <div class="bars" id="nn"></div>
+      <b style="display:block;margin:12px 0 6px">Its vector</b>
+      <div class="feat" id="feat"></div>
+    </div>
+  </div>
+
+  <h2>Arithmetic on meaning</h2>
+  <div class="panel">
+    <div class="row eq">
+      <select id="a"></select> is to <select id="b"></select> as <select id="c"></select> is to <b id="ans">?</b>
+    </div>
+    <p class="eq" id="calc" style="margin:10px 0 0"></p>
+    <div class="bars" id="anaBars" style="margin-top:8px"></div>
+    <div class="controls" style="margin:10px 0 0"><span class="status">Try:</span>
+      <button data-ana="man,king,woman">man : king :: woman : ?</button>
+      <button data-ana="france,paris,japan">france : paris :: japan : ?</button>
+      <button data-ana="dog,puppy,cat">dog : puppy :: cat : ?</button>
+      <button data-ana="man,boy,woman">man : boy :: woman : ?</button>
+    </div>
+  </div>
+
+  <h2>Build a mystery word</h2>
+  <div class="panel">
+    <p class="status" style="margin-top:0">Set the dimensions and see which real words are nearest. This is how semantic search works: turn a query into a vector and look up its neighbours.</p>
+    <div class="sliders" id="sliders"></div>
+    <div class="bars" id="mystery" style="margin-top:10px"></div>
+  </div>
+
+  <h2>What's going on</h2>
+  <p><b>Each word is a vector.</b> Here every word has 16 numbers, one per readable feature (royal, female, animal, sweet…). <b>Cosine similarity</b> measures the angle between two vectors: 1 means the same direction, 0 means unrelated. It ignores length, so "a bit sweet" and "very sweet" can still point the same way.</p>
+  <p><b>Directions carry relationships.</b> <i>king − man</i> leaves roughly "royalty", and adding <i>woman</i> lands near <i>queen</i>. The same offset that takes France to Paris takes Japan to Tokyo. Nobody programs these into a real model. They emerge from training on which words appear near each other.</p>
+  <p><b>The map is a squashed shadow.</b> To draw 16 dimensions on a flat screen, the plot uses <b>PCA</b>, which picks the two directions with the most spread. Nearby on the map <i>usually</i> means nearby in reality, but some neighbours get flattened together, so trust the similarity numbers over the picture.</p>
+  <p class="status">Honest caveat: these vectors are hand-built so every dimension is readable. Real embeddings (word2vec, or the ones inside LLMs and search engines) have hundreds to thousands of dimensions <i>learned</i> from text, and no single dimension means anything you could name. They also absorb the biases of the text they're trained on.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, escapeHtml } from "./common.js";
+import { WORDS, DIMS, CATEGORY, cosine, nearest, analogy, pca2, subV, addV } from "./lib/embed.js";
+chrome();
+
+const COLORS = { people: "#e0453a", animals: "#17a35a", food: "#e08a00", places: "#2f6fe4", vehicles: "#8b5cf6" };
+const vocab = Object.keys(WORDS).sort();
+$("#vocab").innerHTML = vocab.map(w => `<option value="${w}">`).join("");
+for (const id of ["a", "b", "c"]) $("#" + id).innerHTML = vocab.map(w => `<option>${w}</option>`).join("");
+const { coords, explained } = pca2();
+$("#pcaNote").textContent = `This flat map keeps ${Math.round((explained[0] + explained[1]) * 100)}% of the spread in the 16-dimensional space. Click a word to select it. Colours are categories.`;
+let sel = "queen", anaLine = null, mystery = Object.fromEntries(DIMS.map(d => [d, 0]));
+Object.assign(mystery, { animal: 1, young: 1 });
+
+function plot(highlight = new Map()) {
+  const svg = $("#map"); svg.replaceChildren();
+  const xs = Object.values(coords).map(c => c[0]), ys = Object.values(coords).map(c => c[1]);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const X = x => 30 + (x - x0) / (x1 - x0 || 1) * 440, Y = y => 380 - (y - y0) / (y1 - y0 || 1) * 360;
+  if (anaLine) for (const [p, q] of anaLine) { const [a, b] = [coords[p], coords[q]]; svg.append(svgEl("line", { x1: X(a[0]), y1: Y(a[1]), x2: X(b[0]), y2: Y(b[1]), stroke: "var(--accent)", "stroke-width": 2, "stroke-dasharray": "5 4" })); }
+  const s = coords[sel];
+  if (s) for (const [w] of highlight) { const c = coords[w]; svg.append(svgEl("line", { x1: X(s[0]), y1: Y(s[1]), x2: X(c[0]), y2: Y(c[1]), stroke: "var(--muted)", "stroke-width": 1, opacity: 0.6 })); }
+  // simple label de-overlap: jitter labels that collide
+  const placed = [];
+  for (const [w, c] of Object.entries(coords)) {
+    let x = X(c[0]), y = Y(c[1]);
+    for (let k = 0; k < 6 && placed.some(p => Math.abs(p[0] - x) < 34 && Math.abs(p[1] - y) < 11); k++) y += 12;
+    placed.push([x, y]);
+    svg.append(svgEl("circle", { cx: X(c[0]), cy: Y(c[1]), r: w === sel ? 5 : 3.5, fill: COLORS[CATEGORY[w]] }));
+    svg.append(svgEl("text", { x: x + 6, y: y + 4, class: (w === sel ? "sel" : highlight.size && !highlight.has(w) && w !== sel ? "dim" : ""), "data-w": w, style: `fill:${COLORS[CATEGORY[w]]}` }, w));
+  }
+}
+const bars = (list, el) => { el.innerHTML = list.map(({ w, sim }) => `<div class="b" data-w="${w}"><span style="color:${COLORS[CATEGORY[w]]}">${w}</span><div class="track"><div class="fill" style="width:${Math.max(0, sim) * 100}%"></div></div><span>${sim.toFixed(2)}</span></div>`).join(""); };
+function select(w) {
+  if (!WORDS[w]) return; sel = w; $("#word").value = w;
+  const nn = nearest(WORDS[w], 6, [w]); bars(nn, $("#nn"));
+  $("#feat").innerHTML = DIMS.map((d, i) => { const v = WORDS[w][i]; return `<div style="background:${v ? `rgba(194,65,12,${0.15 + Math.abs(v) * 0.6})` : "var(--surface-2)"};${v ? "" : "color:var(--muted)"}">${d}<br>${v ? v.toFixed(1) : "0"}</div>`; }).join("");
+  plot(new Map(nn.map(n => [n.w, n.sim])));
+}
+function doAnalogy() {
+  const [a, b, c] = ["a", "b", "c"].map(id => $("#" + id).value), res = analogy(a, b, c, 4);
+  $("#ans").textContent = res[0].w; $("#ans").style.color = COLORS[CATEGORY[res[0].w]];
+  const offset = subV(WORDS[b], WORDS[a]), named = DIMS.map((d, i) => [d, offset[i]]).filter(([, v]) => Math.abs(v) > 0.05);
+  $("#calc").innerHTML = `${b} − ${a} = <span class="status">${named.map(([d, v]) => `${v > 0 ? "+" : "−"}${d}`).join(" ") || "nothing"}</span>, then + ${c} ≈ <b>${res[0].w}</b> (similarity ${res[0].sim.toFixed(2)})`;
+  bars(res, $("#anaBars")); anaLine = [[a, b], [c, res[0].w]]; select(sel);
+}
+function mysteryRender() {
+  $("#sliders").innerHTML = DIMS.map(d => `<label>${d} <input type="range" min="0" max="1" step="0.1" value="${mystery[d]}" data-d="${d}"></label>`).join("");
+  mysteryBars();
+}
+function mysteryBars() { const v = DIMS.map(d => mystery[d]); bars(v.some(x => x) ? nearest(v, 5) : [], $("#mystery")); if (!v.some(x => x)) $("#mystery").innerHTML = `<span class="status">All zeros points nowhere. Raise a slider.</span>`; }
+$("#sliders").addEventListener("input", e => { const d = e.target.dataset.d; if (d) { mystery[d] = +e.target.value; mysteryBars(); } });
+$("#map").addEventListener("click", e => { const w = e.target.dataset?.w; if (w) select(w); });
+for (const id of ["nn", "anaBars", "mystery"]) $("#" + id).addEventListener("click", e => { const b = e.target.closest("[data-w]"); if (b) select(b.dataset.w); });
+$("#word").addEventListener("input", e => select(e.target.value.trim().toLowerCase()));
+for (const id of ["a", "b", "c"]) $("#" + id).onchange = doAnalogy;
+document.querySelectorAll("[data-ana]").forEach(btn => btn.onclick = () => { const [a, b, c] = btn.dataset.ana.split(","); $("#a").value = a; $("#b").value = b; $("#c").value = c; doAnalogy(); });
+$("#a").value = "man"; $("#b").value = "king"; $("#c").value = "woman";
+mysteryRender(); doAnalogy(); select("queen");
+</script>
+</body>
+</html>

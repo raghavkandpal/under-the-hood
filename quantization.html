@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model Quantization</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .row { gap: 12px; }
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  .stats { --stat-min: 130px; }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+  table.data tr.cur td { background: var(--accent-soft); font-weight: 700; }
+  .yes { color: var(--green); } .no { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Model quantization</h1>
+  <p class="lede">A 70-billion-parameter language model stored as 16-bit numbers needs 140 GB, more than any single consumer GPU. Round each weight to 4 bits and it drops to about 40 GB, small enough for a pair of gaming GPUs or a high-memory laptop, and it barely changes what the model says. The trick is in <i>how</i> you round.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">bits per weight <input type="range" id="bits" min="2" max="8" value="4"> <b id="bv"></b></label>
+      <label class="inline">scale shared by <select id="group"><option value="Infinity">the whole layer</option><option value="256">groups of 256</option><option value="64">groups of 64</option><option value="32" selected>groups of 32</option></select></label>
+      <label class="inline"><input type="checkbox" id="out" checked> include outlier weights</label>
+    </div>
+    <svg class="chart" id="hist" viewBox="0 0 600 150" role="img" aria-label="Histogram of weights with quantisation levels"></svg>
+    <p class="status" style="margin:2px 0 0">Distribution of 8,192 weights in one layer. The vertical lines are the values a <b>single scale</b> could represent across the whole layer.</p>
+    <svg class="chart" id="strip" viewBox="0 0 600 130" role="img" aria-label="First 48 weights before and after rounding"></svg>
+    <p class="status" style="margin:2px 0 0">The first 48 weights: grey bars are the originals, orange dots what's stored after rounding.</p>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel scroll-x"><b>What it buys you</b><table class="data" id="mem" style="margin-top:6px"></table></div>
+
+  <h2>How it works</h2>
+  <p><b>Rounding to a grid.</b> With b bits you get 2<sup>b</sup> − 1 evenly spaced levels (here symmetric around zero). Pick a <i>scale</i> so the largest weight maps to the top level, then round every weight to its nearest level and store the small integer. To use it, multiply back by the scale. Each weight is then off by at most half a step.</p>
+  <p><b>Outliers ruin a shared scale.</b> LLM weights are mostly tiny, plus a few that are 10× bigger. If one scale covers the whole layer, those few set the step size, and almost all the normal weights collapse onto zero or the levels next to it. The levels are spent on a handful of outliers. Set “whole layer” with 4 bits and watch the error and the “rounded to zero” count jump.</p>
+  <p><b>Group-wise scales.</b> Give every 32 or 64 weights their own scale. An outlier then only coarsens its own small group. The cost is storing the scales: a 16-bit scale per 32 weights adds half a bit per weight, which is why “4-bit” formats are really about 4.5. That's the core of GPTQ, AWQ and llama.cpp's Q4 formats, which add smarter choices of <i>which</i> rounding errors matter most.</p>
+  <p><b>Why it works at all.</b> Networks are trained with noise (dropout, SGD's randomness) and are robust to small perturbations, and rounding errors in different weights partly cancel in a dot product. Quality usually holds up to about 4 bits, then falls off a cliff around 2–3.</p>
+  <p class="status">Smaller weights also mean faster text generation, because producing each token reads every weight from memory once, and memory bandwidth is the bottleneck. Halve the bytes and you roughly double the tokens per second.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "./common.js";
+import { quantize, dequantize, relError, levelsUsed, bitsPerWeight, modelGB, weights } from "./lib/quant.js";
+import { mulberry } from "./lib/autograd.js";
+chrome();
+
+const W_OUT = weights(8192, mulberry(11)), W_CLEAN = weights(8192, mulberry(11), { outliers: 0 });
+function render() {
+  const bits = +$("#bits").value, group = +$("#group").value, w = $("#out").checked ? W_OUT : W_CLEAN;
+  const Q = quantize(w, bits, group), d = dequantize(Q), whole = quantize(w, bits), qmax = 2 ** (bits - 1) - 1;
+  $("#bv").textContent = bits;
+  // histogram
+  const hist = $("#hist"); hist.replaceChildren(); const R = 0.1, NB = 80, cnt = new Array(NB).fill(0); let outside = 0;
+  for (const v of w) { const b = Math.floor((v + R) / (2 * R) * NB); if (b < 0 || b >= NB) outside++; else cnt[b]++; }
+  const mx = Math.max(...cnt), X = v => 20 + (v + R) / (2 * R) * 560;
+  cnt.forEach((c, i) => hist.append(svgEl("rect", { x: 20 + i * 7, y: 130 - c / mx * 115, width: 6, height: c / mx * 115, fill: "var(--blue)", opacity: 0.75 })));
+  for (let k = -qmax; k <= qmax; k++) { const v = k * whole.scales[0]; if (Math.abs(v) <= R) hist.append(svgEl("line", { x1: X(v), x2: X(v), y1: 8, y2: 130, stroke: "var(--accent)", "stroke-width": 1.5, opacity: 0.85 })); }
+  hist.append(svgEl("line", { x1: 20, x2: 580, y1: 130, y2: 130, stroke: "var(--border)" }));
+  for (const v of [-R, 0, R]) hist.append(svgEl("text", { x: X(v), y: 145, "text-anchor": "middle" }, v));
+  if (outside) hist.append(svgEl("text", { x: 580, y: 18, "text-anchor": "end" }, `+${outside} outliers beyond ±${R} (up to ±${Math.max(...w.map(Math.abs)).toFixed(2)})`));
+  // strip
+  const strip = $("#strip"); strip.replaceChildren(); const N = 48, S = 0.06, Y = v => 65 - Math.max(-S, Math.min(S, v)) / S * 55;
+  strip.append(svgEl("line", { x1: 0, x2: 600, y1: 65, y2: 65, stroke: "var(--border)" }));
+  for (let i = 0; i < N; i++) { const x = 8 + i * 12.3;
+    strip.append(svgEl("rect", { x: x - 3.5, y: Math.min(Y(w[i]), 65), width: 7, height: Math.abs(Y(w[i]) - 65), fill: "var(--muted)", opacity: 0.45 }));
+    strip.append(svgEl("circle", { cx: x, cy: Y(d[i]), r: 3.3, fill: "var(--accent)" })); }
+  if (Number.isFinite(group)) for (let g = group; g < N; g += group) strip.append(svgEl("line", { x1: 8 + g * 12.3 - 6, x2: 8 + g * 12.3 - 6, y1: 2, y2: 128, stroke: "var(--text)", "stroke-dasharray": "3 3", opacity: 0.5 }));
+  const err = relError(w, d), bpw = bitsPerWeight(bits, group);
+  $("#stats").innerHTML = [[(err * 100).toFixed(1) + "%", "rounding error (RMS)"], [`${levelsUsed(Q)} / ${2 * qmax + 1}`, "levels used"], [Math.round(Q.q.filter(v => v === 0).length / Q.q.length * 100) + "%", "weights rounded to 0"], [bpw.toFixed(2), "bits per weight (with scales)"], [(16 / bpw).toFixed(1) + "×", "smaller than 16-bit"]]
+    .map(statTile).join("");
+  // memory table
+  const rows = [["16-bit (original)", 16], ["8-bit", bitsPerWeight(8, 64)], ["4-bit, groups of 32", bitsPerWeight(4, 32)], ["3-bit, groups of 32", bitsPerWeight(3, 32)], ["2-bit, groups of 32", bitsPerWeight(2, 32)]];
+  const fits = (gb, cap) => `<span class="${gb * 1.1 <= cap ? "yes" : "no"}">${gb * 1.1 <= cap ? "✓" : "✗"}</span>`;
+  $("#mem").innerHTML = `<tr><th>Format</th><th>bits/weight</th><th>8B model</th><th>70B model</th><th>70B on a 24 GB GPU?</th><th>8B on a 8 GB laptop?</th></tr>` + rows.map(([l, b]) => `<tr class="${Math.abs(b - bpw) < 0.01 ? "cur" : ""}"><td>${l}</td><td class="num">${b.toFixed(2)}</td><td class="num">${modelGB(8, b).toFixed(1)} GB</td><td class="num">${modelGB(70, b).toFixed(0)} GB</td><td>${fits(modelGB(70, b), 24)}</td><td>${fits(modelGB(8, b), 8)}</td></tr>`).join("") + `<tr><td colspan="6" class="status">Weights only, plus 10% headroom. Running also needs memory for the KV cache.</td></tr>`;
+}
+$("#bits").oninput = $("#group").onchange = $("#out").onchange = render;
+render();
+</script>
+</body>
+</html>

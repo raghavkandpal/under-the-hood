@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reinforcement Learning</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+  @media (max-width: 820px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  canvas#world { width: 100%; display: block; border-radius: 8px; cursor: pointer; }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .grid label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+  .grid label b { color: var(--text); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  svg#hist { width: 100%; height: 110px; display: block; }
+  svg#hist text { font-size: 10px; fill: var(--muted); font-family: var(--mono); }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Reinforcement learning</h1>
+  <p class="lede">Nobody tells this agent the way to the goal. It wanders, gets rewards and penalties, and slowly learns which moves pay off. The same idea, scaled up enormously, taught programs to play Go and is used to tune language models.</p>
+
+  <div class="panel">
+    <div class="controls tabs" style="margin:0">
+      <span class="status">World:</span>
+      <button data-map="cliff" aria-pressed="true">Cliff edge</button>
+      <button data-map="maze">Maze</button>
+      <button data-map="choice">Near vs far reward</button>
+      <span class="status" style="margin-left:6px">Click cells to add/remove walls.</span>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <canvas id="world" width="640" height="320" aria-label="Grid world"></canvas>
+      <p class="status">Cell colour = how good the agent currently thinks that spot is (its best Q-value). Arrows = the move it would pick. <span style="color:#17a35a">■</span> goal · <span style="color:#e0453a">■</span> pit · dark = wall.</p>
+      <div class="controls" style="margin:6px 0 0">
+        <button id="ep" class="primary">▶ Watch 1 episode</button>
+        <button id="ep100">⏩ Train 100 episodes</button>
+        <button id="vi">Show the optimal answer</button>
+        <button id="reset">Forget everything</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="grid">
+        <label>Learning rate α <b id="va"></b><input type="range" id="alpha" min="0.05" max="1" step="0.05" value="0.5"></label>
+        <label>Discount γ (patience) <b id="vg"></b><input type="range" id="gamma" min="0.5" max="0.99" step="0.01" value="0.95"></label>
+        <label>Exploration ε <b id="ve"></b><input type="range" id="eps" min="0" max="0.6" step="0.05" value="0.2"></label>
+        <label>Slippery floor <b id="vs"></b><input type="range" id="slip" min="0" max="0.4" step="0.05" value="0"></label>
+        <label class="inline" style="flex-direction:row;color:var(--text)"><input type="checkbox" id="opt"> Optimistic start (every Q begins at +20)</label>
+      </div>
+      <div class="stats" id="stats"></div>
+      <b style="display:block;margin-top:12px">Total reward per episode</b>
+      <svg id="hist" viewBox="0 0 300 110" preserveAspectRatio="none"></svg>
+    </div>
+  </div>
+
+  <h2>How Q-learning works</h2>
+  <p><b>The setup.</b> At each step the agent is in a <i>state</i> (a cell), picks an <i>action</i> (a direction), and gets a <i>reward</i>: −1 per step to encourage speed, +20 for the goal, −20 for a pit. Its job is to maximise total reward.</p>
+  <p><b>Q-values.</b> For every cell and action it keeps a guess, Q(s, a), of "how much reward I'll collect from here if I do this, then play well". After each move it nudges the guess toward what just happened: <code>Q ← Q + α · (reward + γ · best Q of the next cell − Q)</code>. Good news ripples backward from the goal, one step per visit. Watch the green spread out from it.</p>
+  <p><b>Explore vs exploit.</b> With probability ε the agent moves at random instead of taking its best-known move. Too little and it locks onto the first route it finds. Too much and it keeps falling off the cliff while it learns. Set ε to 0 on the maze and it may never find the goal.</p>
+  <p><b>γ is patience.</b> In "Near vs far reward", a +5 prize sits 3 steps away and a +20 prize 11 steps away. Press "Show the optimal answer": at γ = 0.6 future rewards fade so fast that the near prize really is best, and at γ = 0.95 the far one is.</p>
+  <p><b>The exploration trap.</b> Now train at γ = 0.95. The learner almost always settles for the <i>near</i> prize anyway. It found +5 early, its random moves rarely carry it 11 steps the other way, and so it never learns the far prize exists. Tick <b>Optimistic start</b> and train again. Every untried move now looks promising until proven otherwise, so the agent systematically checks the whole map and finds the better goal. Deciding how much to explore is one of the hard, open problems in RL.</p>
+  <p><b>Slipperiness.</b> When moves sometimes slide sideways, the <i>optimal</i> plan on the cliff map changes. It's worth a longer path away from the edge to avoid sliding in. "Show the optimal answer" uses <b>value iteration</b>, which can plan exactly because it's given the rules. Q-learning has to discover them by trial and error.</p>
+  <p class="status">Tabular Q-learning (Watkins, 1989) with ε-greedy exploration. Deep RL replaces the table with a neural network so it can handle huge state spaces like game screens.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, sleep, statTile } from "./common.js";
+import { Grid, QLearner, valueIteration, ACTIONS } from "./lib/rl.js";
+chrome();
+
+const MAPS = {
+  cliff: ["..........", "..........", "..........", "S........G", "XXXXXXXXXX"],
+  maze: ["S..#......", ".#.#.###..", ".#...#....", ".####.#.##", "......#..G"],
+  choice: ["..........", ".g.......G", "..........", "S.........", ".........."],
+};
+let mapKey = "cliff", layout, grid, agent, showVI = false, busy = false, trail = [];
+const cv = $("#world"), ctx = cv.getContext("2d");
+const opts = () => ({ alpha: +$("#alpha").value, gamma: +$("#gamma").value, epsilon: +$("#eps").value });
+
+function build(keepQ = false) {
+  // "g" is a small reward cell: treated as a goal with a smaller payout
+  const lay = layout.map(r => r.replace(/g/g, "G"));
+  grid = new Grid(lay, { slip: +$("#slip").value });
+  const small = new Set(); layout.forEach((r, y) => [...r].forEach((c, x) => { if (c === "g") small.add(y * grid.w + x); }));
+  const baseReward = grid.reward.bind(grid);
+  grid.reward = s2 => small.has(s2) ? 5 : baseReward(s2);
+  grid.small = small;
+  const oldQ = keepQ && agent ? agent.Q : null, oldH = keepQ && agent ? agent.history : [], oldE = keepQ && agent ? agent.episodes : 0;
+  agent = new QLearner(grid, { ...opts(), seed: (Math.random() * 1e9) | 0, init: $("#opt").checked ? 20 : 0 });
+  if (oldQ && oldQ.length === agent.Q.length) { agent.Q = oldQ; agent.history = oldH; agent.episodes = oldE; }
+  labels(); draw();
+}
+function labels() { $("#va").textContent = $("#alpha").value; $("#vg").textContent = $("#gamma").value; $("#ve").textContent = $("#eps").value; $("#vs").textContent = (+$("#slip").value ? Math.round(+$("#slip").value * 100) + "% of moves slide sideways" : "off"); }
+
+function draw(agentAt = null) {
+  const W = grid.w, H = grid.h, CS = Math.floor(cv.width / W); cv.height = H * CS;
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const vi = showVI ? valueIteration(grid, +$("#gamma").value) : null;
+  const vals = Array.from({ length: grid.n }, (_, s) => vi ? vi.V[s] : Math.max(...agent.Q[s]));
+  const live = vals.filter((_, s) => !grid.terminal(s) && grid.at(s) !== "#");
+  const lo = Math.min(0, ...live), hi = Math.max(1e-6, ...live);
+  for (let s = 0; s < grid.n; s++) {
+    const x = (s % W) * CS, y = Math.floor(s / W) * CS, c = grid.at(s);
+    if (c === "#") ctx.fillStyle = dark ? "#000" : "#2a2925";
+    else if (c === "X") ctx.fillStyle = "#e0453a";
+    else if (c === "G") ctx.fillStyle = grid.small.has(s) ? "#8fd19e" : "#17a35a";
+    else { const v = vals[s], t = v >= 0 ? v / hi : -v / (lo || -1); ctx.fillStyle = v >= 0 ? `rgba(23,163,90,${0.08 + t * 0.55})` : `rgba(224,69,58,${0.08 + t * 0.45})`; ctx.fillRect(x, y, CS, CS); ctx.fillStyle = "transparent"; }
+    if (ctx.fillStyle !== "rgba(0, 0, 0, 0)") ctx.fillRect(x, y, CS, CS);
+    ctx.strokeStyle = dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"; ctx.strokeRect(x, y, CS, CS);
+    ctx.fillStyle = dark ? "#ecebe6" : "#1d1c1a"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    if (c === "G") { ctx.font = `bold ${CS * 0.32}px sans-serif`; ctx.fillStyle = "#fff"; ctx.fillText(grid.small.has(s) ? "+5" : "+20", x + CS / 2, y + CS / 2); }
+    else if (c === "X") { ctx.font = `bold ${CS * 0.3}px sans-serif`; ctx.fillStyle = "#fff"; ctx.fillText("−20", x + CS / 2, y + CS / 2); }
+    else if (c !== "#") {
+      const q = vi ? null : agent.Q[s], visited = vi || q.some(v => v !== 0);
+      if (visited) { const a = vi ? vi.policy[s] : q.indexOf(Math.max(...q)); const [dx, dy] = ACTIONS[a]; const cx = x + CS / 2, cy = y + CS / 2, L = CS * 0.28;
+        ctx.strokeStyle = dark ? "#ecebe6" : "#1d1c1a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - dx * L, cy - dy * L); ctx.lineTo(cx + dx * L, cy + dy * L); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx + dx * L, cy + dy * L); ctx.lineTo(cx + dx * L * 0.4 - dy * L * 0.5, cy + dy * L * 0.4 + dx * L * 0.5); ctx.lineTo(cx + dx * L * 0.4 + dy * L * 0.5, cy + dy * L * 0.4 - dx * L * 0.5); ctx.closePath(); ctx.fill(); }
+      if (s === grid.start) { ctx.font = `bold ${CS * 0.22}px sans-serif`; ctx.fillText("START", x + CS / 2, y + CS * 0.18); }
+    }
+  }
+  if (trail.length > 1) { ctx.strokeStyle = "rgba(224,138,0,.8)"; ctx.lineWidth = 3; ctx.beginPath(); trail.forEach((s, i) => { const x = (s % W + 0.5) * CS, y = (Math.floor(s / W) + 0.5) * CS; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); }
+  if (agentAt != null) { ctx.fillStyle = "#e08a00"; ctx.beginPath(); ctx.arc((agentAt % W + 0.5) * CS, (Math.floor(agentAt / W) + 0.5) * CS, CS * 0.22, 0, 7); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke(); }
+  stats();
+}
+function stats() {
+  const h = agent.history, last = h.slice(-20), path = agent.policyPath(), reaches = grid.terminal(path.at(-1)) ? grid.at(path.at(-1)) === "G" : false;
+  $("#stats").innerHTML = [[agent.episodes, "episodes"], [last.length ? (last.reduce((a, b) => a + b) / last.length).toFixed(1) : "—", "avg reward, last 20"], [reaches ? `${path.length - 1} steps` : "not yet", "greedy route to a goal"], [showVI ? "optimal" : "learned", "arrows show"]]
+    .map(statTile).join("");
+  const svg = $("#hist"); svg.replaceChildren();
+  if (h.length > 1) {
+    const mn = Math.max(-80, Math.min(...h)), mx = Math.max(...h);
+    const pts = h.map((v, i) => `${i / (h.length - 1) * 300},${105 - (Math.max(mn, v) - mn) / (mx - mn || 1) * 100}`).join(" ");
+    svg.append(svgEl("polyline", { points: pts, fill: "none", stroke: "var(--accent)", "stroke-width": 1.5, "vector-effect": "non-scaling-stroke" }));
+    svg.append(svgEl("text", { x: 2, y: 10 }, mx.toFixed(0)), svgEl("text", { x: 2, y: 108 }, mn.toFixed(0)));
+  }
+}
+async function watch() {
+  if (busy) return; busy = true; showVI = false; Object.assign(agent, opts());
+  const { path } = agent.episode(); trail = [];
+  for (const s of path) { trail.push(s); draw(s); await sleep(path.length > 60 ? 30 : 90); }
+  await sleep(300); trail = []; draw(); busy = false;
+}
+$("#ep").onclick = watch;
+$("#ep100").onclick = () => { if (busy) return; showVI = false; Object.assign(agent, opts()); for (let i = 0; i < 100; i++) agent.episode(); trail = agent.policyPath(); draw(); setTimeout(() => { trail = []; draw(); }, 1200); };
+$("#vi").onclick = () => { showVI = !showVI; $("#vi").textContent = showVI ? "Show what it learned" : "Show the optimal answer"; draw(); };
+$("#reset").onclick = () => { if (!busy) { showVI = false; build(false); } };
+for (const id of ["alpha", "gamma", "eps"]) $("#" + id).addEventListener("input", () => { labels(); Object.assign(agent, opts()); if (showVI) draw(); });
+$("#slip").addEventListener("input", () => { labels(); build(true); });
+$("#opt").addEventListener("change", () => { if (!busy) { showVI = false; build(false); } });
+cv.addEventListener("click", e => {
+  if (busy) return; const b = cv.getBoundingClientRect(), CS = cv.width / grid.w;
+  const x = Math.floor((e.clientX - b.left) / b.width * grid.w), y = Math.floor((e.clientY - b.top) / b.height * grid.h);
+  const row = [...layout[y]]; if (row[x] === ".") row[x] = "#"; else if (row[x] === "#") row[x] = "."; else return;
+  layout[y] = row.join(""); build(true);
+});
+document.querySelectorAll("[data-map]").forEach(b => b.onclick = () => { if (busy) return; mapKey = b.dataset.map; layout = MAPS[mapKey].slice(); document.querySelectorAll("[data-map]").forEach(x => x.setAttribute("aria-pressed", x === b)); showVI = false; if (mapKey === "choice") { $("#gamma").value = 0.6; } build(false); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => draw());
+layout = MAPS.cliff.slice(); build(false);
+</script>
+</body>
+</html>

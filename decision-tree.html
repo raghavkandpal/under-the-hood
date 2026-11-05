@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decision Trees</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: start; }
+  @media (max-width: 820px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  canvas#map { width: 100%; aspect-ratio: 1; display: block; border-radius: 8px; }
+  #tree text { font-family: var(--mono); font-size: 10.5px; text-anchor: middle; fill: var(--text); pointer-events: none; }
+  #tree .nd rect { stroke-width: 1.5; cursor: pointer; }
+  #tree .nd.split rect { fill: var(--surface-2); stroke: var(--border); }
+  #tree .nd.pos rect { fill: var(--accent-soft); stroke: var(--accent); }
+  #tree .nd.neg rect { fill: var(--blue-soft); stroke: var(--blue); }
+  #tree .nd.hl rect { stroke: var(--text); stroke-width: 3; }
+  #tree .ed { stroke: var(--border); stroke-width: 1.5; fill: none; }
+  #tree .ed.hl { stroke: var(--text); stroke-width: 2.5; }
+  #tree text.yn { fill: var(--muted); font-size: 9.5px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 16px; }
+  .grid label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .grid label b { color: var(--text); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .stats { --stat-min: 110px; }
+  svg#depth { width: 100%; height: 120px; display: block; }
+  svg#depth text { font-size: 10px; fill: var(--muted); font-family: var(--mono); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Decision trees</h1>
+  <p class="lede">A decision tree classifies by asking a series of yes/no questions, like "is x₁ below 0.4?". Each answer narrows things down until it reaches a verdict. It's the most readable model in machine learning, and it sits underneath random forests and gradient boosting.</p>
+
+  <div class="panel">
+    <div class="grid">
+      <label>Dataset <select id="data"></select></label>
+      <label>Max depth <b id="vdepth"></b><input type="range" id="depth" min="1" max="12" value="3"></label>
+      <label>Min points per leaf <b id="vleaf"></b><input type="range" id="leaf" min="1" max="30" value="1"></label>
+      <label>Noise <b id="vnoise"></b><input type="range" id="noise" min="0" max="0.6" step="0.05" value="0.15"></label>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <canvas id="map" width="420" height="420" aria-label="Decision regions"></canvas>
+      <p class="status">Each rectangle is one leaf. Hover a node in the tree to see its region.</p>
+    </div>
+    <div class="panel">
+      <div class="scroll-x"><svg id="tree" role="img" aria-label="Decision tree"></svg></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <b>Accuracy by depth</b> <span class="status"><span style="color:var(--blue)">━</span> training · <span style="color:var(--green)">━</span> unseen test data</span>
+    <svg id="depth" viewBox="0 0 600 120" preserveAspectRatio="none"></svg>
+  </div>
+
+  <h2>How a tree is grown</h2>
+  <p><b>Pick the best question.</b> At each node, try every possible threshold on every feature, and keep the split that leaves the two sides <i>purest</i>. Purity here is measured by <b>Gini impurity</b>: 0 when a group is all one class, 0.5 when it's a 50/50 mix.</p>
+  <p><b>Recurse.</b> Do the same thing inside each half, and stop when a node is pure, too small (min points per leaf) or too deep (max depth). Each leaf predicts its majority class.</p>
+  <p><b>Boxes only.</b> Every question looks at one feature, so the boundaries are always horizontal or vertical lines. A diagonal or circular boundary has to be built as a staircase of many small boxes. Look at "Circle in a ring" at depth 8.</p>
+  <p><b>Greedy is short-sighted.</b> On <b>XOR</b>, no single first question helps much, because either half is still close to 50/50. So the root split lands wherever noise happens to make it look slightly better (look at the top node, usually nowhere near 0), and the tree spends extra levels recovering. With some samples a shallow XOR tree fails outright. The algorithm never plans ahead.</p>
+  <p><b>Overfitting, again.</b> Unlimited depth isolates every training point in its own box: 100% training accuracy, worse on new data. Limiting depth or leaf size is the fix. In practice people average hundreds of slightly different trees (<b>random forests</b>) or add small trees one at a time to correct each other's errors (<b>gradient boosting</b>), and these are some of the strongest models for tabular data.</p>
+  <p class="status">This is CART with Gini impurity, as used by scikit-learn's <code>DecisionTreeClassifier</code>, without pruning.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "./common.js";
+import { DATASETS, makeDataset } from "./lib/datasets.js";
+import { build, accuracy, nodes } from "./lib/dtree.js";
+chrome();
+
+$("#data").innerHTML = Object.entries(DATASETS).map(([k, d]) => `<option value="${k}"${k === "circles" ? " selected" : ""}>${d.label}</option>`).join("");
+let train, test, tree, hl = null;
+const SPAN = 3.2, cv = $("#map"), ctx = cv.getContext("2d"), W = cv.width;
+const PX = x => (x + SPAN) / (2 * SPAN) * W, PY = y => W - (y + SPAN) / (2 * SPAN) * W;
+const opts = () => ({ maxDepth: +$("#depth").value, minLeaf: +$("#leaf").value });
+
+function regen() {
+  const k = $("#data").value, noise = +$("#noise").value;
+  train = makeDataset(k, { n: 160, seed: 3, noise }); test = makeDataset(k, { n: 400, seed: 99, noise });
+  rebuild(); depthChart();
+}
+function rebuild() {
+  tree = build(train, opts()); hl = null;
+  $("#vdepth").textContent = $("#depth").value; $("#vleaf").textContent = $("#leaf").value; $("#vnoise").textContent = (+$("#noise").value).toFixed(2);
+  const all = nodes(tree), leaves = all.filter(n => !n.left);
+  $("#stats").innerHTML = [[Math.round(accuracy(tree, train) * 100) + "%", "training accuracy"], [Math.round(accuracy(tree, test) * 100) + "%", "test accuracy"], [leaves.length, "leaves (boxes)"], [Math.max(...all.map(n => n.depth)), "actual depth"]]
+    .map(statTile).join("");
+  drawMap(); drawTree();
+}
+function drawMap() {
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const pos = dark ? [251, 146, 60] : [234, 120, 40], neg = dark ? [96, 140, 255] : [50, 100, 220];
+  ctx.fillStyle = dark ? "#1f1e1b" : "#fff"; ctx.fillRect(0, 0, W, W);
+  (function paint(n, x0, x1, y0, y1) {
+    if (n.left) {
+      if (n.f === 0) { paint(n.left, x0, Math.min(x1, n.t), y0, y1); paint(n.right, Math.max(x0, n.t), x1, y0, y1); }
+      else { paint(n.left, x0, x1, y0, Math.min(y1, n.t)); paint(n.right, x0, x1, Math.max(y0, n.t), y1); }
+      return;
+    }
+    const purity = n.n ? Math.max(n.pos, n.n - n.pos) / n.n : 0.5;
+    const c = n.label > 0 ? pos : neg;
+    ctx.fillStyle = `rgba(${c},${0.12 + (purity - 0.5) * 0.5})`;
+    ctx.fillRect(PX(x0), PY(y1), PX(x1) - PX(x0), PY(y0) - PY(y1));
+    ctx.strokeStyle = dark ? "rgba(255,255,255,.25)" : "rgba(0,0,0,.18)"; ctx.lineWidth = 1;
+    ctx.strokeRect(PX(x0), PY(y1), PX(x1) - PX(x0), PY(y0) - PY(y1));
+    if (hl && hl.leafIds.has(n.id)) { ctx.strokeStyle = dark ? "#fff" : "#000"; ctx.lineWidth = 3; ctx.strokeRect(PX(x0) + 1.5, PY(y1) + 1.5, PX(x1) - PX(x0) - 3, PY(y0) - PY(y1) - 3); }
+  })(tree, -SPAN, SPAN, -SPAN, SPAN);
+  for (const p of train) { ctx.beginPath(); ctx.arc(PX(p.x[0]), PY(p.x[1]), 3.3, 0, 7); ctx.fillStyle = `rgb(${p.y > 0 ? pos : neg})`; ctx.fill(); ctx.strokeStyle = dark ? "#000" : "#fff"; ctx.lineWidth = 0.8; ctx.stroke(); }
+}
+function drawTree() {
+  const svg = $("#tree"); svg.replaceChildren();
+  const all = nodes(tree), leaves = all.filter(n => !n.left), maxD = Math.max(...all.map(n => n.depth));
+  const NW = 96, NH = 38, GX = 8, GY = 30;
+  let li = 0;
+  (function place(n) { if (!n.left) { n._x = li++ * (NW + GX) + NW / 2; } else { place(n.left); place(n.right); n._x = (n.left._x + n.right._x) / 2; } n._y = n.depth * (NH + GY) + NH / 2 + 4; })(tree);
+  const w = Math.max(300, leaves.length * (NW + GX)), h = (maxD + 1) * (NH + GY) + 8;
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`); svg.setAttribute("width", w); svg.setAttribute("height", h);
+  const path = hl ? hl.path : new Set();
+  for (const n of all) if (n.left) for (const [c, yn] of [[n.left, "yes"], [n.right, "no"]]) {
+    svg.append(svgEl("path", { d: `M${n._x} ${n._y + NH / 2} C ${n._x} ${n._y + NH / 2 + GY / 2}, ${c._x} ${c._y - NH / 2 - GY / 2}, ${c._x} ${c._y - NH / 2}`, class: "ed" + (path.has(c.id) ? " hl" : "") }));
+    svg.append(svgEl("text", { x: (n._x + c._x) / 2 + (yn === "yes" ? -8 : 8), y: n._y + NH / 2 + GY / 2 + 3, class: "yn" }, yn));
+  }
+  for (const n of all) {
+    const g = svgEl("g", { class: `nd ${n.left ? "split" : n.label > 0 ? "pos" : "neg"}${hl && hl.id === n.id ? " hl" : ""}`, transform: `translate(${n._x},${n._y})`, "data-id": n.id });
+    g.append(svgEl("rect", { x: -NW / 2, y: -NH / 2, width: NW, height: NH, rx: 6 }));
+    g.append(svgEl("text", { y: -4 }, n.left ? `x${n.f === 0 ? "₁" : "₂"} ≤ ${n.t.toFixed(2)}` : n.label > 0 ? "→ orange" : "→ blue"));
+    g.append(svgEl("text", { y: 10 }, `${n.n} pts · g ${n.impurity.toFixed(2)}`));
+    svg.append(g);
+  }
+}
+function depthChart() {
+  const svg = $("#depth"); svg.replaceChildren();
+  const ds = Array.from({ length: 12 }, (_, i) => i + 1), r = ds.map(d => { const t = build(train, { maxDepth: d, minLeaf: +$("#leaf").value }); return [accuracy(t, train), accuracy(t, test)]; });
+  const X = d => 30 + (d - 1) / 11 * 560, Y = a => 110 - (a - 0.4) / 0.6 * 100;
+  svg.append(svgEl("line", { x1: 30, x2: 590, y1: Y(1), y2: Y(1), stroke: "var(--border)", "stroke-dasharray": "3 3" }), svgEl("text", { x: 2, y: Y(1) + 3 }, "100%"), svgEl("text", { x: 2, y: Y(0.5) + 3 }, "50%"));
+  for (const [k, col] of [[0, "var(--blue)"], [1, "var(--green)"]]) svg.append(svgEl("polyline", { points: r.map((v, i) => `${X(ds[i])},${Y(Math.max(0.4, v[k]))}`).join(" "), fill: "none", stroke: col, "stroke-width": 2.5, "vector-effect": "non-scaling-stroke" }));
+  const cur = +$("#depth").value; svg.append(svgEl("line", { x1: X(cur), x2: X(cur), y1: 5, y2: 115, stroke: "var(--accent)", "stroke-dasharray": "3 3" }));
+  ds.forEach(d => svg.append(svgEl("text", { x: X(d) - 3, y: 119 }, d)));
+}
+$("#tree").addEventListener("mouseover", e => {
+  const g = e.target.closest("[data-id]"); if (!g) return; const id = +g.dataset.id; if (hl?.id === id) return;
+  const all = nodes(tree), target = all.find(n => n.id === id);
+  const leafIds = new Set(nodes(target).filter(n => !n.left).map(n => n.id));
+  const path = new Set(); (function find(n) { if (n.id === id) { path.add(n.id); return true; } if (n.left && (find(n.left) || find(n.right))) { path.add(n.id); return true; } return false; })(tree);
+  hl = { id, leafIds, path }; drawMap(); drawTree();
+});
+$("#tree").addEventListener("mouseleave", () => { hl = null; drawMap(); drawTree(); });
+$("#data").onchange = regen; $("#noise").oninput = regen;
+$("#depth").oninput = () => { rebuild(); depthChart(); }; $("#leaf").oninput = () => { rebuild(); depthChart(); };
+regen();
+</script>
+</body>
+</html>

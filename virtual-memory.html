@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtual Memory</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 820px) { .three { grid-template-columns: minmax(0, 1fr); } }
+  .box h3 { margin: 0 0 6px; font-size: 14px; }
+  .box h3 small { color: var(--muted); font-weight: 400; }
+  .rows { display: flex; flex-direction: column; gap: 3px; font-family: var(--mono); font-size: 12.5px; }
+  .rows div { display: flex; justify-content: space-between; gap: 8px; padding: 4px 8px; border-radius: 5px; background: var(--surface-2); }
+  .rows div.hit { background: var(--green-soft); outline: 2px solid var(--green); }
+  .rows div.new { background: var(--accent-soft); outline: 2px solid var(--accent); }
+  .rows div.gone { background: var(--red-soft); text-decoration: line-through; }
+  .rows div.disk { color: var(--muted); }
+  .addr { font-family: var(--mono); font-size: 18px; display: flex; gap: 0; flex-wrap: wrap; align-items: center; }
+  .addr span { padding: 4px 8px; }
+  .addr .vpn { background: var(--blue-soft); border-radius: 6px 0 0 6px; }
+  .addr .off { background: var(--surface-2); border-radius: 0 6px 6px 0; }
+  .addr .arrow { padding: 0 10px; color: var(--muted); }
+  .addr .pfn { background: var(--green-soft); border-radius: 6px 0 0 6px; }
+  .row input[type=text] { width: 8em; font-family: var(--mono); }
+  .log { font-family: var(--mono); font-size: 12px; max-height: 160px; overflow: auto; }
+  .log .f { color: var(--red); } .log .t { color: var(--green); } .log .p { color: var(--blue); }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+  table.data td.worse { color: var(--red); font-weight: 700; }
+  input[type=range] { accent-color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Virtual memory</h1>
+  <p class="lede">Every program believes it has the whole memory to itself, starting at address 0. That's an illusion the CPU and operating system maintain together, translating every address on every access, and quietly moving pages to and from disk when real memory runs out.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Policy <select id="policy"><option value="lru">LRU (least recently used)</option><option value="fifo">FIFO (oldest loaded)</option></select></label>
+      <label class="inline">Physical frames <input type="range" id="frames" min="2" max="6" value="4"> <b id="vframes"></b></label>
+      <label class="inline">TLB entries <input type="range" id="tlb" min="1" max="4" value="2"> <b id="vtlb"></b></label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label class="inline">Access address 0x<input id="addr" type="text" value="1a4" aria-label="Virtual address in hex"></label>
+      <button id="go" class="primary">Access</button>
+      <span class="status">or run a pattern:</span><select id="pattern"></select><button id="step">Step</button><button id="runall">Run all</button><button id="reset">Reset</button>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel">
+    <div class="addr" id="addrView"></div>
+    <p class="status" id="explain" style="min-height:2.6em"></p>
+  </div>
+
+  <div class="three">
+    <div class="panel box"><h3>TLB <small>(tiny cache of recent translations)</small></h3><div class="rows" id="tlbView"></div></div>
+    <div class="panel box"><h3>Page table <small>(virtual page → frame)</small></h3><div class="rows" id="ptView"></div></div>
+    <div class="panel box"><h3>Physical memory <small>(frames)</small></h3><div class="rows" id="memView"></div></div>
+  </div>
+
+  <div class="panel"><b>Access log</b><div class="log" id="log"></div></div>
+
+  <h2>Belady's anomaly</h2>
+  <p>Surely more memory always means fewer page faults? Not with FIFO. For the reference string <code>1 2 3 4 1 2 5 1 2 3 4 5</code>:</p>
+  <div class="panel scroll-x"><table class="data" id="belady"></table></div>
+
+  <h2>How it works</h2>
+  <p><b>Pages and frames.</b> Memory is cut into fixed-size <i>pages</i> (here 256 bytes, 4 KB on most real systems). An address splits into a <b>page number</b> and an <b>offset</b> within the page. The <b>page table</b> maps each virtual page to a physical <i>frame</i>, and the offset carries over unchanged.</p>
+  <p><b>The TLB.</b> The page table lives in memory, so consulting it on every access would double the cost of everything. The CPU caches recent translations in a tiny, very fast <b>TLB</b>. Programs that touch several addresses on a page before moving on get mostly free translation (see "Loop over 3 pages"). Shrink the TLB to 1 entry and the hit rate drops, because every page switch evicts the last translation.</p>
+  <p><b>Page faults.</b> If a page isn't in memory, the CPU traps to the operating system, which loads it from disk into a free frame. If no frame is free, it evicts a victim. Disk is roughly 100,000× slower than RAM, so the choice of victim matters. <b>LRU</b> evicts what hasn't been touched for longest. <b>FIFO</b> evicts what was loaded earliest, which is simpler but blind to use.</p>
+  <p><b>Thrashing.</b> When a program's working set is bigger than memory, every access can evict the page needed next. "Loop over 5 pages" with 4 frames faults on <i>every</i> access under LRU. Give it 5 frames and it faults only the first five times. That cliff is why a machine that starts swapping suddenly becomes unusable.</p>
+  <p class="status">Toy scale: 256-byte pages, 16 virtual pages, up to 6 frames. Real systems use multi-level page tables, hardware dirty and accessed bits, and approximations of LRU like the clock algorithm. Each process also gets its own page table, which is how processes are isolated from each other.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml, statTile } from "./common.js";
+import { VM, PATTERNS, faults } from "./lib/vm.js";
+chrome();
+
+$("#pattern").innerHTML = Object.entries(PATTERNS).map(([k, p]) => `<option value="${k}">${p.label}</option>`).join("");
+let vm, last = null, queue = [], logLines = [];
+const hex = (n, w = 3) => "0x" + n.toString(16).padStart(w, "0");
+function reset() {
+  vm = new VM({ pageSize: 256, frames: +$("#frames").value, tlbSize: +$("#tlb").value, policy: $("#policy").value });
+  last = null; logLines = []; queue = PATTERNS[$("#pattern").value].gen(24);
+  $("#vframes").textContent = $("#frames").value; $("#vtlb").textContent = $("#tlb").value; render();
+}
+function access(a) {
+  if (!(a >= 0 && a < 4096)) { $("#explain").textContent = "Pick an address from 0x000 to 0xfff (16 pages of 256 bytes)."; return; }
+  last = vm.translate(a);
+  logLines.push(`<span class="${last.tlbHit ? "t" : last.fault ? "f" : "p"}">${hex(a)} → page ${last.vpn} → ${last.tlbHit ? "TLB hit" : last.fault ? "PAGE FAULT" + (last.evicted != null ? `, evicted page ${last.evicted}` : "") : "page table"} → frame ${last.frame} → ${hex(last.paddr)}</span>`);
+  render();
+}
+function render() {
+  const s = vm.stats;
+  $("#stats").innerHTML = [[s.accesses, "accesses"], [s.accesses ? Math.round(s.tlbHits / s.accesses * 100) + "%" : "—", "TLB hit rate"], [s.faults, "page faults"], [s.accesses ? Math.round(s.faults / s.accesses * 100) + "%" : "—", "fault rate"]]
+    .map(statTile).join("");
+  if (last) {
+    $("#addrView").innerHTML = `<span class="vpn">page ${last.vpn}</span><span class="off">offset ${hex(last.offset, 2)}</span><span class="arrow">→</span><span class="pfn">frame ${last.frame}</span><span class="off">offset ${hex(last.offset, 2)}</span><span class="arrow">=</span><b style="font-family:var(--mono)">${hex(last.paddr)}</b>`;
+    $("#explain").innerHTML = last.tlbHit ? `Virtual ${hex(last.vaddr)}: the TLB already knew page ${last.vpn} lives in frame ${last.frame}. Fastest path.` :
+      last.fault ? `Virtual ${hex(last.vaddr)}: page ${last.vpn} wasn't in memory. <b>Page fault</b>: the OS loaded it from disk into frame ${last.frame}` + (last.evicted != null ? `, evicting page ${last.evicted} (${vm.policy === "lru" ? "least recently used" : "loaded earliest"}).` : " (a free frame was available).") :
+      `Virtual ${hex(last.vaddr)}: TLB miss, but the page table says page ${last.vpn} is in frame ${last.frame}. Cached in the TLB for next time.`;
+  } else { $("#addrView").innerHTML = `<span class="status">An address = page number (high bits) + offset (low 8 bits).</span>`; $("#explain").textContent = "Memory starts empty, so every page lives on disk."; }
+  $("#tlbView").innerHTML = vm.tlb.slice().reverse().map(v => `<div class="${last && v === last.vpn ? (last.tlbHit ? "hit" : "new") : ""}"><span>page ${v}</span><span>→ frame ${vm.pt.get(v)}</span></div>`).join("") || `<div class="disk">empty</div>`;
+  const seen = [...new Set([...vm.pt.keys(), ...(last?.evicted != null ? [last.evicted] : [])])].sort((a, b) => a - b);
+  $("#ptView").innerHTML = seen.map(v => { const f = vm.pt.get(v); const cls = last && v === last.evicted ? "gone" : last && v === last.vpn ? (last.fault ? "new" : "hit") : ""; return `<div class="${cls}"><span>page ${v}</span><span>${f != null ? "→ frame " + f : "on disk"}</span></div>`; }).join("") || `<div class="disk">nothing loaded</div>`;
+  $("#memView").innerHTML = vm.frameOwner.map((v, f) => `<div class="${last && f === last.frame ? (last.fault ? "new" : "hit") : ""}${v == null ? " disk" : ""}"><span>frame ${f}</span><span>${v == null ? "free" : "page " + v}</span></div>`).join("");
+  $("#log").innerHTML = logLines.slice(-40).join("<br>"); $("#log").scrollTop = 1e9;
+}
+function belady() {
+  const refs = [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5];
+  const rows = ["fifo", "lru", "opt"].map(p => [p, faults(refs, 3, p), faults(refs, 4, p)]);
+  $("#belady").innerHTML = `<tr><th>Policy</th><th>3 frames</th><th>4 frames</th></tr>` + rows.map(([p, a, b]) => `<tr><td>${p === "opt" ? "Optimal (needs to see the future)" : p.toUpperCase()}</td><td class="num">${a} faults</td><td class="num ${b > a ? "worse" : ""}">${b} faults${b > a ? " ← more memory, more faults!" : ""}</td></tr>`).join("");
+}
+$("#go").onclick = () => access(parseInt($("#addr").value, 16));
+$("#addr").addEventListener("keydown", e => { if (e.key === "Enter") access(parseInt($("#addr").value, 16)); });
+$("#step").onclick = () => { if (!queue.length) queue = PATTERNS[$("#pattern").value].gen(24); const a = queue.shift(); $("#addr").value = a.toString(16); access(a); };
+$("#runall").onclick = () => { if (!queue.length) queue = PATTERNS[$("#pattern").value].gen(24); while (queue.length) { const a = queue.shift(); access(a); } };
+$("#reset").onclick = reset;
+for (const id of ["policy", "frames", "tlb", "pattern"]) $("#" + id).addEventListener(id === "pattern" || id === "policy" ? "change" : "input", reset);
+reset(); belady();
+</script>
+</body>
+</html>
