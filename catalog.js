@@ -191,6 +191,8 @@ export const CATALOG = [
     blurb: "Type a quote mark into a login form and rewrite the database's question. Then fix it with one line.", prereqs: ["sql-joins"] },
   { id: "cipher-modes", title: "Block cipher modes", area: "security", level: "core", tags: ["encryption", "aes", "ecb", "cbc", "ctr", "nonce", "symmetric crypto"],
     blurb: "Encrypt a picture and still see it: ECB vs CBC vs CTR, flipped bits, and why a reused nonce leaks everything.", prereqs: ["hash-functions"] },
+  { id: "totp", title: "Two-factor codes", area: "security", level: "intro", tags: ["2fa", "totp", "authenticator app", "hmac", "one-time password", "mfa"],
+    blurb: "How your authenticator app and the server agree on a 6-digit code without talking: a shared secret plus the clock.", prereqs: ["hash-functions"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
