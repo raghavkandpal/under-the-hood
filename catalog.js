@@ -193,6 +193,8 @@ export const CATALOG = [
     blurb: "Encrypt a picture and still see it: ECB vs CBC vs CTR, flipped bits, and why a reused nonce leaks everything.", prereqs: ["hash-functions"] },
   { id: "totp", title: "Two-factor codes", area: "security", level: "intro", tags: ["2fa", "totp", "authenticator app", "hmac", "one-time password", "mfa"],
     blurb: "How your authenticator app and the server agree on a 6-digit code without talking: a shared secret plus the clock.", prereqs: ["hash-functions"] },
+  { id: "query-planner", title: "Query planners & indexes", area: "data", level: "deep", tags: ["query planner", "index", "explain", "statistics", "database performance", "sql"],
+    blurb: "Index or full scan? Watch the planner guess from a histogram, and stale statistics turn a fast query slow.", prereqs: ["btree", "sql-joins"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
