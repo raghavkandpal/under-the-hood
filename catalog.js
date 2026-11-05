@@ -207,6 +207,8 @@ export const CATALOG = [
     blurb: "A small model guesses, the big one checks five guesses in one pass: 2–3× faster text with exactly the same output.", prereqs: ["kv-cache", "sampling"] },
   { id: "clock-sync", title: "Clock synchronisation", area: "distributed", level: "core", tags: ["ntp", "time", "clock drift", "latency", "ptp", "distributed systems"],
     blurb: "How NTP sets your clock over a network it can't see into: four timestamps, half the round trip, and the error you can't remove.", prereqs: ["vector-clocks"] },
+  { id: "file-systems", title: "File systems", area: "systems", level: "core", tags: ["inode", "hard link", "symlink", "journaling", "fsck", "ext4"],
+    blurb: "Names point to inodes, inodes point to blocks. Make hard links and symlinks, then cut the power mid-save.", prereqs: ["write-ahead-log"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
