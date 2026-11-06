@@ -34,9 +34,9 @@
   <section id="paths" hidden><h2>Learning paths</h2><p class="status" style="margin:0">Hand-picked reading orders. Each one starts from the basics and links every step to the next.</p><div class="pathcards" id="pathcards"></div></section>
   <div id="list"></div>
   <div id="mapWrap" class="panel" hidden>
-    <p class="status" style="margin:0 0 6px">Arrows point from an explainer to the ones that build on it. Left to right is roughly the order to read them. Hover to highlight connections, click to open.</p>
+    <p class="status" style="margin:0 0 6px">Arrows point from an explainer to the ones that build on it. Left to right is roughly the order to read them. Hover over or tab to an explainer to highlight its connections; click to open it.</p>
     <p class="status" id="mapNote" style="margin:0 0 6px;min-height:0"></p>
-    <div class="scroll-x"><svg id="map" role="img" aria-label="Concept map of explainers and their prerequisites"></svg></div>
+    <div class="scroll-x"><svg id="map" role="group" aria-label="Concept map of explainers and their prerequisites"></svg></div>
   </div>
   <p id="empty" hidden>Nothing matches yet.</p>
 </main>
@@ -123,30 +123,53 @@
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
     const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
     bands.forEach((b, i) => { svg.append(el("rect", { x: 0, y: b.y, width: W, height: b.h, fill: i % 2 ? "transparent" : css("--surface-2"), rx: 6 })); svg.append(el("text", { x: 8, y: b.y + 18, "font-size": 12, "font-weight": 700, fill: css("--muted") }, b.a.title)); });
-    const related = hl ? new Set([hl, ...byId(hl).prereqs, ...CATALOG.filter(c => c.prereqs.includes(hl)).map(c => c.id)]) : null;
     // Edges leave and enter horizontally; the arrowhead is drawn as its own triangle pointing straight
     // into the target box, so it never tilts with the curve.
-    const AH = 8;
+    const AH = 8; mapEdges = []; mapNodes = new Map(); mapContext = context;
     for (const c of shown) for (const p of c.prereqs) {
       if (!isShown.has(p)) continue;
-      const a = pos.get(p), b = pos.get(c.id), on = !hl || hl === c.id || hl === p;
+      const a = pos.get(p), b = pos.get(c.id);
       const x1 = a.x + NW / 2, x2 = b.x - NW / 2 - 1, end = x2 - AH, k = Math.max(24, (end - x1) * 0.5);
-      const color = on && hl ? css("--accent") : css("--muted"), op = on ? 0.9 : 0.15;
-      svg.append(el("path", { d: `M${x1} ${a.y} C ${x1 + k} ${a.y}, ${end - k} ${b.y}, ${end} ${b.y}`, fill: "none", stroke: color, "stroke-width": on && hl ? 2.5 : 1.3, opacity: op }));
-      svg.append(el("path", { d: `M${end} ${b.y - 4.5} L${x2} ${b.y} L${end} ${b.y + 4.5} Z`, fill: color, opacity: op }));
+      const line = el("path", { d: `M${x1} ${a.y} C ${x1 + k} ${a.y}, ${end - k} ${b.y}, ${end} ${b.y}`, fill: "none" });
+      const head = el("path", { d: `M${end} ${b.y - 4.5} L${x2} ${b.y} L${end} ${b.y + 4.5} Z` });
+      svg.append(line, head); mapEdges.push({ from: p, to: c.id, line, head });
     }
     for (const c of shown) {
-      const p = pos.get(c.id), ctx = context.has(c.id), dim = related ? !related.has(c.id) : false;
-      const g = el("a", { href: hrefOf(c), "data-id": c.id, opacity: dim ? 0.3 : ctx ? 0.55 : 1 });
-      g.append(el("rect", { x: p.x - NW / 2, y: p.y - NH / 2, width: NW, height: NH, rx: 8, fill: css("--surface"), stroke: hl === c.id ? css("--accent") : css("--border"), "stroke-width": hl === c.id ? 2.5 : 1.5, "stroke-dasharray": ctx ? "4 3" : "" }));
-      g.append(el("text", { x: p.x, y: p.y + 4, "text-anchor": "middle", "font-size": 12, fill: css("--text") }, c.title.length > 22 ? c.title.slice(0, 21) + "…" : c.title));
-      svg.append(g);
+      const p = pos.get(c.id), ctx = context.has(c.id);
+      const pre = c.prereqs.map(id => byId(id)?.title).filter(Boolean);
+      const label = `${c.title}${pre.length ? `, builds on ${pre.join(", ")}` : ""}${ctx ? " (shown for context)" : ""}`;
+      const g = el("a", { href: hrefOf(c), "data-id": c.id, "aria-label": label });
+      g.append(el("title", {}, label));
+      const rect = el("rect", { x: p.x - NW / 2, y: p.y - NH / 2, width: NW, height: NH, rx: 8, fill: css("--surface"), "stroke-dasharray": ctx ? "4 3" : "" });
+      g.append(rect, el("text", { x: p.x, y: p.y + 4, "text-anchor": "middle", "font-size": 12, fill: css("--text"), "aria-hidden": "true" }, c.title.length > 22 ? c.title.slice(0, 21) + "…" : c.title));
+      svg.append(g); mapNodes.set(c.id, { g, rect });
     }
+    paintMap(null);
     document.getElementById("mapNote").textContent = match && match.size ? `Showing ${match.size} matching explainer${match.size === 1 ? "" : "s"}${context.size ? `, plus ${context.size} they build on (dashed)` : ""}.` : "";
   }
+  // Highlighting only restyles the nodes and edges drawn above, so focus and in-progress clicks survive it.
+  let mapEdges = [], mapNodes = new Map(), mapContext = new Set(), mapHl = null;
+  function paintMap(hl) {
+    mapHl = hl;
+    const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    const related = hl ? new Set([hl, ...byId(hl).prereqs, ...CATALOG.filter(c => c.prereqs.includes(hl)).map(c => c.id)]) : null;
+    for (const { from, to, line, head } of mapEdges) {
+      const on = !hl || hl === from || hl === to, color = on && hl ? css("--accent") : css("--muted"), op = on ? 0.9 : 0.15;
+      line.setAttribute("stroke", color); line.setAttribute("stroke-width", on && hl ? 2.5 : 1.3); line.setAttribute("opacity", op);
+      head.setAttribute("fill", color); head.setAttribute("opacity", op);
+    }
+    for (const [id, { g, rect }] of mapNodes) {
+      g.setAttribute("opacity", related && !related.has(id) ? 0.3 : mapContext.has(id) ? 0.55 : 1);
+      rect.setAttribute("stroke", hl === id ? css("--accent") : css("--border"));
+      rect.setAttribute("stroke-width", hl === id ? 2.5 : 1.5);
+    }
+  }
   const mapSvg = document.getElementById("map");
-  mapSvg.addEventListener("mouseover", e => { const a = e.target.closest("[data-id]"); if (a) drawMap(a.dataset.id); });
-  mapSvg.addEventListener("mouseleave", () => drawMap());
+  const hlFrom = e => { const a = e.target.closest("[data-id]"); if (a && a.dataset.id !== mapHl) paintMap(a.dataset.id); };
+  mapSvg.addEventListener("mouseover", hlFrom);
+  mapSvg.addEventListener("focusin", hlFrom);
+  mapSvg.addEventListener("mouseleave", () => { if (!mapSvg.contains(document.activeElement)) paintMap(null); });
+  mapSvg.addEventListener("focusout", e => { if (!mapSvg.contains(e.relatedTarget)) paintMap(null); });
   function setView(v) {
     view = v; const map = v === "map";
     document.querySelectorAll("[data-view]").forEach(x => x.setAttribute("aria-pressed", x.dataset.view === v));

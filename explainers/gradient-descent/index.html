@@ -29,8 +29,8 @@
 
   <div class="layout">
     <div class="panel">
-      <canvas id="land" width="800" height="600" aria-label="Loss landscape; click to choose a starting point"></canvas>
-      <p class="status" id="hint">Darker = lower loss. The ★ marks the global minimum.</p>
+      <canvas id="land" width="800" height="600"></canvas>
+      <p class="status" id="hint">Darker = lower loss. The ★ marks the global minimum. Keyboard: tab to the map and use the arrow keys to move the start.</p>
     </div>
     <div class="panel">
       <div class="grid" style="grid-template-columns:1fr">
@@ -56,7 +56,7 @@
   <p class="status">Gradients here are computed by the same small autograd engine that powers the neural network explainer. RMSProp and Adam use a learning rate scaled by 0.1 so all four share one slider.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl } from "../../shared/common.js";
+import { chrome, $, svgEl, keyboardDraggable } from "../../shared/common.js";
 import { SURFACES, OPTIMIZERS, valueAt, run } from "./optim.js";
 import { mulberry } from "../../shared/random.js";
 chrome();
@@ -164,6 +164,11 @@ cv.addEventListener("pointerdown", e => {
   start = toXY((e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H);
   refresh();
 });
+keyboardDraggable(cv, "Loss landscape. Arrow keys move the starting point, Shift for bigger steps; the optimisers rerun from there.", (dx, dy) => {
+  const [px, py] = toPx(...start);
+  start = toXY(Math.max(0, Math.min(W, px + dx)), Math.max(0, Math.min(H, py + dy)));
+  refresh();
+}, { step: W / 80, bigStep: W / 16 });
 $("#surface").onchange = e => { surf = e.target.value; start = SURFACES[surf].start.slice(); refresh({ heatToo: true }); };
 $("#lr").oninput = () => refresh(); $("#noise").oninput = () => refresh();
 $("#opts").onchange = e => { const k = e.target.dataset.o; if (k) { enabled[k] = e.target.checked; refresh({ restart: false }); } };

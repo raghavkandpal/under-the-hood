@@ -21,8 +21,8 @@
       <label class="inline">points <select id="n"><option>500</option><option selected>3000</option><option>15000</option></select></label>
       <label class="inline">box capacity <input type="range" id="cap" min="1" max="32" value="8"> <b id="capv"></b></label>
     </div>
-    <canvas id="cv" aria-label="Points, index boxes and the query rectangle"></canvas>
-    <p class="status" style="text-align:center;margin:4px 0 0">Drag on the map to draw a search rectangle. Click without dragging to add a point.</p>
+    <canvas id="cv"></canvas>
+    <p class="status" style="text-align:center;margin:4px 0 0">Drag on the map to draw a search rectangle. Click without dragging to add a point. Keyboard: arrows move the rectangle, Alt + arrows resize it, Enter adds a point in its centre.</p>
     <div class="stats" id="stats" style="--stat-min:130px"></div>
   </div>
 
@@ -33,7 +33,7 @@
   <p class="status">Relatives: k-d trees (split on alternating axes, good for nearest-neighbour search), R-trees (boxes around shapes, used by PostGIS and SQLite), and geohashes and S2 cells, which turn 2-D positions into sortable 1-D keys that an ordinary <a href="../btree/">B-tree</a> can index. Games use the same idea for collision detection.</p>
 </main>
 <script type="module">
-import { chrome, $, statTile, tabs } from "../../shared/common.js";
+import { chrome, $, statTile, tabs, keyboardDraggable } from "../../shared/common.js";
 import { buildTree, gridQuery, scan, makePoints } from "./quadtree.js";
 import { mulberry } from "../../shared/random.js";
 chrome();
@@ -64,6 +64,13 @@ const at = e => { const b = cv.getBoundingClientRect(); return { x: Math.min(0.9
 cv.addEventListener("pointerdown", e => { drag = { start: at(e), moved: false }; cv.setPointerCapture(e.pointerId); });
 cv.addEventListener("pointermove", e => { if (!drag) return; const p = at(e), s = drag.start; if (Math.abs(p.x - s.x) + Math.abs(p.y - s.y) > 0.01) drag.moved = true; if (drag.moved) { rect = { x: Math.min(s.x, p.x), y: Math.min(s.y, p.y), w: Math.abs(p.x - s.x), h: Math.abs(p.y - s.y) }; draw(); } });
 cv.addEventListener("pointerup", e => { if (drag && !drag.moved) { const p = at(e); pts.push(p); tree.insert(p); draw(); } drag = null; });
+keyboardDraggable(cv, "Map of points, index boxes and the search rectangle. Arrow keys move the rectangle, Alt with arrow keys resizes it, Shift for bigger steps, Enter adds a point in its centre.", (dx, dy, e) => {
+  const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  if (e.altKey) { rect.w = cl(rect.w + dx, 0.01, 1 - rect.x); rect.h = cl(rect.h + dy, 0.01, 1 - rect.y); }
+  else { rect.x = cl(rect.x + dx, 0, 1 - rect.w); rect.y = cl(rect.y + dy, 0, 1 - rect.h); }
+  draw();
+}, { step: 0.01, bigStep: 0.05, role: "application" });
+cv.addEventListener("keydown", e => { if (e.key === "Enter") { const p = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 }; pts.push(p); tree.insert(p); draw(); } });
 $("#kind").onchange = $("#n").onchange = data;
 $("#cap").oninput = rebuild;
 addEventListener("resize", draw);

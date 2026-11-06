@@ -34,7 +34,7 @@
     </div>
   </div>
 
-  <div class="panel"><canvas id="grid" width="840" height="500" aria-label="Grid. Drag to paint, drag the green and red squares to move start and goal."></canvas>
+  <div class="panel"><canvas id="grid" width="840" height="500"></canvas>
     <p class="status" id="status"></p></div>
 
   <div class="panel scroll-x"><table class="data" id="compare"></table></div>
@@ -47,7 +47,7 @@
   <p class="status">Moves are up, down, left and right; open cells cost 1 and mud costs 6. The estimate is Manhattan distance, which never overestimates here.</p>
 </main>
 <script type="module">
-import { chrome, $ } from "../../shared/common.js";
+import { chrome, $, keyboardDraggable } from "../../shared/common.js";
 import { search, maze, ALGOS } from "./pathfinding.js";
 chrome();
 
@@ -79,6 +79,7 @@ function draw(res = null, upto = Infinity) {
   }
   if (res && upto < res.order.length) { const c = res.order[upto - 1]; if (c != null) { ctx.fillStyle = C.path; ctx.fillRect((c % W) * CS + 3, ((c / W) | 0) * CS + 3, CS - 6, CS - 6); } }
   for (const [c, col] of [[start, "#17a35a"], [goal, "#e0453a"]]) { ctx.fillStyle = col; ctx.fillRect((c % W) * CS + 1, ((c / W) | 0) * CS + 1, CS - 2, CS - 2); }
+  if (document.activeElement === cv) { ctx.strokeStyle = C.path; ctx.lineWidth = 3; ctx.strokeRect((kc % W) * CS + 1.5, ((kc / W) | 0) * CS + 1.5, CS - 3, CS - 3); }
 }
 
 function compare() {
@@ -114,6 +115,19 @@ cv.addEventListener("pointermove", e => {
   else if (grid[c] !== 1 && c !== start && c !== goal) { if (dragging === "start") start = c; else goal = c; refresh(); }
 });
 cv.addEventListener("pointerup", () => dragging = null);
+// Keyboard: a cursor cell moved with the arrows; Space paints it with the current tool, S and G move start and goal there.
+let kc = 12 * W + 6;
+const where = c => `column ${c % W + 1}, row ${((c / W) | 0) + 1}`;
+keyboardDraggable(cv, "Grid. Arrow keys move the cursor, Space paints with the chosen tool, S moves the start and G moves the goal to the cursor.", (dx, dy) => {
+  const x = Math.max(0, Math.min(W - 1, kc % W + dx)), y = Math.max(0, Math.min(H - 1, ((kc / W) | 0) + dy));
+  kc = y * W + x; draw(shown); $("#status").textContent = `Cursor at ${where(kc)}.`;
+}, { step: 1, bigStep: 5, role: "application" });
+cv.addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  if (k === " " || k === "enter") { e.preventDefault(); paint(kc); }
+  else if ((k === "s" || k === "g") && grid[kc] !== 1 && kc !== start && kc !== goal) { if (k === "s") start = kc; else goal = kc; refresh(); }
+});
+cv.addEventListener("focus", () => draw(shown)); cv.addEventListener("blur", () => draw(shown));
 function paint(c) { if (c === start || c === goal) return; grid[c] = tool; refresh(); }
 function refresh() { if (anim) { cancelAnimationFrame(anim); anim = null; $("#run").textContent = "▶ Run"; } finish(); }
 document.querySelectorAll("[data-tool]").forEach(b => b.onclick = () => { tool = +b.dataset.tool; document.querySelectorAll("[data-tool]").forEach(x => x.setAttribute("aria-pressed", x === b)); });
