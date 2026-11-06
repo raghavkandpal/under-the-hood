@@ -256,6 +256,8 @@ export const CATALOG = [
     blurb: "Prove you know a secret while revealing nothing about it: sealed commitments, random challenges, and a bluffer who can't last.", prereqs: ["hash-functions", "signatures"] },
   { id: "dependency-resolution", title: "Dependency resolution", area: "tools", topic: "building-and-shipping", level: "core", tags: ["npm", "pip", "cargo", "semver", "lockfile", "package manager", "backtracking"],
     blurb: "What npm install actually solves: version ranges, a diamond conflict, backtracking, duplicates, and why lockfiles exist.", prereqs: ["build-systems"] },
+  { id: "cdn", title: "CDNs & edge caching", area: "networking", topic: "how-the-network-works", level: "core", tags: ["cdn", "edge", "latency", "cache", "ttl", "thundering herd", "anycast"],
+    blurb: "Why the web feels fast from Sydney: edge servers near users, cache hits and misses, TTLs, and the stampede after a purge.", prereqs: ["http-caching"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
