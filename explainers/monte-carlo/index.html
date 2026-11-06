@@ -57,8 +57,8 @@ let seed = 1;
 const cv = $("#dart"), ctx = cv.getContext("2d");
 function throwDarts(n) {
   const d = darts(n, seed++), dark = matchMedia("(prefers-color-scheme: dark)").matches;
-  ctx.fillStyle = dark ? "#1f1e1b" : "#fff"; ctx.fillRect(0, 0, 400, 400);
-  ctx.strokeStyle = dark ? "#a19e94" : "#6b6860"; ctx.lineWidth = 2; ctx.strokeRect(1, 1, 398, 398); ctx.beginPath(); ctx.arc(200, 200, 199, 0, 7); ctx.stroke();
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim(); ctx.fillRect(0, 0, 400, 400);
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--muted").trim(); ctx.lineWidth = 2; ctx.strokeRect(1, 1, 398, 398); ctx.beginPath(); ctx.arc(200, 200, 199, 0, 7); ctx.stroke();
   const r = n > 2000 ? 1.4 : n > 200 ? 2.5 : 4;
   for (const [x, y, hit] of d.pts) { ctx.fillStyle = hit ? "#e0453a" : "#2f6fe4"; ctx.beginPath(); ctx.arc(200 + x * 199, 200 - y * 199, r, 0, 7); ctx.fill(); }
   $("#est").textContent = "π ≈ " + d.estimate.toFixed(5);

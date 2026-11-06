@@ -93,7 +93,7 @@ function rebuild() {
 function drawMap() {
   const dark = matchMedia("(prefers-color-scheme: dark)").matches;
   const pos = dark ? [251, 146, 60] : [234, 120, 40], neg = dark ? [96, 140, 255] : [50, 100, 220];
-  ctx.fillStyle = dark ? "#1f1e1b" : "#fff"; ctx.fillRect(0, 0, W, W);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim(); ctx.fillRect(0, 0, W, W);
   (function paint(n, x0, x1, y0, y1) {
     if (n.left) {
       if (n.f === 0) { paint(n.left, x0, Math.min(x1, n.t), y0, y1); paint(n.right, Math.max(x0, n.t), x1, y0, y1); }

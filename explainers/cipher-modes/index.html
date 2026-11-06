@@ -66,7 +66,7 @@ import { chrome, $ } from "../../shared/common.js";
 import { ecbEncrypt, ecbDecrypt, cbcEncrypt, cbcDecrypt, ctr, xor, flipBit, repeatedBlocks } from "./cipher-modes.js";
 chrome();
 
-const W = 48, H = 32, PAL = ["#f3efe4", "#d9a520", "#3b3a36", "#6b4fd1"];
+const W = 48, H = 32, PAL = ["#f1f4f8", "#d9a520", "#334155", "#6b4fd1"];
 function picture(kind) {
   const px = new Uint8Array(W * H);
   const set = (x, y, v) => { if (x >= 0 && x < W && y >= 0 && y < H) px[y * W + x] = v; };
