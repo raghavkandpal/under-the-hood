@@ -71,7 +71,9 @@ Shared building blocks, so pages only carry what's unique to them:
 ## Conventions
 
 - Everything runs client-side and is deterministic per seed where randomness is involved.
-- Colours come from CSS variables in `shared/style.css`, so every page works in light and dark mode.
+- Colours come from CSS variables in `shared/style.css`, so every page works in light and dark mode. Readers pick Auto,
+  Light or Dark from the header; canvas code must ask `isDark()` and redraw in `onThemeChange()` (from `shared/common.js`),
+  never query `prefers-color-scheme` itself (a test enforces this). Every page loads `shared/theme.js` in `<head>`.
 - Pages must fit a 360px-wide phone with no sideways scroll. Wide tables and diagrams go in `.scroll-x`.
 - Simplifications are stated on each page (look for the small grey note at the bottom).
 

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pathfinding</title>
 <link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
 <style>
   canvas#grid { width: 100%; display: block; border-radius: 8px; touch-action: none; cursor: crosshair; }
   .tools button[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
@@ -47,7 +48,7 @@
   <p class="status">Moves are up, down, left and right; open cells cost 1 and mud costs 6. The estimate is Manhattan distance, which never overestimates here.</p>
 </main>
 <script type="module">
-import { chrome, $, keyboardDraggable } from "../../shared/common.js";
+import { chrome, $, keyboardDraggable, onThemeChange } from "../../shared/common.js";
 import { search, maze, ALGOS } from "./pathfinding.js";
 chrome();
 
@@ -147,7 +148,7 @@ $("#pTrap").onclick = () => {
 };
 $("#algo").onchange = run;
 $("#run").onclick = run;
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => draw(shown));
+onThemeChange(() => draw(shown));
 $("#pTrap").onclick();
 </script>
 </body>

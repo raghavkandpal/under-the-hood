@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Neural Networks</title>
 <link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
 <style>
   #graph { width: 100%; display: block; }
   .gn rect { fill: var(--surface-2); stroke: var(--border); stroke-width: 1.5; }
@@ -80,7 +81,7 @@
   <p class="status">Part 1's gradients come from a small autograd engine in <code>lib/autograd.js</code>, written for this site and checked against numerical derivatives. Part 2 trains with a hand-written backprop over plain arrays. It's the same maths, tested to give identical updates, but around 100× faster, much as real frameworks compute whole layers at once instead of one number at a time.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, escapeHtml, statTile } from "../../shared/common.js";
+import { chrome, $, svgEl, escapeHtml, statTile, isDark, onThemeChange } from "../../shared/common.js";
 import { V, MLP, trainStepFast as trainStep } from "../../shared/autograd.js";
 import { DATASETS, makeDataset } from "../../shared/datasets.js";
 chrome();
@@ -168,7 +169,7 @@ const bc = $("#boundary"), bx = bc.getContext("2d"), BW = bc.width, SPAN = 3.2;
 const toPx = v => (v + SPAN) / (2 * SPAN) * BW;
 function drawBoundary() {
   const N = 64, cell = BW / N, img = bx.createImageData(BW, BW);
-  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = isDark();
   const pos = dark ? [251, 146, 60] : [234, 120, 40], neg = dark ? [96, 140, 255] : [50, 100, 220], mid = dark ? [31, 30, 27] : [255, 255, 255];
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const x = -SPAN + (i + 0.5) / N * 2 * SPAN, y = SPAN - (j + 0.5) / N * 2 * SPAN;
@@ -222,6 +223,7 @@ for (const id of ["data", "noise"]) $("#" + id).addEventListener("input", () => 
 for (const id of ["arch", "act"]) $("#" + id).addEventListener("change", () => { newModel(); render2(); });
 $("#lr").oninput = () => render2();
 newData(); newModel(); render2();
+onThemeChange(drawBoundary); // the toggle or system theme changed: redraw in the new colours
 </script>
 </body>
 </html>

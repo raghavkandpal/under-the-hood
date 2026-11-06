@@ -14,6 +14,21 @@ export const ROOT = new URL("../", import.meta.url);
 /** Absolute link to an explainer (or the home page with no argument). */
 export const linkTo = c => new URL(c ? hrefOf(c) : "./", ROOT).href;
 
+// ---- theme: "auto" follows the system; "light" or "dark" is the reader's choice (applied early by shared/theme.js)
+const THEME_KEY = "uth.theme", systemDark = matchMedia("(prefers-color-scheme: dark)");
+export function themePref() { const t = document.documentElement.dataset.theme; return t === "light" || t === "dark" ? t : "auto"; }
+/** Is the page showing dark colours right now? Canvas code should ask this, not the system setting. */
+export const isDark = () => (themePref() === "auto" ? systemDark.matches : themePref() === "dark");
+/** Run `fn` whenever the colours change: the toggle, or the system theme while on auto. Redraw canvases here. */
+export const onThemeChange = fn => addEventListener("themechange", fn);
+export function setTheme(pref) {
+  if (pref === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = pref;
+  try { pref === "auto" ? localStorage.removeItem(THEME_KEY) : localStorage.setItem(THEME_KEY, pref); } catch { /* not remembered, still applied */ }
+  dispatchEvent(new Event("themechange"));
+}
+systemDark.addEventListener("change", () => { if (themePref() === "auto") dispatchEvent(new Event("themechange")); });
+const THEME_LABEL = { auto: "◐ Auto", light: "☀ Light", dark: "☾ Dark" }, THEME_NEXT = { auto: "light", light: "dark", dark: "auto" };
+
 export function chrome() {
   // pages live at explainers/<id>/ (or explainers/<id>/index.html)
   const m = location.pathname.match(/\/explainers\/([^/]+)\/(?:index\.html)?$/);
@@ -26,9 +41,14 @@ export function chrome() {
     <nav aria-label="Site">
       ${page ? `<span class="crumb" aria-label="Breadcrumb"><a href="${linkTo()}?area=${area.id}">${area.title}</a> › <a href="${linkTo()}?area=${area.id}#topic-${topic.id}">${topic.title}</a></span>` : ""}
       <a class="all" href="${linkTo()}"${page ? "" : ' aria-current="page"'}>All explainers (${CATALOG.length})</a>
+      <button type="button" class="theme-toggle"></button>
     </nav>
   </div>`;
   document.body.prepend(header);
+  const toggle = header.querySelector(".theme-toggle");
+  const label = () => { const p = themePref(); toggle.textContent = THEME_LABEL[p]; toggle.setAttribute("aria-label", `Colour theme: ${p === "auto" ? "following your system" : p}. Switch to ${THEME_NEXT[p] === "auto" ? "following your system" : THEME_NEXT[p]}.`); };
+  toggle.onclick = () => { setTheme(THEME_NEXT[themePref()]); label(); };
+  label();
 
   const main = document.querySelector("main");
   let endLink = null;
