@@ -13,6 +13,7 @@ distributed systems, data science and machine learning. Static site, no build st
 ```
 index.html                 home page: learning paths, search, area filters, cards by topic / concept map
                            (?q= ?area= ?view= and #topic-<id> / #path-<id> are shareable)
+sources.js                 further reading for every explainer: trusted, free sources (npm run check-sources)
 catalog.js                 the single list of explainers (area, topic, level, tags, prerequisites),
                            the areas with their topics, and PATHS (curated learning paths)
 explainers/<id>/
@@ -49,6 +50,8 @@ area and topic (the topic defaults to the area's first), and refuses to overwrit
 2. Fill in `index.html`: the interactive part, then the "How it works" text.
 3. Fill in the entry's tags, blurb and prereqs in `catalog.js`. `npm test` fails until the page and the entry agree.
 4. If it belongs in a learning path, add its id to that path's `steps` in `PATHS`, after its prerequisites.
+5. Add at least two sources to `sources.js`: a primary one (standard, paper, official docs or free book) and an
+   approachable one. Only free-to-read sites from the `TRUSTED` list; `npm run check-sources` confirms every link loads.
 
 Shared building blocks, so pages only carry what's unique to them:
 - CSS in `shared/style.css`: `.panel`, `.controls`, `.row`, `.tabs` (pressed state), `.stats`/`.stat` tiles

@@ -81,4 +81,4 @@ render();
 const cat = readFileSync("catalog.js", "utf8"), start = cat.indexOf("export const CATALOG = ["), end = cat.indexOf("\n];", start);
 const entry = `  { id: "${id}", title: ${JSON.stringify(title)}, area: "${area}", topic: "${topic}", level: "${level}", tags: [],\n    blurb: "TODO: one sentence for the home page card.", prereqs: [] },`;
 writeFileSync("catalog.js", cat.slice(0, end) + "\n" + entry + cat.slice(end));
-console.log(`✓ created ${Object.values(files).join(", ")} and a catalog entry (topic: ${topic}${topicArg ? "" : `, the default; ${area} also has ${topics.slice(1).map(t => t.id).join(", ") || "no others"}`}).\n  Next: write ${dir}/${id}.js + its test, fill in ${dir}/index.html, then tags/blurb/prereqs in catalog.js.`);
+console.log(`✓ created ${Object.values(files).join(", ")} and a catalog entry (topic: ${topic}${topicArg ? "" : `, the default; ${area} also has ${topics.slice(1).map(t => t.id).join(", ") || "no others"}`}).\n  Next: write ${dir}/${id}.js + its test, fill in ${dir}/index.html, then tags/blurb/prereqs in catalog.js, and 2+ free sources in sources.js.`);

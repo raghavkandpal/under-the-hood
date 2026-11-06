@@ -252,6 +252,12 @@ export const CATALOG = [
     blurb: "Find everything near you without checking everything: a quadtree splits space where it's crowded. Drag a search box.", prereqs: ["big-o"] },
   { id: "bootstrap", title: "Bootstrap confidence intervals", area: "statistics", topic: "experiments-and-inference", level: "core", tags: ["bootstrap", "confidence interval", "resampling", "uncertainty", "statistics", "median"],
     blurb: "Error bars for any statistic with no formulas: resample your own data thousands of times. And when that lies.", prereqs: ["clt"] },
+  { id: "zero-knowledge", title: "Zero-knowledge proofs", area: "security", topic: "building-blocks", level: "deep", tags: ["zero knowledge", "zk proof", "commitment", "graph colouring", "privacy", "zk-snark"],
+    blurb: "Prove you know a secret while revealing nothing about it: sealed commitments, random challenges, and a bluffer who can't last.", prereqs: ["hash-functions", "signatures"] },
+  { id: "dependency-resolution", title: "Dependency resolution", area: "tools", topic: "building-and-shipping", level: "core", tags: ["npm", "pip", "cargo", "semver", "lockfile", "package manager", "backtracking"],
+    blurb: "What npm install actually solves: version ranges, a diamond conflict, backtracking, duplicates, and why lockfiles exist.", prereqs: ["build-systems"] },
+  { id: "cdn", title: "CDNs & edge caching", area: "networking", topic: "how-the-network-works", level: "core", tags: ["cdn", "edge", "latency", "cache", "ttl", "thundering herd", "anycast"],
+    blurb: "Why the web feels fast from Sydney: edge servers near users, cache hits and misses, TTLs, and the stampede after a purge.", prereqs: ["http-caching"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -261,13 +267,13 @@ export const hrefOf = c => `explainers/${c.id}/`;
 /** Learning paths: hand-picked reading orders that cross areas. Each step's prerequisites come earlier in the path. */
 export const PATHS = [
   { id: "internet", title: "How the internet works", blurb: "From typing a URL to a secure, cached page.",
-    steps: ["dns", "tcp", "routing", "hash-functions", "dh", "signatures", "tls", "http-caching", "load-balancing"] },
+    steps: ["dns", "tcp", "routing", "hash-functions", "dh", "signatures", "tls", "http-caching", "cdn", "load-balancing"] },
   { id: "databases", title: "Databases from the disk up", blurb: "How a database stores, finds and protects your rows.",
     steps: ["btree", "hashtable", "bloom", "lsm", "race-conditions", "isolation", "write-ahead-log", "file-systems", "sql-joins", "query-planner", "columnar"] },
   { id: "llms", title: "How LLMs work", blurb: "From gradient descent to chatbots that cite your documents.",
     steps: ["gradient-descent", "neural-net", "huffman", "tokenization", "embeddings", "attention", "sampling", "kv-cache", "quantization", "speculative-decoding", "knn", "rag"] },
   { id: "security", title: "Security essentials", blurb: "The crypto and protocols behind every login and padlock.",
-    steps: ["hash-functions", "password-hashing", "totp", "cipher-modes", "dh", "signatures", "tls", "oauth", "sql-injection"] },
+    steps: ["hash-functions", "password-hashing", "totp", "cipher-modes", "dh", "signatures", "tls", "oauth", "sql-injection", "zero-knowledge"] },
   { id: "distributed", title: "Distributed systems 101", blurb: "Keeping many machines fast, available and in agreement.",
     steps: ["queues", "load-balancing", "rate-limiting", "retries", "hashtable", "consistent-hashing", "quorum", "gossip", "tcp", "raft", "crdt", "vector-clocks", "clock-sync"] },
   { id: "classic-ml", title: "Machine learning without the hype", blurb: "The core ideas behind every model, no neural networks required.",
@@ -279,7 +285,7 @@ export const PATHS = [
   { id: "media", title: "Compression & media", blurb: "How files shrink and survive: from ZIP to JPEG to QR codes.",
     steps: ["huffman", "lz77", "fourier", "convolution", "jpeg", "error-correction"] },
   { id: "toolbox", title: "A developer's toolbox", blurb: "What really happens when you run everyday commands.",
-    steps: ["pipes", "text-buffers", "diff", "hashtable", "git", "build-systems", "containers"] },
+    steps: ["pipes", "text-buffers", "diff", "hashtable", "git", "build-systems", "dependency-resolution", "containers"] },
   { id: "machine", title: "What your code really runs on", blurb: "From bits to CPU caches, memory and threads.",
     steps: ["twos-complement", "floating-point", "unicode", "compiler", "register-allocation", "cpu-cache", "virtual-memory", "gc", "memory-allocator", "scheduling", "race-conditions", "event-loop"] },
 ];

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zero-Knowledge Proofs</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; margin-top: 10px; align-items: start; }
+  @media (max-width: 680px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  #g { width: 100%; max-width: 420px; height: auto; display: block; margin: 0 auto; }
+  #g text { font-family: var(--mono); font-size: 9px; text-anchor: middle; fill: var(--muted); pointer-events: none; }
+  #g text.n { font-size: 12px; font-weight: 700; fill: var(--text); }
+  .log { font-family: var(--mono); font-size: 12.5px; display: grid; gap: 3px; max-height: 300px; overflow-y: auto; }
+  .log div { display: flex; gap: 8px; align-items: center; padding: 2px 6px; border-radius: 5px; background: var(--surface-2); }
+  .log div.bad { background: var(--red-soft); }
+  .sw { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--border); }
+  .verdict { padding: 8px 12px; border-radius: 10px; margin-top: 10px; font-weight: 600; }
+  .verdict.good { background: var(--green-soft); color: var(--green); } .verdict.bad { background: var(--red-soft); color: var(--red); } .verdict.info { background: var(--surface-2); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Zero-knowledge proofs</h1>
+  <p class="lede">Can you prove you know a secret without revealing anything about it? Here the secret is a way to colour this map with three colours so that no two neighbours match. Convince the verifier you have one, round after round, while the verifier learns nothing it couldn't have made up itself.</p>
+
+  <div class="panel">
+    <div class="row">
+      <button id="one" class="primary">Run one round</button><button id="twenty">Run 20 rounds</button><button id="reset">Start over</button>
+      <label class="inline"><input type="checkbox" id="cheat"> the prover is bluffing (has no valid colouring)</label>
+      <label class="inline"><input type="checkbox" id="peek"> show the prover's secret</label>
+    </div>
+    <div class="two">
+      <div><svg id="g" viewBox="0 0 320 300" role="img" aria-label="The graph, with committed colours"></svg>
+        <p class="status" style="text-align:center;margin:0">Each node shows the start of its commitment hash. Only the challenged edge gets opened.</p></div>
+      <div><b>What the verifier has seen</b><div class="log" id="log" style="margin-top:6px"></div></div>
+    </div>
+    <div id="verdict"></div>
+    <div class="stats" id="stats" style="--stat-min:140px"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Commit.</b> Each round, the prover shuffles the three colours (red might become blue, and so on) and locks each node's colour in a sealed envelope: a <a href="../hash-functions/">hash</a> of the colour plus a random number. The hash hides the colour, and the prover can't change it later without the hash no longer matching.</p>
+  <p><b>Challenge.</b> The verifier picks one edge at random and asks the prover to open just those two envelopes. If the colours differ and the hashes check out, the round passes.</p>
+  <p><b>Why bluffing fails.</b> A prover without a valid colouring must have at least one edge whose ends match, and doesn't know which edge will be asked about. Each round has at least a 1-in-13 chance of exposing them here. That's small, but it compounds: after 100 rounds a bluffer with even one bad edge survives less than 0.1% of the time, and after 173 rounds less than one in a million.</p>
+  <p><b>Why the verifier learns nothing.</b> Every opened pair is just two different colours, and because the colours are reshuffled every round, every pair is equally likely. The verifier could have produced the same log on its own by picking two random different colours. It's convinced, but it can't rebuild the colouring or prove anything to anyone else.</p>
+  <p class="status">Three-colouring is NP-complete, so any statement with a checkable proof can be turned into a graph like this. Practical systems (zk-SNARKs and zk-STARKs) do the same job far more efficiently and without back-and-forth. They're used for private payments, proving identity facts like “over 18” without revealing a birthday, and compressing blockchain transactions.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { GRAPH, round, cheatColouring, badEdges, survive } from "./zero-knowledge.js";
+chrome();
+
+const COLS = ["#e0524d", "#3b82f6", "#22a06b"], NAMES = ["red", "blue", "green"];
+const POS = Array.from({ length: GRAPH.nodes }, (_, i) => [160 + 120 * Math.cos(-Math.PI / 2 + i * 2 * Math.PI / GRAPH.nodes), 150 + 120 * Math.sin(-Math.PI / 2 + i * 2 * Math.PI / GRAPH.nodes)]);
+let rnd, rounds, caught, last, log;
+const colouring = () => ($("#cheat").checked ? cheatColouring(GRAPH) : GRAPH.secret);
+function reset() { let s = Date.now() & 0xffff || 1; rnd = () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296); rounds = 0; caught = false; last = null; log = []; draw(); }
+function step() {
+  if (caught) return;
+  last = round(GRAPH, colouring(), rnd); rounds++;
+  log.unshift(last); if (!last.ok) caught = true;
+}
+function draw() {
+  const svg = $("#g"); svg.replaceChildren(); const peek = $("#peek").checked, col = colouring();
+  for (const [a, b] of GRAPH.edges) {
+    const hot = last && last.edge.includes(a) && last.edge.includes(b), bad = peek && col[a] === col[b];
+    svg.append(svgEl("line", { x1: POS[a][0], y1: POS[a][1], x2: POS[b][0], y2: POS[b][1], stroke: hot ? (last.ok ? "var(--green)" : "var(--red)") : bad ? "var(--red)" : "var(--border)", "stroke-width": hot ? 5 : 2, "stroke-dasharray": bad && !hot ? "4 3" : "" }));
+  }
+  for (let i = 0; i < GRAPH.nodes; i++) {
+    const [x, y] = POS[i], open = last?.opened.find(o => o.node === i);
+    const fill = open ? COLS[open.colour] : peek ? COLS[col[i]] : "var(--surface-2)";
+    svg.append(svgEl("circle", { cx: x, cy: y, r: 19, fill, stroke: open ? "var(--text)" : "var(--muted)", "stroke-width": open ? 3 : 1.5, opacity: peek && !open ? 0.55 : 1 }));
+    svg.append(svgEl("text", { x, y: y + 4, class: "n", style: open || peek ? "fill:#fff" : "" }, open ? "" : peek ? "" : "🔒"));
+    if (last) svg.append(svgEl("text", { x, y: y + 31 }, last.commitments[i].slice(0, 6) + "…"));
+  }
+  $("#log").innerHTML = log.length ? log.slice(0, 60).map((r, k) => `<div class="${r.ok ? "" : "bad"}">#${rounds - k} edge ${r.edge[0]}–${r.edge[1]}: <span class="sw" style="background:${COLS[r.opened[0].colour]}"></span><span class="sw" style="background:${COLS[r.opened[1].colour]}"></span> ${r.ok ? "different ✓" : "SAME ✗ caught"}</div>`).join("") : `<span class="status">Nothing yet.</span>`;
+  const b = badEdges(GRAPH, colouring()), conf = 1 - survive(GRAPH, rounds, 1);
+  $("#verdict").innerHTML = caught ? `<div class="verdict bad">Caught in round ${rounds}: both ends of edge ${last.edge.join("–")} were ${NAMES[last.opened[0].colour]}. The bluff is over.</div>`
+    : rounds ? `<div class="verdict ${conf > 0.99 ? "good" : "info"}">${rounds} round${rounds > 1 ? "s" : ""} passed. A bluffer with even one bad edge would have survived this far with probability ${(survive(GRAPH, rounds, 1) * 100).toPrecision(2)}%.</div>` : `<div class="verdict info">Run a round. The prover commits to a freshly shuffled colouring, and the verifier challenges one edge.</div>`;
+  const pairs = new Set(log.map(r => r.opened.map(o => o.colour).join(""))).size;
+  $("#stats").innerHTML = [[rounds, "rounds"], [caught ? "0% ✗" : (conf * 100).toFixed(conf > 0.999 ? 3 : 1) + "%", caught ? "verifier's confidence: caught bluffing" : "verifier's confidence"], [`${pairs} of 6`, "different colour pairs seen (all equally likely)"], [$("#cheat").checked ? `${b} of ${GRAPH.edges.length}` : `0 of ${GRAPH.edges.length}`, "edges the prover would fail on"]].map(statTile).join("");
+}
+$("#one").onclick = () => { step(); draw(); };
+$("#twenty").onclick = () => { for (let i = 0; i < 20; i++) step(); draw(); };
+$("#reset").onclick = reset;
+$("#cheat").onchange = reset;
+$("#peek").onchange = draw;
+reset();
+</script>
+</body>
+</html>

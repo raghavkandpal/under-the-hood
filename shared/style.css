@@ -163,3 +163,13 @@ header.site .crumb { color: var(--muted); }
 .area h3.topic { margin: 22px 0 0; font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .area h3.topic + .cards { margin-top: 10px; }
 .card .done { color: var(--green); font-weight: 700; }
+
+/* ---------- Further reading ---------- */
+section.reading { margin-top: 40px; }
+section.reading ul { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 8px; max-width: 760px; }
+section.reading li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+section.reading li > a { font-weight: 600; }
+section.reading .src { font-size: 13px; color: var(--muted); display: inline-flex; gap: 6px; align-items: baseline; }
+section.reading .kind { font-size: 11px; border: 1px solid var(--border); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
+section.reading .kind-standard, section.reading .kind-paper { border-color: var(--accent); color: var(--accent); }
+section.reading p.status { margin-top: 10px; }
