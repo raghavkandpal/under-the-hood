@@ -11,8 +11,9 @@
   .finder { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }
   .finder input { flex: 1 1 240px; font-size: 16px; padding: 9px 14px; }
   .finder select { flex: 1 1 140px; max-width: 260px; }
-  .area h3 { margin: 24px 0 0; font-size: 14px; color: var(--muted); font-weight: 500; }
-  .area h3 + .cards { margin-top: 8px; }
+  /* topic headings only: the card titles inside are h3s too */
+  .area > h3 { margin: 28px 0 0; font-size: 14px; color: var(--muted); font-weight: 500; }
+  .area > h3 + .cards { margin-top: 10px; }
   #empty { color: var(--muted); }
 </style>
 </head>
