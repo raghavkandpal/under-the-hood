@@ -52,7 +52,7 @@
   <p><b>Updates and deletes are just newer writes.</b> Overwriting "cat" doesn't touch the old file. A newer entry simply shadows it. A delete writes a <b>tombstone</b> (red) saying "this key is gone".</p>
   <p><b>Reads pay instead.</b> A read checks the memtable, then each SSTable from newest to oldest, until it finds the key (blue outline = checked, green = found). The more tables pile up, the slower reads get. Real systems keep a <a href="../bloom/">Bloom filter</a> per table to skip most of them.</p>
   <p><b>Compaction cleans up.</b> In the background, tables are merge-sorted into fewer, bigger ones: newest version wins, shadowed versions and tombstones disappear. It keeps reads fast and reclaims space, but rewrites data repeatedly. That's <b>write amplification</b>, the price of cheap writes. It starts below 1 here, because repeated keys collapse in the memtable and the latest writes haven't reached disk yet. Keep adding data and it climbs past 1 as compaction rewrites the same rows again and again. Real engines commonly see 10× or more.</p>
-  <p class="status">Toy version with a single level that compacts everything at once. Real LSM engines use multiple levels with size ratios (leveled or tiered compaction), so each compaction touches only part of the data.</p>
+  <p class="caveat">Toy version with a single level that compacts everything at once. Real LSM engines use multiple levels with size ratios (leveled or tiered compaction), so each compaction touches only part of the data.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml, statTile } from "../../shared/common.js";

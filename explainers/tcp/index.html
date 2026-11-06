@@ -40,8 +40,7 @@
   .stats { gap: 10px; margin-top: 12px; }
   .stat { padding: 8px 12px; }
   .stat b { font-size: 20px; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin: 8px 0 0; }
-  .legend i { display: inline-block; width: 18px; height: 0; border-top: 2.5px solid; vertical-align: middle; margin-right: 5px; }
+  .legend i { width: 18px; height: 0; border-top: 2.5px solid; }
 </style>
 </head>
 <body>
@@ -89,7 +88,7 @@
   <p><b>3. The sliding window.</b> Waiting for each ACK before sending the next segment wastes a whole round trip per segment. Set the window to 1 to feel it. Instead the sender keeps up to <i>window</i> segments in flight. A bigger window means more throughput, until the network can't take it. That limit is what congestion control tunes, and it's left out here.</p>
   <p><b>4. Two ways to notice loss.</b> A <b>retransmission timer</b> fires if the oldest unacknowledged segment waits too long. It's reliable but slow. <b>Fast retransmit</b> treats three duplicate ACKs as proof of a hole and resends at once. Turn it off and drop one segment to see the difference.</p>
   <div class="note">Try it: set the window to 6 and click <code>DATA 2</code> to drop it. The receiver buffers 3–6 while it waits. Three duplicate <code>ACK 2</code>s come back, the sender fills the hole early, and one ACK then jumps straight to 7.</div>
-  <p class="status">Simplified: segments are counted, not bytes; the RTO is fixed (real TCP measures RTT and backs off exponentially); there's no congestion window, SACK, or connection teardown.</p>
+  <p class="caveat">Simplified: segments are counted, not bytes; the RTO is fixed (real TCP measures RTT and backs off exponentially); there's no congestion window, SACK, or connection teardown.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml, statTile } from "../../shared/common.js";

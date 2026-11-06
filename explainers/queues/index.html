@@ -54,7 +54,7 @@
   <p><b>1. Utilisation is a trap.</b> For one server with random arrivals, the average time in the system is <code>1 / (μ − λ)</code>. At 50% busy, a request spends about 2× its service time in the system. At 90% it's 10×, and at 99% it's 100×. Push the arrival slider toward the limit and watch the curve go vertical. That's why systems are run with headroom, and why "the database is only at 85%" is not reassuring.</p>
   <p><b>2. Little's law: L = λ × W.</b> The average number of things in a system equals the arrival rate times the average time each spends there. It holds for almost any stable system: queues, warehouses, open bug tickets, requests in flight. If 10 requests arrive per second and each takes 0.3 s, about 3 are in progress at any moment. The "L vs λW" stat checks it live.</p>
   <p><b>3. Pool your queues.</b> With three servers and three separate lines, one line can be stuck behind a slow customer while another server sits idle. One shared line never wastes a free server. Untick "one shared line" at the same load and the wait jumps several times over. It's the same reason a thread pool with one work queue beats pinning tasks to threads.</p>
-  <p class="status">Arrivals are random (Poisson) and service times are exponential, the classic M/M/c model. Theory uses the Erlang C formula. Each run simulates 20,000 customers and discards the first 10% as warm-up.</p>
+  <p class="caveat">Arrivals are random (Poisson) and service times are exponential, the classic M/M/c model. Theory uses the Erlang C formula. Each run simulates 20,000 customers and discards the first 10% as warm-up.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile } from "../../shared/common.js";

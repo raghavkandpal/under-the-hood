@@ -50,7 +50,7 @@
   <p><b>Phase 2, decide.</b> If every vote is yes, the coordinator writes COMMIT to its own log, which is the moment the transaction becomes real, and tells everyone. Any no, or any silence, means ABORT. A participant that voted no or never voted can simply roll back.</p>
   <p><b>The blocking problem.</b> A participant that voted yes has given up its right to decide alone. If the coordinator then goes silent, the participant can't commit (maybe someone voted no) and can't abort (maybe the coordinator already told others to commit). It must hold its locks and <b>wait</b>, possibly for hours, until the coordinator recovers. That's why 2PC is called a <i>blocking</i> protocol.</p>
   <p><b>What's done about it:</b> run the coordinator itself as a replicated group using <a href="../raft/">Raft</a> or Paxos, so "the coordinator crashed" stops being a single point of failure. Google Spanner and CockroachDB do this. Or avoid distributed transactions altogether, for example with sagas: a chain of local steps, each with a compensating undo.</p>
-  <p class="status">Shown with one coordinator and three participants, the classic presumed-nothing variant. The safety property, that nobody commits while someone else aborts, holds in every scenario. Only progress is lost.</p>
+  <p class="caveat">Shown with one coordinator and three participants, the classic presumed-nothing variant. The safety property, that nobody commits while someone else aborts, holds in every scenario. Only progress is lost.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";

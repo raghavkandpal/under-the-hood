@@ -50,7 +50,7 @@
   <p><b>Noise spreads out, signals stand out.</b> Random noise contains a little of every frequency, so in the spectrum it's a low, flat carpet. Your three tones remain tall spikes. That's why filtering in the frequency domain works so well: zero out what you don't want and transform back. Turn the noise up, then apply a low-pass filter just above your highest tone.</p>
   <p><b>The FFT</b> (Cooley–Tukey, 1965) computes all of this in <i>n log n</i> steps instead of <i>n²</i>, by splitting the signal into even and odd samples recursively. For a million samples that's about 50,000 times faster. Along with sorting, it's among the most important algorithms ever devised.</p>
   <p><b>Where it's used:</b> MP3 and AAC throw away frequencies you can't hear, JPEG does a 2-D cousin (the DCT) on image blocks, Wi-Fi and 4G pack data onto many frequencies at once (OFDM), and audio equalisers boost or cut frequency bands.</p>
-  <p class="status">256 samples. The spectrum shows amplitude for frequencies 0–128 cycles per window. The FFT and its inverse are implemented on this page's own code (lib/fourier.js) and tested against a naive DFT.</p>
+  <p class="caveat">256 samples. The spectrum shows amplitude for frequencies 0–128 cycles per window. The FFT and its inverse are implemented on this page's own code (lib/fourier.js) and tested against a naive DFT.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl } from "../../shared/common.js";

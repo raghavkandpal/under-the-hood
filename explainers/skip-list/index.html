@@ -41,7 +41,7 @@
   <p><b>Coin flips build the lanes.</b> Every new key goes in the bottom list. Then flip a coin: heads, it also joins level 2. Heads again, level 3, and so on. With p = ½, about half the keys reach level 2, a quarter level 3, an eighth level 4. That's just like a balanced tree's levels, but arrived at by chance.</p>
   <p><b>Searching.</b> Start at the top-left. Move right while the next key is still smaller than your target. When it isn't, drop down a level. Each level roughly halves the remaining distance, so a search takes about log₂(n) steps on average. Compare the step count with the number of keys.</p>
   <p><b>Why use one instead of a balanced tree?</b> Inserting and deleting only touch a node's neighbours, with no rotations or rebalancing, which makes skip lists simple to write and friendly to concurrency (lock-free versions exist). Redis uses them for sorted sets, and LSM-tree storage engines use them for the in-memory <a href="../lsm/">memtable</a>.</p>
-  <p class="status">Guarantees are probabilistic: an unlucky run of coin flips could make a lane useless, but with many keys that becomes vanishingly unlikely. The p slider rebuilds the list. Higher p means more lanes and more memory.</p>
+  <p class="caveat">Guarantees are probabilistic: an unlucky run of coin flips could make a lane useless, but with many keys that becomes vanishingly unlikely. The p slider rebuilds the list. Higher p means more lanes and more memory.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl } from "../../shared/common.js";

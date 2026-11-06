@@ -41,7 +41,7 @@
   <p><b>Assume taste has few dimensions.</b> Give each person a short vector <b>p</b> ("likes sci-fi 0.9, likes drama 0.2") and each film a vector <b>q</b> ("is sci-fi 0.8, is drama 0.1"). Predict a rating as average + user bias + film bias + <b>p · q</b>. Nobody tells the model what the dimensions mean. It finds them by nudging every vector to reduce the error on known ratings, which is <a href="../gradient-descent/">gradient descent</a> again.</p>
   <p><b>Collaborative filtering.</b> If Ana and Bo agreed on everything they both watched, Ana's high rating for a film Bo hasn't seen pushes Bo's predicted rating up. In the taste space, the films separate into groups without ever being told their genres.</p>
   <p><b>Limits.</b> A brand-new user or film has no ratings, so no vector (the <i>cold-start</i> problem), so real systems blend in content features. Optimising only for predicted ratings also tends to recommend what's already popular. This technique was the core of the winning Netflix Prize entries (2006–2009).</p>
-  <p class="status">8 fictional people and 8 fictional films. Ratings come from hidden tastes plus noise, so the guesses can be checked. 2 latent dimensions, trained with SGD and L2 regularisation.</p>
+  <p class="caveat">8 fictional people and 8 fictional films. Ratings come from hidden tastes plus noise, so the guesses can be checked. 2 latent dimensions, trained with SGD and L2 regularisation.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml, sleep, statTile } from "../../shared/common.js";

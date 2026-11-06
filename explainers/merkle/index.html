@@ -53,7 +53,7 @@
   <p><b>1. Detect and locate changes cheaply.</b> Two machines compare roots. If they match, everything matches. If not, they compare the two children and only descend where the hashes differ. Finding one changed block among a million takes about 40 comparisons instead of a million. Git, Cassandra and Dynamo-style databases use this to sync replicas, and ZFS uses it to catch disk corruption.</p>
   <p><b>2. Prove membership with a few hashes.</b> To prove block 5 is part of a tree whose root you trust, I hand you block 5 plus one sibling hash per level (the blue nodes). You hash your way up and check you land on the root. That's log₂(n) hashes, 20 for a million blocks. Certificate Transparency logs, Bitcoin light clients and BitTorrent v2 rely on this.</p>
   <p><b>3. Tamper evidence.</b> Since every hash depends on everything beneath it, nobody can change the history under a published root without changing the root itself. This is the core of Git's commit chain and of every blockchain.</p>
-  <p class="status">Hashes here are SHA-1 shown as 6 hex characters. Leaves and internal nodes are hashed with different prefixes so one can't be passed off as the other. An odd node at the end of a level is carried up unchanged.</p>
+  <p class="caveat">Hashes here are SHA-1 shown as 6 hex characters. Leaves and internal nodes are hashed with different prefixes so one can't be passed off as the other. An odd node at the end of a level is carried up unchanged.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";

@@ -70,7 +70,7 @@
     <li><b>Regularise.</b> Raise λ to penalise large coefficients. The model can stay complex but is pushed toward smooth answers. Weight decay and dropout in neural networks are the same idea.</li>
   </ul>
   <div class="note">Try it: set degree 12 with 14 points and watch the curve go wild at the edges. Without changing the degree, raise λ to about 10<sup>-2</sup>. Test error falls by orders of magnitude.</div>
-  <p class="status">Fits use least squares on a Legendre polynomial basis (numerically stabler than raw powers). Errors are mean squared error. The test set is 300 fresh points from the same process.</p>
+  <p class="caveat">Fits use least squares on a Legendre polynomial basis (numerically stabler than raw powers). Errors are mean squared error. The test set is 300 fresh points from the same process.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile } from "../../shared/common.js";

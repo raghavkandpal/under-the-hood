@@ -44,7 +44,7 @@
   <p><b>3. Retrieve.</b> Embed the question the same way and take the k <a href="../knn/">nearest</a> chunks by cosine similarity. A question that needs two facts from different places needs k ≥ 2. Try the membership question with k = 1.</p>
   <p><b>4. Generate.</b> Paste the chunks into the prompt with an instruction to answer only from them. The model's job is now reading comprehension, which it's very good at. If the right chunk wasn't retrieved, a well-behaved model says it doesn't know, and a less careful one makes something up that sounds right.</p>
   <p><b>Why real systems use learned embeddings.</b> The tune-up question shares no words with the handbook, which talks about a “service”, so word matching scores every chunk zero. Neural embeddings place “tune-up” near “service”. Production systems often combine both, plus a re-ranking model, and cite which chunk each claim came from.</p>
-  <p class="status">The handbook is invented for this page. Real pipelines chunk on paragraph or heading boundaries rather than fixed word counts, and store millions of vectors in an approximate nearest-neighbour index.</p>
+  <p class="caveat">The handbook is invented for this page. Real pipelines chunk on paragraph or heading boundaries rather than fixed word counts, and store millions of vectors in an approximate nearest-neighbour index.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml } from "../../shared/common.js";

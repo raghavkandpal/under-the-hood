@@ -60,7 +60,7 @@
   <p><b>UTF-8</b> stores each number in 1 to 4 bytes. Plain ASCII stays one byte and unchanged, so old English text is already valid UTF-8, which is a big reason it won. Accented Latin, Greek and Cyrillic take 2 bytes, most Chinese and Japanese 3, and emoji 4.</p>
   <p><b>Characters aren't code points.</b> "👍🏽" is a thumbs-up plus a skin-tone modifier: two code points, one character. The family emoji is several people glued together by invisible zero-width joiners. Flags are pairs of "regional indicator" letters. And <code>é</code> can be one code point or <code>e</code> plus a combining accent, which look identical but compare unequal unless you <i>normalise</i> the text.</p>
   <p><b>Why JavaScript says <code>"👍".length === 2</code>.</b> JavaScript, Java and Windows use UTF-16 internally. Code points above U+FFFF need two 16-bit "surrogate" units, and <code>.length</code> counts units. Truncating a string by <code>.length</code> can slice an emoji in half.</p>
-  <p class="status">Character boundaries come from your browser's <code>Intl.Segmenter</code>. The UTF-8 encoder and decoder on this page are written by hand and tested against the built-in TextEncoder and TextDecoder.</p>
+  <p class="caveat">Character boundaries come from your browser's <code>Intl.Segmenter</code>. The UTF-8 encoder and decoder on this page are written by hand and tested against the built-in TextEncoder and TextDecoder.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml, statTile } from "../../shared/common.js";

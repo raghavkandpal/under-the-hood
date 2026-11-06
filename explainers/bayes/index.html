@@ -13,8 +13,7 @@
   .ic.fn { background: transparent; box-shadow: inset 0 0 0 1.5px #c0392b; }
   .ic.fp { background: #e8a33d; }
   .ic.fade { opacity: .12; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; margin-top: 8px; }
-  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+  .legend i { width: 12px; height: 12px; border-radius: 2px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 16px; }
   .grid label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
   .grid label b { color: var(--text); }
@@ -35,9 +34,9 @@
     <div class="controls" style="margin:0 0 10px"><label class="inline">Scenario <select id="scen"></select></label>
       <label class="inline"><input type="checkbox" id="onlyPos"> show only the positives</label></div>
     <div class="grid">
-      <label>How common it is (base rate) <b id="vprior"></b><input type="range" id="prior" min="-4" max="-0.001" step="any"></label>
-      <label>Catches true cases (sensitivity) <b id="vsens"></b><input type="range" id="sens" min="0.5" max="1" step="0.01"></label>
-      <label>False alarms on everyone else <b id="vfpr"></b><input type="range" id="fpr" min="0" max="0.3" step="0.005"></label>
+      <label>How common <b id="vprior"></b><input type="range" id="prior" min="-4" max="-0.001" step="any"></label>
+      <label>Catch rate <b id="vsens"></b><input type="range" id="sens" min="0.5" max="1" step="0.01"></label>
+      <label>False-alarm rate <b id="vfpr"></b><input type="range" id="fpr" min="0" max="0.3" step="0.005"></label>
     </div>
   </div>
 
@@ -63,7 +62,7 @@
   <p><b>The base rate is the hidden half of the evidence.</b> Bayes' theorem says <code>P(real | positive) = P(positive | real) × P(real) / P(positive)</code>. The test's accuracy is only the first term. When the thing is rare, the many false alarms from the huge "not real" group swamp the few true hits.</p>
   <p><b>Evidence accumulates.</b> Press "test the positives again". Today's posterior becomes tomorrow's prior. A second independent positive pushes 9% to about 50%, and a third to around 90%. That's why screening is usually followed by a different, more specific test.</p>
   <p><b>It's everywhere:</b> spam filters (where spam is common, so flags are mostly right), fraud alerts and airport scanners (where the thing is so rare that almost every alarm is false), and machine-learning classifiers judged by "accuracy" on imbalanced data.</p>
-  <p class="status">An educational illustration, not medical guidance. Sensitivity is P(positive | real) and the false-alarm rate is P(positive | not real), i.e. 1 − specificity. The test repeats assume each test is independent, which real repeat tests often aren't.</p>
+  <p class="caveat">An educational illustration, not medical guidance. Sensitivity is P(positive | real) and the false-alarm rate is P(positive | not real), i.e. 1 − specificity. The test repeats assume each test is independent, which real repeat tests often aren't.</p>
 </main>
 <script type="module">
 import { chrome, $ } from "../../shared/common.js";

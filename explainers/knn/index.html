@@ -46,7 +46,7 @@
   <p><b>k is the bias–variance dial.</b> With k = 1 every training point is classified perfectly, which only means it's memorised. The boundary wraps around every noisy outlier and new points get misclassified. A larger k averages away noise but blurs real detail, and at k = all points it just predicts the majority class everywhere. The <i>held-out accuracy</i> classifies each point using all the <i>others</i> (leave-one-out cross-validation), the honest way to pick k. Try the Noisy dataset.</p>
   <p><b>Weighting</b> lets closer neighbours count more, and makes the boundary less sensitive to k.</p>
   <p><b>The curse.</b> In 2-D the nearest neighbour is far closer than the farthest. In 1,000 dimensions, every point is roughly the same distance from every other, so “nearest” stops meaning much. Real data is often nicer than random noise (images lie near a lower-dimensional surface), which is why kNN on learned <a href="../embeddings/">embeddings</a> powers recommendation and semantic search. With millions of points, approximate nearest-neighbour indexes (HNSW, IVF) avoid checking every one.</p>
-  <p class="status">Distances only make sense if features are on comparable scales. Measure height in mm and age in years and height dominates, so features are usually standardised first.</p>
+  <p class="caveat">Distances only make sense if features are on comparable scales. Measure height in mm and age in years and height dominates, so features are usually standardised first.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile } from "../../shared/common.js";

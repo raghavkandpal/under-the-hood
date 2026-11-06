@@ -47,7 +47,7 @@
   <p><b>Negating: flip every bit, then add 1.</b> 5 is <code>00000101</code>. Flip it to get <code>11111010</code>, add 1 for <code>11111011</code>, which reads as −5. Press "a = −a" to watch. There's one odd case: −128 has no positive partner, so negating it gives −128 again.</p>
   <p><b>Why bother?</b> Because ordinary binary addition, carries and all, now just works for negative numbers too: 5 + (−3) adds the bit patterns and drops the final carry to give 2. The CPU needs one adder, not separate add and subtract logic, and comparisons stay simple.</p>
   <p><b>Overflow.</b> The patterns wrap around like a clock (see the wheel). 127 + 1 lands on −128. CPUs set two flags: <b>carry</b> (the result didn't fit as an <i>unsigned</i> number) and <b>overflow</b> (it didn't fit as a <i>signed</i> one). Languages differ on what happens next: C has undefined behaviour for signed overflow, Rust panics in debug builds, Java silently wraps. Famous bugs, from game scores flipping negative to Ariane 5's self-destruct in 1996, came from numbers outgrowing their bits.</p>
-  <p class="status">Shown at 8 bits so everything fits. Real CPUs use the same scheme at 32 or 64 bits.</p>
+  <p class="caveat">Shown at 8 bits so everything fits. Real CPUs use the same scheme at 32 or 64 bits.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl } from "../../shared/common.js";

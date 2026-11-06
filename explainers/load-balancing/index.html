@@ -53,7 +53,7 @@
   <p><b>Round robin</b> gives each server exactly its turn, so request <i>counts</i> are perfectly even. But requests aren't equal. A server stuck on a long one keeps getting new requests queued behind it. Tick "heavy-tailed" to see how bad that gets.</p>
   <p><b>Least connections</b> sends each request to the server with the fewest in flight, so it adapts to slow requests and slow machines. It's the best here, but it needs an up-to-date view of every server, which is costly with many balancers and thousands of servers.</p>
   <p><b>Power of two choices</b> picks two servers at random and sends the request to the less busy one. That single extra look gets most of the benefit of checking every server. In theory, the worst queue shrinks from about <i>log n / log log n</i> to <i>log log n</i>. It's simple, scalable, and widely used (Nginx's "random two", Envoy, many service meshes).</p>
-  <p class="status">Each run sends 20,000 requests with random (Poisson) arrivals. Request sizes are exponential, or 95% tiny and 5% about 14× the average when heavy-tailed. Every server processes one request at a time, first come first served. The first 10% of requests are discarded as warm-up.</p>
+  <p class="caveat">Each run sends 20,000 requests with random (Poisson) arrivals. Request sizes are exponential, or 95% tiny and 5% about 14× the average when heavy-tailed. Every server processes one request at a time, first come first served. The first 10% of requests are discarded as warm-up.</p>
 </main>
 <script type="module">
 import { chrome, $ } from "../../shared/common.js";

@@ -51,7 +51,7 @@
   <div class="layout">
     <div class="panel">
       <svg id="net" viewBox="0 0 640 330" role="img" aria-label="DNS servers diagram"></svg>
-      <p class="status" id="summary">Pick a name and look it up.</p>
+      <p class="status" id="summary"></p>
     </div>
     <div class="panel">
       <b>Message log</b>
@@ -63,7 +63,7 @@
     <div class="row" style="justify-content:space-between">
       <b>Resolver cache</b>
       <div class="row">
-        <span class="status">clock: <span class="clock" id="clock">t = 0s</span></span>
+        <span class="clock" id="clock">t = 0s</span>
         <button data-dt="30">+30s</button><button data-dt="300">+5m</button><button data-dt="3600">+1h</button><button data-dt="86400">+1 day</button>
         <button id="flush">Flush cache</button>
       </div>
@@ -76,7 +76,7 @@
   <p>The recursive resolver starts at the <b>root</b>, which only knows who runs each top-level domain like <code>.com</code>. The <b>TLD server</b> only knows which nameservers each domain registered. The <b>authoritative server</b> for the domain finally holds the actual records.</p>
   <p>Every answer comes with a <b>TTL</b> (time to live), so the resolver can cache it. Delegations to TLDs last for days, so after one lookup the root is almost never asked again. Records like <code>api.example.com</code> (60s) expire quickly so operators can move them around. Even "doesn't exist" gets cached for a while. That's <i>negative caching</i>.</p>
   <div class="note">Try it: look up <code>api.example.com</code> twice. The second lookup is instant. Press <b>+5m</b> and look again. Only the authoritative server gets asked, because the <code>example.com NS</code> entry is still fresh. Then try <code>blog.coffee.dev</code>, a CNAME chain that hops across three zones.</div>
-  <p class="status">All names, servers and addresses here are fictional (mostly from ranges reserved for documentation), and real resolvers add things this leaves out: glue records, DNSSEC, query minimisation, retries, and caching in your OS and browser.</p>
+  <p class="caveat">All names, servers and addresses here are fictional (mostly from ranges reserved for documentation), and real resolvers add things this leaves out: glue records, DNSSEC, query minimisation, retries, and caching in your OS and browser.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, sleep, escapeHtml } from "../../shared/common.js";
@@ -167,7 +167,7 @@ function drawCache() {
   $("#cache").innerHTML = rows.length ? `<tr><th>Entry</th><th>Value</th><th>Expires in</th><th style="width:30%"></th></tr>` + rows.map(e => {
     const v = e.value.nx ? "NXDOMAIN" : e.value.ns ?? e.value.CNAME ?? e.value.A;
     return `<tr><td class="mono">${escapeHtml(e.key)}</td><td class="mono">${escapeHtml(v)}</td><td>${fmt(e.remaining)}</td><td><div class="bar" style="width:${(100 * e.remaining / e.ttl).toFixed(1)}%"></div></td></tr>`;
-  }).join("") : `<tr><td class="status">Empty. The next lookup starts from the root.</td></tr>`;
+  }).join("") : `<tr><td class="status">Empty</td></tr>`;
 }
 
 const examples = ["www.example.com", "api.example.com", "mail.example.org", "blog.coffee.dev", "nope.example.com", "shop.unknown.org", "hello.zzz"];

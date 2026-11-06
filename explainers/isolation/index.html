@@ -56,7 +56,7 @@
   <h2>How the levels work</h2>
   <p><b>Read committed</b> (PostgreSQL's default) reads the latest <i>committed</i> value at each statement. <b>Snapshot isolation</b> (PostgreSQL's "repeatable read") gives each transaction a frozen snapshot from its start and aborts the second of two transactions that write the same row. <b>Serializable</b> additionally aborts a transaction if something it <i>read</i> was changed underneath it, so the result always matches some one-at-a-time order.</p>
   <p><b>Prevention means aborting.</b> At the stricter levels the database doesn't magically merge conflicting work. It refuses one transaction with a serialization error, and your application has to <b>retry</b> it. That's the cost of correctness, and the reason defaults are usually weaker.</p>
-  <p class="status">Simplified multi-version model in the style of PostgreSQL: snapshot from transaction start, first-committer-wins on write conflicts, and serializability by validating the read set at commit (real SSI tracks dependencies more precisely and aborts less often). Other databases differ: MySQL's default is "repeatable read" with locking reads, SQL Server uses locks unless snapshot is enabled.</p>
+  <p class="caveat">Simplified multi-version model in the style of PostgreSQL: snapshot from transaction start, first-committer-wins on write conflicts, and serializability by validating the read set at commit (real SSI tracks dependencies more precisely and aborts less often). Other databases differ: MySQL's default is "repeatable read" with locking reads, SQL Server uses locks unless snapshot is enabled.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml } from "../../shared/common.js";

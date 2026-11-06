@@ -55,7 +55,7 @@
   <p><b><code>count++</code> is three steps.</b> Load the value into a register, add 1, store it back. If thread 2 loads <i>before</i> thread 1 stores, both read 0, both write 1, and one increment vanishes: a <b>lost update</b>. Of the 20 possible orderings, only 2 are correct: the ones where one thread finishes completely before the other starts. Real threads switch at unpredictable moments, so the bug shows up rarely, randomly, and usually not on the developer's machine.</p>
   <p><b>A lock (mutex)</b> makes the three steps <i>atomic</i> as far as other threads can tell. Only one thread can hold it, and the other blocks (red) until it's released. Switch to "count++ inside a lock": every interleaving now gives 2.</p>
   <p><b>Locks bring their own trap: deadlock.</b> Thread 1 takes A then wants B. Thread 2 takes B then wants A. If each grabs its first lock before the other's second, they wait forever. The cure is to always acquire locks in the same global order, so a cycle can't form. Compare "two locks, opposite order" with "same order".</p>
-  <p class="status">Real CPUs make this harder still: caches and compiler reordering mean threads can even see each other's writes out of order without proper synchronisation. That's what memory models and atomic instructions are about.</p>
+  <p class="caveat">Real CPUs make this harder still: caches and compiler reordering mean threads can even see each other's writes out of order without proper synchronisation. That's what memory models and atomic instructions are about.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml } from "../../shared/common.js";

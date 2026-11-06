@@ -52,7 +52,7 @@
   <p><b>Break it into smaller versions of itself.</b> The best way to make 6 ends with <i>some</i> coin. If it's a 3, the rest is the best way to make 3, and if it's a 4, the best way to make 2. So best(6) = 1 + min(best(5), best(3), best(2)). Each answer is built from answers to smaller amounts.</p>
   <p><b>Overlapping subproblems.</b> Written as plain recursion, best(6) asks for best(5), which asks for best(4)… and best(3) gets recomputed again and again along different branches. The work explodes exponentially (see the call counts). Remember each answer the first time (<i>memoisation</i>), or fill a table from 0 upwards as here, and every subproblem is solved exactly once.</p>
   <p><b>Greedy isn't always wrong.</b> For everyday coin systems, taking the biggest coin is optimal, and currencies are designed that way. Pick the 1, 3, 4 or 1, 7, 10 systems and press “Find where greedy loses”.</p>
-  <p class="status">The same pattern solves edit distance (spell checkers, <a href="../diff/">diff</a>), shortest paths (Bellman-Ford, as in <a href="../routing/">routing</a>), sequence alignment in genomics, the knapsack problem, speech recognition (Viterbi), and how a typesetter breaks a paragraph into lines.</p>
+  <p class="caveat">The same pattern solves edit distance (spell checkers, <a href="../diff/">diff</a>), shortest paths (Bellman-Ford, as in <a href="../routing/">routing</a>), sequence alignment in genomics, the knapsack problem, speech recognition (Viterbi), and how a typesetter breaks a paragraph into lines.</p>
 </main>
 <script type="module">
 import { chrome, $, sleep, statTile } from "../../shared/common.js";

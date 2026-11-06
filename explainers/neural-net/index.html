@@ -78,7 +78,7 @@
     </div>
   </div>
   <div class="note">Try it: the <b>spiral</b> with no hidden layer can only draw a straight line, so it gets stuck near 50%. Give it 16 → 16 → 16 and it winds the boundary around the arms. XOR with no hidden layer is the famous case that stalled neural network research in 1969.</div>
-  <p class="status">Part 1's gradients come from a small autograd engine in <code>lib/autograd.js</code>, written for this site and checked against numerical derivatives. Part 2 trains with a hand-written backprop over plain arrays. It's the same maths, tested to give identical updates, but around 100× faster, much as real frameworks compute whole layers at once instead of one number at a time.</p>
+  <p class="caveat">Part 1's gradients come from a small autograd engine in <code>lib/autograd.js</code>, written for this site and checked against numerical derivatives. Part 2 trains with a hand-written backprop over plain arrays. It's the same maths, tested to give identical updates, but around 100× faster, much as real frameworks compute whole layers at once instead of one number at a time.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml, statTile, isDark, onThemeChange } from "../../shared/common.js";

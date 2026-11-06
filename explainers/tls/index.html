@@ -60,7 +60,7 @@
   <p><b>Checks: right name, still valid.</b> A perfectly genuine certificate for a <i>different</i> site is useless to an attacker, because the browser checks the name. Expired certificates are rejected too.</p>
   <p><b>CertificateVerify: prove you own it.</b> Certificates are public, so anyone can replay the bank's. The server therefore signs the handshake transcript with the certificate's <i>private</i> key, which an impostor doesn't have. This also ties the key exchange to the identity, so Mallory can't splice her own DH share into a genuine-looking session.</p>
   <p><b>Finished: nothing was tampered with.</b> Each side sends a MAC of the whole conversation under the new key. If anyone altered a single byte on the way, the MACs won't match.</p>
-  <p class="status">Toy version of TLS 1.3's shape: real TLS uses elliptic-curve DH (X25519), RSA-PSS or ECDSA signatures, HKDF key derivation, AES-GCM or ChaCha20-Poly1305 encryption, and certificate chains with intermediates. The numbers here are tiny so you can read them. Never use this for real security.</p>
+  <p class="caveat">Toy version of TLS 1.3's shape: real TLS uses elliptic-curve DH (X25519), RSA-PSS or ECDSA signatures, HKDF key derivation, AES-GCM or ChaCha20-Poly1305 encryption, and certificate chains with intermediates. The numbers here are tiny so you can read them. Never use this for real security.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";
@@ -92,7 +92,7 @@ function draw() {
   $("#detail").innerHTML = cur ? `<b>${escapeHtml(cur.label)}</b>: ${escapeHtml(cur.detail)}` : "";
   $("#stepNo").textContent = `step ${k} of ${R.msgs.length}`;
   const done = k >= R.msgs.length;
-  $("#outcome").innerHTML = done ? `<span class="${R.outcome.ok ? "ok" : "bad"}">${R.outcome.ok ? "🔒 Secure connection." : "⚠ Your browser refuses to connect."}</span> ${escapeHtml(R.outcome.why)}` + (done && !R.outcome.ok ? `<br><span class="status">The DH exchange itself "worked": your browser and Mallory did agree on a key. The certificate checks are what stop you sending your secrets to her.</span>` : "") : "";
+  $("#outcome").innerHTML = done ? `<span class="${R.outcome.ok ? "ok" : "bad"}">${R.outcome.ok ? "🔒 Secure connection." : "⚠ Your browser refuses to connect."}</span> ${escapeHtml(R.outcome.why)}` : "";
   $("#after").hidden = !(done && R.outcome.ok);
   $("#prev").disabled = k <= 1; $("#next").disabled = done;
 }
@@ -102,7 +102,7 @@ $("#all").onclick = () => { k = R.msgs.length; draw(); };
 $("#tabs").onclick = e => { const b = e.target.closest("[data-s]"); if (!b) return; scenario = b.dataset.s; document.querySelectorAll("#tabs button").forEach(x => x.setAttribute("aria-pressed", x === b)); run(); };
 $("#send").onclick = () => {
   const ct = encrypt(R.clientKey, $("#secret").value);
-  $("#wire").innerHTML = `On the wire (what an eavesdropper sees): <br>${ct}<br><br>The bank decrypts with its copy of the session key: <b>${escapeHtml(decrypt(R.serverKey, ct))}</b><br><span class="status">Session key (never sent): ${R.clientKey}</span>`;
+  $("#wire").innerHTML = `On the wire:<br>${ct}<br><br>The bank decrypts: <b>${escapeHtml(decrypt(R.serverKey, ct))}</b><br><span class="status">Session key (never sent): ${R.clientKey}</span>`;
 };
 run();
 </script>

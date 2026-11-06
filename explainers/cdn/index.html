@@ -23,7 +23,7 @@
   <div class="panel">
     <div class="row"><div class="tabs" id="pops"></div></div>
     <div class="row" style="margin-top:6px">
-      <label class="inline">cache lifetime (TTL) <input type="range" id="ttl" min="1" max="600" value="60"> <b id="ttlv"></b></label>
+      <label class="inline">TTL <input type="range" id="ttl" min="1" max="600" value="60"> <b id="ttlv"></b></label>
       <label class="inline">popularity skew <input type="range" id="skew" min="0.4" max="1.4" step="0.1" value="1"> <b id="skewv"></b></label>
     </div>
     <svg id="map" viewBox="0 0 720 360" role="img" aria-label="World map of users, edge servers and the origin"></svg>
@@ -33,7 +33,7 @@
   </div>
 
   <div class="panel">
-    <b>Purge everything and watch the origin</b> <span class="status">At t = 60 s new content ships and every edge's cache is emptied.</span>
+    <b>Purge every edge cache at t = 60 s</b>
     <div class="row" style="margin-top:6px"><label class="inline">traffic <select id="traffic"><option value="60000">500 requests/s</option><option value="150000" selected>1,250 requests/s</option><option value="300000">2,500 requests/s</option></select></label><button id="purge" class="primary">Run it</button></div>
     <svg class="chart" id="herd" viewBox="0 0 600 200" role="img" aria-label="Origin requests per second around the purge"></svg>
     <p class="status" id="herdNote" style="margin:4px 0 0"></p>
@@ -44,7 +44,7 @@
   <p><b>Edge caches.</b> A CDN puts servers in dozens or hundreds of cities and routes each user to a nearby one, usually through DNS or anycast. If that edge has a fresh copy (a <i>hit</i>), it answers in a few milliseconds. If not (a <i>miss</i>), it fetches from the origin once, keeps a copy for the time-to-live set by the <a href="../http-caching/">cache headers</a>, and serves everyone nearby from it.</p>
   <p><b>Trade-offs.</b> Longer TTLs mean more hits, but stale content lingers after you publish. More edges put users closer, but each edge warms its cache separately, so the hit rate per edge falls (compare 3 and 8 edges). Popular content caches well and the long tail doesn't. Misses are why the slowest requests (p95) barely improve even when the typical one gets much faster.</p>
   <p><b>The thundering herd.</b> When content changes, caches are purged, and suddenly every edge misses on every popular file at once. Without care, each of those misses becomes its own origin request. <i>Request coalescing</i> (collapsed forwarding) lets one miss per object per edge go to the origin while everyone else waits for it. The busier the site, the bigger the difference.</p>
-  <p class="status">Simplified: latency is one round trip, and every request is one small file. Real CDNs also stack caches (edge → regional shield → origin), terminate TLS at the edge, and run code there. Related: <a href="../consistent-hashing/">consistent hashing</a>, which spreads content across servers inside each location.</p>
+  <p class="caveat">Simplified: latency is one round trip, and every request is one small file. Real CDNs also stack caches (edge → regional shield → origin), terminate TLS at the edge, and run code there. Related: <a href="../consistent-hashing/">consistent hashing</a>, which spreads content across servers inside each location.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile, tabs, escapeHtml } from "../../shared/common.js";

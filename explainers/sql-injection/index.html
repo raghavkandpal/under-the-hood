@@ -53,7 +53,7 @@
   <p><b>The classic.</b> Type <code>' OR '1'='1' --</code> as the username. The quote closes the string, <code>OR '1'='1'</code> is true for every row, and <code>--</code> turns the password check into a comment. The database dutifully returns every user, and the app logs you in as the first one. <code>alice' --</code> is quieter: it logs in as one chosen account without knowing her password.</p>
   <p><b>It's not only attackers.</b> A customer called O'Brien breaks the same query by accident. Escaping quotes by hand seems to help, but it's easy to get wrong across character sets, numbers and edge cases.</p>
   <p><b>The fix: parameterised queries.</b> Send the SQL with <code>?</code> placeholders, and the values separately. The database parses the query <i>before</i> it sees your input, so the input can only ever fill a value slot, whatever characters it contains. Every database library supports this (<code>db.query(sql, [name, pass])</code>), and ORMs do it for you.</p>
-  <p class="status">Simplified: a tiny SQL subset and an in-memory table. Real systems also store <a href="../password-hashing/">password hashes</a>, never passwords, and give the app's database account only the permissions it needs, so a successful injection can do less damage.</p>
+  <p class="caveat">Simplified: a tiny SQL subset and an in-memory table. Real systems also store <a href="../password-hashing/">password hashes</a>, never passwords, and give the app's database account only the permissions it needs, so a successful injection can do less damage.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml, tabs } from "../../shared/common.js";

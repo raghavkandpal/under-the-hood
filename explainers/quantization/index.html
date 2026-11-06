@@ -41,7 +41,7 @@
   <p><b>Outliers ruin a shared scale.</b> LLM weights are mostly tiny, plus a few that are 10× bigger. If one scale covers the whole layer, those few set the step size, and almost all the normal weights collapse onto zero or the levels next to it. The levels are spent on a handful of outliers. Set “whole layer” with 4 bits and watch the error and the “rounded to zero” count jump.</p>
   <p><b>Group-wise scales.</b> Give every 32 or 64 weights their own scale. An outlier then only coarsens its own small group. The cost is storing the scales: a 16-bit scale per 32 weights adds half a bit per weight, which is why “4-bit” formats are really about 4.5. That's the core of GPTQ, AWQ and llama.cpp's Q4 formats, which add smarter choices of <i>which</i> rounding errors matter most.</p>
   <p><b>Why it works at all.</b> Networks are trained with noise (dropout, SGD's randomness) and are robust to small perturbations, and rounding errors in different weights partly cancel in a dot product. Quality usually holds up to about 4 bits, then falls off a cliff around 2–3.</p>
-  <p class="status">Smaller weights also mean faster text generation, because producing each token reads every weight from memory once, and memory bandwidth is the bottleneck. Halve the bytes and you roughly double the tokens per second.</p>
+  <p class="caveat">Smaller weights also mean faster text generation, because producing each token reads every weight from memory once, and memory bandwidth is the bottleneck. Halve the bytes and you roughly double the tokens per second.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile } from "../../shared/common.js";

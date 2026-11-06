@@ -15,8 +15,7 @@
   .bits .f { background: var(--green-soft); }
   .bits .one { font-weight: 800; border-color: var(--text); }
   .bits .gap { width: 8px; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; margin-top: 8px; }
-  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+  .legend i { width: 12px; height: 12px; border-radius: 2px; }
   .formula { font-family: var(--mono); font-size: 14px; margin-top: 10px; word-break: break-all; }
   .exact { font-family: var(--mono); font-size: 13px; word-break: break-all; background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
   .exact .dig { color: var(--red); }
@@ -59,7 +58,7 @@
   <p><b>Precision is relative.</b> The gap between neighbouring doubles grows with their size. Near 1 it's about 2×10<sup>−16</sup>. Above 2<sup>53</sup> (about 9 quadrillion) it's 2, so odd integers can't be stored, which is why big IDs in JSON can silently change in JavaScript.</p>
   <p><b>Special values.</b> All-ones exponent means ∞ or NaN (not-a-number, e.g. 0/0). All-zeros exponent means zero, including a separate −0, or a tiny <i>subnormal</i> number that fills the gap near zero.</p>
   <p><b>What to do about it:</b> compare with a tolerance (<code>Math.abs(a − b) &lt; 1e-9</code>) instead of <code>===</code>, store money as integer cents or as decimals, and add many small numbers carefully (sort them, or use Kahan summation).</p>
-  <p class="status">Bit patterns come straight from your browser's own IEEE 754 arithmetic via DataView, nothing simulated. The exact decimal is computed with BigInt.</p>
+  <p class="caveat">Bit patterns come straight from your browser's own IEEE 754 arithmetic via DataView, nothing simulated. The exact decimal is computed with BigInt.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml } from "../../shared/common.js";

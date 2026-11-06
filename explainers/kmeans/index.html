@@ -51,7 +51,7 @@
   <p><b>2. Update.</b> Every centre moves to the average of its points. Repeat. Each step can only lower the total squared distance, so the process always settles, usually within a few rounds.</p>
   <p><b>Settling isn't the same as being right.</b> K-means finds a <i>local</i> optimum that depends on where it started. With random starts on "5 blobs", press 🎲 a few times and sometimes two centres share a blob while two blobs share a centre. <b>k-means++</b> picks starting centres far apart, which avoids most of these traps, and it's the default in practice.</p>
   <p><b>What it can't see.</b> K-means assumes round, similar-sized groups. On "Ring around a blob" no k gives the obvious answer, because a ring isn't a ball. On "Big + small blobs" it slices the big one rather than respecting the small ones. On "No real clusters" it still returns k groups. It always finds <i>something</i>, so the structure may only be in the algorithm.</p>
-  <p class="status">Other methods handle those shapes better: DBSCAN (density), Gaussian mixtures (soft, elliptical clusters) and spectral clustering. Choosing k honestly also takes care: the elbow, silhouette scores, or knowledge of the problem.</p>
+  <p class="caveat">Other methods handle those shapes better: DBSCAN (density), Gaussian mixtures (soft, elliptical clusters) and spectral clustering. Choosing k honestly also takes care: the elbow, silhouette scores, or knowledge of the problem.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile, isDark, onThemeChange } from "../../shared/common.js";

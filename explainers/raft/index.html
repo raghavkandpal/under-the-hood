@@ -39,8 +39,7 @@
   .nodebtns { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
   .nodebtns div { display: flex; flex-direction: column; gap: 4px; font-size: 12px; text-align: center; }
   .nodebtns button { padding: 4px 6px; font-size: 12px; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
-  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+  .legend i { width: 10px; height: 10px; border-radius: 50%; }
 </style>
 </head>
 <body>
@@ -84,7 +83,7 @@
   <p><b>Replication.</b> Clients talk to the leader, which appends to its log and sends the new entries with its heartbeats. Each entry carries the index and term of the one before it. A follower whose log doesn't match rejects it, and the leader backs up one entry and retries until they line up, then overwrites the follower's conflicting tail.</p>
   <p><b>Commitment.</b> Once a majority stores an entry from the leader's current term, it's committed. Any future leader must win votes from a majority, and any two majorities overlap, so every future leader already has the entry.</p>
   <div class="note">Try it: make a couple of writes, then <b>Partition leader + 1</b> and immediately write again. That write lands on the old leader, which still thinks it's in charge, and it stays dashed because the old leader can't reach a majority. The other three elect a new leader in a higher term and keep committing. Now <b>Heal</b>: the old leader sees the higher term, steps down, and its uncommitted entries get overwritten. Nothing committed was ever lost.</div>
-  <p class="status">Simplified from the Raft paper (Ongaro &amp; Ousterhout, 2014): no membership changes, snapshots or pre-vote; timings slowed down so you can watch.</p>
+  <p class="caveat">Simplified from the Raft paper (Ongaro &amp; Ousterhout, 2014): no membership changes, snapshots or pre-vote; timings slowed down so you can watch.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml, isDark, onThemeChange } from "../../shared/common.js";

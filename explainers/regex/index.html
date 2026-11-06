@@ -66,7 +66,7 @@
   <p><b>Thompson's construction</b> (1968) turns each piece of a pattern into a small machine and plugs them together. A character is one arrow. <code>A|B</code> splits into both with ε-arrows. <code>A*</code> adds a loop back and a way to skip. The result has at most about twice as many states as the pattern has symbols.</p>
   <p><b>Simulating every possibility at once.</b> Instead of guessing which path to take, keep the <i>set</i> of all states you could be in and advance them together. Each character costs at most one pass over the states, so matching is linear in the text, with no blow-ups ever. Go's regexp, RE2 and Rust's regex crate work this way.</p>
   <p><b>Why backtrackers exist anyway.</b> Backreferences (<code>(\w)\1</code>) and some lookarounds can't be expressed as a finite state machine. Backtracking supports them, at the price of worst cases like the one above. Real outages have come from a single regex like this hitting an unlucky input ("ReDoS"). The usual defences are linear-time engines, time limits, or rewriting the pattern (<code>a+b</code> means the same as <code>(a+)+b</code>).</p>
-  <p class="status">This engine supports literals, <code>.</code>, <code>|</code>, <code>*</code>, <code>+</code>, <code>?</code>, parentheses and <code>\</code>-escapes, and matches the whole string. Its results are tested against JavaScript's built-in RegExp.</p>
+  <p class="caveat">This engine supports literals, <code>.</code>, <code>|</code>, <code>*</code>, <code>+</code>, <code>?</code>, parentheses and <code>\</code>-escapes, and matches the whole string. Its results are tested against JavaScript's built-in RegExp.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";

@@ -46,7 +46,7 @@
   <p><b>Input matters.</b> On <i>nearly sorted</i> data, insertion sort finishes almost immediately, because each item only moves a step or two. That's why real libraries switch to it for small or almost-ordered chunks. Selection sort doesn't care and always does all n²/2 comparisons.</p>
   <p><b>Trade-offs among the fast ones.</b> Merge sort is predictable and <i>stable</i> (equal items keep their order) but needs extra memory. Quicksort is usually fastest in practice thanks to cache-friendly access, but can degrade to n² on unlucky pivots; this one uses median-of-three to dodge the easy traps. Heapsort guarantees n log n in place, but jumps around memory.</p>
   <p><b>What real languages use:</b> Python and Java (for objects) use Timsort, a merge/insertion hybrid that exploits existing runs. C++ <code>std::sort</code> and Rust's unstable sort use introsort-style quicksorts that fall back to heapsort.</p>
-  <p class="status">Bars are coloured where the current operation is: orange = comparing, red = writing. Each comparison counts as one operation, a swap as two writes.</p>
+  <p class="caveat">Bars are coloured where the current operation is: orange = comparing, red = writing. Each comparison counts as one operation, a swap as two writes.</p>
 </main>
 <script type="module">
 import { chrome, $, onThemeChange } from "../../shared/common.js";

@@ -38,7 +38,7 @@
   <p><b>The usual suspects.</b> <b>O(1)</b>: same work at any size, like reading an array slot or a <a href="../hashtable/">hash table</a> lookup. <b>O(log n)</b>: halve the problem each step, like binary search, where a million items take 20 steps and a billion take 30. <b>O(n)</b>: look at everything once. <b>O(n log n)</b>: the best possible for comparison <a href="../sorting/">sorting</a>. <b>O(n²)</b>: every pair, fine for hundreds, painful for millions. <b>O(2ⁿ)</b>: every subset, hopeless past about 50.</p>
   <p><b>Doubling tells you the class.</b> Double n: O(1) work stays the same, O(log n) gains one step, O(n) doubles, O(n²) quadruples, O(2ⁿ) squares. Measuring how runtime changes when input doubles is a quick way to spot an accidental O(n²) in real code.</p>
   <p><b>Small n can fool you.</b> On the plot, at tiny sizes the curves overlap and constants matter. That's why real sort functions switch to simple O(n²) insertion sort for small pieces. Big-O is about the long run.</p>
-  <p class="status">Step counts here come from actually running each algorithm up to n = 20,000, and from their exact formulas beyond that. Times assume a billion steps per second.</p>
+  <p class="caveat">Step counts here come from actually running each algorithm up to n = 20,000, and from their exact formulas beyond that. Times assume a billion steps per second.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl } from "../../shared/common.js";

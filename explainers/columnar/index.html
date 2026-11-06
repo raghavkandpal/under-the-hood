@@ -41,7 +41,7 @@
   <p><b>Compression loves sameness.</b> A column holds one type of data, often repetitive. Dates sorted by time become long runs (“2026-03-14 × 912”), which <i>run-length encoding</i> stores as one value and a count. Six countries become a <i>dictionary</i> of six strings plus a 1-byte code per row. A mostly-empty notes column almost vanishes. Rows mix types, so they compress far worse.</p>
   <p><b>Fast CPUs on top.</b> Looping over one tight array of prices suits CPU caches and SIMD instructions that process 8 or 16 values at once. Engines often compute directly on compressed data.</p>
   <p><b>The trade-off.</b> Single-row reads and writes are clumsy in a column store: inserting one order touches 8 separate places. So companies keep transactions in a row store (OLTP) and copy data periodically into a column store for analytics (OLAP). Some modern databases keep both layouts.</p>
-  <p class="status">Related: <a href="../lsm/">LSM trees</a> (how many column stores absorb writes), <a href="../btree/">B-trees</a> (row-store indexes), <a href="../cpu-cache/">CPU caches</a>.</p>
+  <p class="caveat">Related: <a href="../lsm/">LSM trees</a> (how many column stores absorb writes), <a href="../btree/">B-trees</a> (row-store indexes), <a href="../cpu-cache/">CPU caches</a>.</p>
 </main>
 <script type="module">
 import { chrome, $ } from "../../shared/common.js";

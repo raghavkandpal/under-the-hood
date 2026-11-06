@@ -53,7 +53,7 @@
   <p><b>A node is a sorted list of keys</b> with a child pointer between each pair. To search, read the root, find which gap your key falls in, follow that pointer, and repeat. Each step reads one node, which on disk means one page.</p>
   <p><b>Inserting</b> always happens at a leaf. When a node overflows, it <b>splits</b>: the middle key moves up to the parent and the two halves become siblings. If that overfills the parent, it splits too. The tree only gets taller when the <i>root</i> splits, so every leaf is always at the same depth and the tree can't go lopsided. Insert keys in order and watch it stay balanced, where a plain binary search tree would turn into a long chain.</p>
   <p><b>Why so wide?</b> Reading from disk (even an SSD) costs far more than searching within a page you've already loaded. So real B-tree nodes hold hundreds of keys, one per 4–16 KB page. With 500 keys per node, three levels cover 125 million rows and four cover 62 billion. The top levels stay cached in memory, so a lookup often costs one or two actual reads.</p>
-  <p class="status">Real databases usually use the B+tree variant: all values live in the leaves, which are linked left-to-right for fast range scans (<code>WHERE price BETWEEN …</code>), and inner nodes hold only separator keys. Deletion (merging and borrowing between siblings) is left out here.</p>
+  <p class="caveat">Real databases usually use the B+tree variant: all values live in the leaves, which are linked left-to-right for fast range scans (<code>WHERE price BETWEEN …</code>), and inner nodes hold only separator keys. Deletion (merging and borrowing between siblings) is left out here.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile } from "../../shared/common.js";

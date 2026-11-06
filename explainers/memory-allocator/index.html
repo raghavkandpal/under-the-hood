@@ -41,7 +41,7 @@
   <p><b>The free list.</b> The allocator tracks which ranges are free. <code>malloc(n)</code> finds a free block at least n bytes long, carves off what's needed (<i>splitting</i>), and returns its address. <code>free</code> marks it free again. Merging it with free neighbours (<i>coalescing</i>) stops the heap shattering into ever-smaller pieces. Untick it to see what happens without.</p>
   <p><b>Which hole?</b> <b>First fit</b> takes the first hole that's big enough, which is fast. <b>Best fit</b> takes the tightest fit, saving big holes for big requests but leaving slivers too small to use. <b>Worst fit</b> takes the biggest hole so the leftover stays useful, and in practice usually does worst.</p>
   <p><b>Fragmentation</b> is the real enemy: plenty of free memory in total, yet no single hole big enough. Press "Make Swiss cheese", then try to allocate 10 bytes. There's 64 bytes free, and it still fails. The garbage-collected languages solve this by <i>moving</i> objects to compact the heap, which C's <code>malloc</code> can't do because programs hold raw addresses.</p>
-  <p class="status">Real allocators (glibc's ptmalloc, jemalloc, mimalloc) use size classes: separate pools for small sizes so most requests are instant, plus per-thread caches, and they ask the OS for more memory with mmap when needed. Block headers that store sizes are left out here.</p>
+  <p class="caveat">Real allocators (glibc's ptmalloc, jemalloc, mimalloc) use size classes: separate pools for small sizes so most requests are instant, plus per-thread caches, and they ask the OS for more memory with mmap when needed. Block headers that store sizes are left out here.</p>
 </main>
 <script type="module">
 import { chrome, $, statTile } from "../../shared/common.js";

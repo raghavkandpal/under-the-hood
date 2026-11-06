@@ -31,7 +31,7 @@
   <p><b>Split when crowded.</b> Start with one box covering everything. When a box holds more points than its capacity, cut it into four equal quarters and hand its points down. Busy areas end up with tiny boxes many levels deep, and empty areas stay as one big box. The tree adapts to the data.</p>
   <p><b>Querying.</b> To find everything in a rectangle, start at the top. Any box that doesn't touch the rectangle is skipped along with everything inside it. Only points in the leaf boxes it overlaps are actually checked. For a small search area, that's a handful of boxes out of thousands, roughly logarithmic in the number of points.</p>
   <p><b>Why not a simple grid?</b> A fixed grid works well when points are spread evenly. Real data clusters: most of a map's restaurants are in a few cities, so one grid cell can hold thousands while most hold none. Switch to the grid view on clustered data and compare “points checked”.</p>
-  <p class="status">Relatives: k-d trees (split on alternating axes, good for nearest-neighbour search), R-trees (boxes around shapes, used by PostGIS and SQLite), and geohashes and S2 cells, which turn 2-D positions into sortable 1-D keys that an ordinary <a href="../btree/">B-tree</a> can index. Games use the same idea for collision detection.</p>
+  <p class="caveat">Relatives: k-d trees (split on alternating axes, good for nearest-neighbour search), R-trees (boxes around shapes, used by PostGIS and SQLite), and geohashes and S2 cells, which turn 2-D positions into sortable 1-D keys that an ordinary <a href="../btree/">B-tree</a> can index. Games use the same idea for collision detection.</p>
 </main>
 <script type="module">
 import { chrome, $, statTile, tabs, keyboardDraggable } from "../../shared/common.js";

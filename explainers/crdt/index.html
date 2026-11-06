@@ -46,7 +46,7 @@
   <p><b>Store history-shaped state, not just the answer.</b> A <b>PN-counter</b> keeps a separate tally per device, one for increments and one for decrements. The value is the sum, and merging takes each device's maximum. A device's own tally can only grow, so nothing is ever double-counted or lost.</p>
   <p><b>Sets with removals are harder.</b> If A removes "milk" while B adds it again, who wins? An <b>OR-set</b> (observed-remove) gives every add a unique tag, and a remove deletes only the tags that device had <i>seen</i>. B's fresh add has a tag A never saw, so it survives: <i>add wins</i>. Press "Play the classic conflict" to watch it.</p>
   <p><b>Why it always converges.</b> Each merge is commutative (order doesn't matter), associative (grouping doesn't matter) and idempotent (merging twice changes nothing). Devices can sync in any order, any number of times, through any path, and end up identical. The tests check these three laws on random states.</p>
-  <p class="status">Used in practice by collaborative editors (Figma-style multiplayer, Automerge, Yjs), Redis Enterprise, Riak and Apple Notes-style sync. Text editing needs more elaborate sequence CRDTs, but the principle is the same.</p>
+  <p class="caveat">Used in practice by collaborative editors (Figma-style multiplayer, Automerge, Yjs), Redis Enterprise, Riak and Apple Notes-style sync. Text editing needs more elaborate sequence CRDTs, but the principle is the same.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml } from "../../shared/common.js";

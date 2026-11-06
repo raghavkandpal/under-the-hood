@@ -71,7 +71,7 @@
   <p><b>Each word is a vector.</b> Here every word has 16 numbers, one per readable feature (royal, female, animal, sweet…). <b>Cosine similarity</b> measures the angle between two vectors: 1 means the same direction, 0 means unrelated. It ignores length, so "a bit sweet" and "very sweet" can still point the same way.</p>
   <p><b>Directions carry relationships.</b> <i>king − man</i> leaves roughly "royalty", and adding <i>woman</i> lands near <i>queen</i>. The same offset that takes France to Paris takes Japan to Tokyo. Nobody programs these into a real model. They emerge from training on which words appear near each other.</p>
   <p><b>The map is a squashed shadow.</b> To draw 16 dimensions on a flat screen, the plot uses <b>PCA</b>, which picks the two directions with the most spread. Nearby on the map <i>usually</i> means nearby in reality, but some neighbours get flattened together, so trust the similarity numbers over the picture.</p>
-  <p class="status">Honest caveat: these vectors are hand-built so every dimension is readable. Real embeddings (word2vec, or the ones inside LLMs and search engines) have hundreds to thousands of dimensions <i>learned</i> from text, and no single dimension means anything you could name. They also absorb the biases of the text they're trained on.</p>
+  <p class="caveat">Honest caveat: these vectors are hand-built so every dimension is readable. Real embeddings (word2vec, or the ones inside LLMs and search engines) have hundreds to thousands of dimensions <i>learned</i> from text, and no single dimension means anything you could name. They also absorb the biases of the text they're trained on.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";

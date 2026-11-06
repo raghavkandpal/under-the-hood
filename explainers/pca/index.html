@@ -47,7 +47,7 @@
   <p><b>Compress by dropping the short axes.</b> Project every point onto PC1 (the grey ticks) and you've described 2-D data with one number per point. The lost information is only the spread along PC2. For a long, thin cloud that's almost nothing, and the "variance explained" bar says how much you keep. Make the cloud round and PCA has nothing to offer: both directions matter equally.</p>
   <p><b>Under the hood</b>, the components are the eigenvectors of the data's covariance matrix, and their eigenvalues are the variance along each one. In 2-D that's a formula. For real data with thousands of columns it's computed with the SVD.</p>
   <p><b>Where it's used:</b> squashing embeddings or gene-expression data down to 2-D for plotting (the <a href="../embeddings/">embeddings</a> map on this site is drawn with PCA), denoising, compressing features before training a model, and finding the main "modes" of variation, such as in faces or stock returns.</p>
-  <p class="status">PCA only finds straight-line structure, and it's sensitive to scale: standardise columns measured in different units first, or the one with the biggest numbers dominates. t-SNE and UMAP can find curved structure but don't give a clean linear projection.</p>
+  <p class="caveat">PCA only finds straight-line structure, and it's sensitive to scale: standardise columns measured in different units first, or the one with the biggest numbers dominates. t-SNE and UMAP can find curved structure but don't give a clean linear projection.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile, keyboardDraggable } from "../../shared/common.js";

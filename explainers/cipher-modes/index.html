@@ -28,16 +28,15 @@
       <button id="newkey">New random key</button>
     </div>
     <div class="grid4">
-      <figure><canvas id="c-plain"></canvas><figcaption><b>Original</b><small>each pixel is one byte</small></figcaption></figure>
+      <figure><canvas id="c-plain"></canvas><figcaption><b>Original</b></figcaption></figure>
       <figure><canvas id="c-ecb"></canvas><figcaption><b>ECB</b> <span id="r-ecb"></span><small>each block alone</small></figcaption></figure>
       <figure><canvas id="c-cbc"></canvas><figcaption><b>CBC</b> <span id="r-cbc"></span><small>chained to the previous block</small></figcaption></figure>
       <figure><canvas id="c-ctr"></canvas><figcaption><b>CTR</b> <span id="r-ctr"></span><small>encrypted counter, XORed in</small></figcaption></figure>
     </div>
-    <p class="status" style="margin:6px 0 0">Ciphertext bytes are shown as colours. Percentages: how many blocks repeat an earlier one. Any repeat is information leaking out.</p>
   </div>
 
   <div class="panel">
-    <b>Tamper with the ciphertext</b> <span class="status">Click any pixel of an encrypted picture above to flip one bit there, then see what decrypts.</span>
+    <b>Click an encrypted pixel above to flip a bit</b>
     <div class="grid3">
       <figure><canvas id="d-ecb"></canvas><figcaption><b>ECB, decrypted</b><small id="t-ecb">no damage yet</small></figcaption></figure>
       <figure><canvas id="d-cbc"></canvas><figcaption><b>CBC, decrypted</b><small id="t-cbc">no damage yet</small></figcaption></figure>
@@ -60,7 +59,7 @@
   <p><b>CBC</b> (cipher block chaining) XORs each block with the previous ciphertext block before encrypting, starting from a random IV. Every block now depends on everything before it, so repeats vanish. A flipped ciphertext bit scrambles its own block and flips the same bit in the next one, which is predictable enough that attackers have exploited it.</p>
   <p><b>CTR</b> (counter) encrypts the numbers nonce+0, nonce+1, … to make a stream of random-looking bytes, then XORs that with the message. Blocks are independent, so it's parallel and fast. A flipped bit flips exactly one bit of the output, so you need a separate integrity check, a MAC, to notice tampering.</p>
   <p><b>The nonce rule.</b> In CTR, reusing a nonce with the same key reuses the keystream, and XORing two ciphertexts cancels it out, leaving plaintext A ⊕ plaintext B. Both outlines appear. Real-world breaks of Wi-Fi encryption (WEP) and several messaging apps came from exactly this.</p>
-  <p class="status">Modern practice is <b>authenticated encryption</b>: AES-GCM or ChaCha20-Poly1305 combine CTR-style encryption with a tag that detects any tampering, as used in <a href="../tls/">TLS</a>. The cipher here is a toy 16-bit Feistel network so that one pixel pair is one block. Don't use it for anything.</p>
+  <p class="caveat">Modern practice is <b>authenticated encryption</b>: AES-GCM or ChaCha20-Poly1305 combine CTR-style encryption with a tag that detects any tampering, as used in <a href="../tls/">TLS</a>. The cipher here is a toy 16-bit Feistel network so that one pixel pair is one block. Don't use it for anything.</p>
 </main>
 <script type="module">
 import { chrome, $ } from "../../shared/common.js";

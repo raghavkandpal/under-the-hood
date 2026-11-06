@@ -50,7 +50,7 @@
   <p><b>Dynamic programming.</b> Fill a table where each cell holds the best answer for the remaining parts of both inputs, built from its neighbours: <code>if a[i] = b[j] then 1 + diag else max(right, down)</code>. Then walk from the top-left, taking diagonals when allowed. It's <i>O(n·m)</i>, fine for a page of text, slow for two 100,000-line files.</p>
   <p><b>What git actually does.</b> Git uses Myers' algorithm (1986), which finds the same shortest edit path but explores only as far as needed, in <i>O((n+m)·D)</i> time where D is the size of the diff. Small changes to huge files are fast. Variants like "patience" and "histogram" diff anchor on unique lines first, which often produces diffs people find easier to read, even when they aren't the strict minimum.</p>
   <p><b>Granularity matters.</b> Switch between characters, words and lines on the same text. Code review tools diff by line, then highlight words within changed lines, for exactly this reason.</p>
-  <p class="status">Ties are broken by preferring deletions before insertions, as most tools do. The edit graph is drawn only when both sides are short enough to fit.</p>
+  <p class="caveat">Ties are broken by preferring deletions before insertions, as most tools do. The edit graph is drawn only when both sides are short enough to fit.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml, statTile } from "../../shared/common.js";
