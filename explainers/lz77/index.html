@@ -59,7 +59,7 @@
   <p class="caveat">Size estimate: a literal costs about 9 bits (a flag plus 8 bits), a back-reference about 21 bits. Real formats are smarter, and greedy matching (always take the longest) isn't always optimal; zlib looks one step ahead ("lazy matching").</p>
 </main>
 <script type="module">
-import { chrome, $, escapeHtml, statTile } from "../../shared/common.js";
+import { chrome, $, escapeHtml, statTile, reducedMotion } from "../../shared/common.js";
 import { encode, sizeBits, rawBits } from "./lz77.js";
 chrome();
 
@@ -100,7 +100,7 @@ const stop = () => { clearInterval(timer); timer = null; $("#play").textContent 
 $("#next").onclick = () => { stop(); if (k < toks.length) { k++; render(); } };
 $("#prev").onclick = () => { stop(); if (k > 0) { k--; render(); } };
 $("#step").oninput = e => { stop(); k = +e.target.value; render(); };
-$("#play").onclick = () => { if (timer) return stop(); if (k >= toks.length) k = 0; $("#play").textContent = "Pause"; timer = setInterval(() => { if (k >= toks.length) return stop(); k++; render(); }, 450); };
+$("#play").onclick = () => { if (timer) return stop(); if (k >= toks.length) k = 0; if (reducedMotion()) { k = toks.length; return render(); } $("#play").textContent = "Pause"; timer = setInterval(() => { if (k >= toks.length) return stop(); k++; render(); }, 450); };
 $("#toks").onclick = e => { const t = e.target.closest("[data-i]"); if (t) { stop(); k = +t.dataset.i; render(); } };
 $("#input").addEventListener("input", () => { stop(); k = 0; recompute(); });
 $("#win").onchange = () => { stop(); recompute(); };

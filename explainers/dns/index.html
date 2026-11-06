@@ -79,9 +79,10 @@
   <p class="caveat">All names, servers and addresses here are fictional (mostly from ranges reserved for documentation), and real resolvers add things this leaves out: glue records, DNSSEC, query minimisation, retries, and caching in your OS and browser.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, sleep, escapeHtml } from "../../shared/common.js";
+import { chrome, $, svgEl, sleep, escapeHtml, reducedMotion } from "../../shared/common.js";
 import { resolve, Cache, TLDS, ZONES, ROOT, zoneOf } from "./dns.js";
 chrome();
+if (reducedMotion()) $("#slow").checked = false; // hops appear without the travelling packet
 
 const cache = new Cache();
 let now = 0, busy = false;

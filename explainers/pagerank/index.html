@@ -54,7 +54,7 @@
   <p class="caveat">This is the original 1998 formulation by Brin and Page. Pages with no outgoing links spread their rank evenly over all pages. The same maths (the stationary distribution of a Markov chain) ranks nodes in citation networks, social graphs and protein networks.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, sleep } from "../../shared/common.js";
+import { chrome, $, svgEl, pause } from "../../shared/common.js";
 import { pagerank } from "./pagerank.js";
 import { mulberry } from "../../shared/random.js";
 chrome();
@@ -103,7 +103,7 @@ $("#surf").onclick = async () => {
   while (surfing) {
     const d = +$("#d").value, out = links.filter(([a]) => a === at).map(([, b]) => b);
     for (let k = 0; k < (n < 30 ? 1 : 25); k++) { visits[at]++; at = r() > d || !out.length ? Math.floor(r() * P.names.length) : out[Math.floor(r() * out.length)]; n++; }
-    surferAt = at; render(); await sleep(n < 30 ? 350 : 40);
+    surferAt = at; render(); await pause(n < 30 ? 350 : 40);
   }
   surferAt = null; $("#surf").textContent = "▶ Release a random surfer"; render();
 };

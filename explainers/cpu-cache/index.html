@@ -75,7 +75,7 @@
   <p class="caveat">Orders of magnitude for a modern desktop chip, varying by hardware. The bars use a log scale, or main memory wouldn't fit on the page. This page's "estimated time" uses 1 ns per hit and 80 ns per miss.</p>
 </main>
 <script type="module">
-import { chrome, $, statTile } from "../../shared/common.js";
+import { chrome, $, statTile, reducedMotion } from "../../shared/common.js";
 import { Cache, PATTERNS, addrOf, simulate, LAT } from "./cache.js";
 chrome();
 
@@ -123,6 +123,7 @@ const stop = () => { clearInterval(timer); timer = null; $("#play").textContent 
 $("#play").onclick = () => {
   if (timer) return stop();
   if (i >= trace.length) reset();
+  if (reducedMotion()) { while (stepOnce()); render(); return; }
   $("#play").textContent = "⏸ Pause";
   timer = setInterval(() => { let k = +$("#speed").value; while (k-- && stepOnce()); render(); if (i >= trace.length) stop(); }, 60);
 };

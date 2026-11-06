@@ -57,7 +57,7 @@
   <p class="caveat">Gradients here are computed by the same small autograd engine that powers the neural network explainer. RMSProp and Adam use a learning rate scaled by 0.1 so all four share one slider.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, keyboardDraggable, isDark, onThemeChange, cssVar } from "../../shared/common.js";
+import { chrome, $, svgEl, keyboardDraggable, isDark, onThemeChange, cssVar, reducedMotion } from "../../shared/common.js";
 import { SURFACES, OPTIMIZERS, valueAt, run } from "./optim.js";
 import { mulberry } from "../../shared/random.js";
 chrome();
@@ -149,6 +149,7 @@ function stop() { clearInterval(timer); timer = null; $("#play").textContent = "
 function play() {
   if (timer) return stop();
   if (shown >= STEPS) shown = 0;
+  if (reducedMotion()) { shown = STEPS; draw(); return; }
   $("#play").textContent = "⏸ Pause";
   timer = setInterval(() => { shown += 2; if (shown >= STEPS) { shown = STEPS; stop(); } draw(); }, 30);
 }

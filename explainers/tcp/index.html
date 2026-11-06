@@ -91,7 +91,7 @@
   <p class="caveat">Simplified: segments are counted, not bytes; the RTO is fixed (real TCP measures RTT and backs off exponentially); there's no congestion window, SACK, or connection teardown.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, escapeHtml, statTile } from "../../shared/common.js";
+import { chrome, $, svgEl, escapeHtml, statTile, reducedMotion } from "../../shared/common.js";
 import { simulate } from "../../shared/tcp.js";
 chrome();
 
@@ -171,6 +171,7 @@ function draw() {
 function play() {
   if (raf) { cancelAnimationFrame(raf); raf = null; $("#play").textContent = "▶ Play"; return; }
   if (playT === Infinity || playT >= sim.end) playT = 0;
+  if (reducedMotion()) { playT = Infinity; return draw(); }
   $("#play").textContent = "⏸ Pause";
   let last = performance.now();
   const wrap = $("#seqwrap");

@@ -64,7 +64,7 @@
   <p class="caveat">Uses a two-sided, two-proportion z-test with pooled variance. Sample sizes use the standard normal approximation at α = 0.05.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { chrome, $, svgEl, statTile, reducedMotion } from "../../shared/common.js";
 import { run, ci95, sampleSize, zTest } from "./abtest.js";
 chrome();
 
@@ -100,7 +100,7 @@ function drawRun(upto) {
 function go() {
   cancelAnimationFrame(anim); labels();
   checks = run({ pA: v("pa"), pB: v("pb"), n: v("n"), every: Math.max(10, Math.round(v("n") / 200)), seed });
-  let i = 0; const step = () => { i += 3; drawRun(i); if (i < checks.length) anim = requestAnimationFrame(step); else drawRun(checks.length); };
+  let i = reducedMotion() ? checks.length : 0; const step = () => { i += 3; drawRun(i); if (i < checks.length) anim = requestAnimationFrame(step); else drawRun(checks.length); };
   step();
 }
 $("#go").onclick = go; $("#again").onclick = () => { seed++; go(); };

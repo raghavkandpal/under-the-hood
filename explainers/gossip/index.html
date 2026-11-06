@@ -50,7 +50,7 @@
   <p class="caveat">Used for cluster membership and failure detection (Cassandra, Consul's Serf, SWIM), spreading database updates between replicas (“anti-entropy” in Dynamo-style stores), Bitcoin transaction relay, and aggregating counts across huge systems. Related: <a href="../crdt/">CRDTs</a>, which make merging the gossiped state safe.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, sleep, statTile } from "../../shared/common.js";
+import { chrome, $, svgEl, statTile, pause } from "../../shared/common.js";
 import { spread, avgRounds } from "./gossip.js";
 import { mulberry } from "../../shared/random.js";
 chrome();
@@ -77,7 +77,7 @@ async function go() {
     dots.forEach((d, i) => { d.className = !r.alive[i] ? "dead" : r.when[i] >= 0 && r.when[i] < k ? "k" : r.when[i] === k ? (k ? "new" : "k") : ""; if (i === 0) d.classList.add("src"); });
     curve(r, k);
     $("#stats").innerHTML = [[k, "round"], [`${r.curve[k]} / ${r.target}`, "live nodes informed"], [(r.messages / N).toFixed(1), "messages per node (whole run)"], ...(k === r.rounds && !r.done ? [["gave up", `not everyone reached after ${r.rounds} rounds`]] : [])].map(statTile).join("");
-    await sleep(380);
+    await pause(380);
   }
 }
 $("#mode").onclick = e => { const b = e.target.closest("[data-m]"); if (!b) return; mode = b.dataset.m; document.querySelectorAll("#mode button").forEach(x => x.setAttribute("aria-pressed", x === b)); go(); };

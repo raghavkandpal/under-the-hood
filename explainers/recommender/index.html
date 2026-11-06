@@ -44,7 +44,7 @@
   <p class="caveat">8 fictional people and 8 fictional films. Ratings come from hidden tastes plus noise, so the guesses can be checked. 2 latent dimensions, trained with SGD and L2 regularisation.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, escapeHtml, sleep, statTile } from "../../shared/common.js";
+import { chrome, $, svgEl, escapeHtml, statTile, pause } from "../../shared/common.js";
 import { makeRatings, MF, heldOutRMSE, USERS, ITEMS } from "./mf.js";
 chrome();
 
@@ -70,7 +70,7 @@ function render() {
 }
 $("#train").onclick = async () => {
   if (busy) return; busy = true; m.fit(R, mask, 0);
-  for (let k = 0; k < 30; k++) { for (let j = 0; j < 10; j++) m.epoch(R, mask); epochs += 10; render(); await sleep(40); }
+  for (let k = 0; k < 30; k++) { for (let j = 0; j < 10; j++) m.epoch(R, mask); epochs += 10; render(); await pause(40); }
   busy = false;
 };
 $("#rt").onclick = e => { const c = e.target.closest("[data-u]"); if (!c || busy) return; const u = +c.dataset.u, i = +c.dataset.i;

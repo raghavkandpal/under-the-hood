@@ -57,7 +57,7 @@
   <p><b>In practice:</b> CPython uses reference counting <i>plus</i> a cycle detector for exactly this problem. Swift and Objective-C use reference counting and ask you to break cycles with "weak" references. The JVM, V8 and Go use tracing collectors (relatives of mark &amp; sweep) that are <b>generational</b> (most objects die young, so the young area is checked often) and <b>concurrent</b> (they mark while your program runs) to keep pauses short.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, sleep } from "../../shared/common.js";
+import { chrome, $, svgEl, pause } from "../../shared/common.js";
 import { Heap } from "./gc.js";
 chrome();
 
@@ -143,9 +143,9 @@ $("#collect").onclick = async () => {
   if (busy) return; busy = true; sel = null;
   const { order } = heap.reachable(); marking = { marked: new Set() };
   say("Mark: following references from the roots…");
-  for (const id of order) { marking.marked.add(id); render(); await sleep(350); }
+  for (const id of order) { marking.marked.add(id); render(); await pause(350); }
   const dead = [...heap.objs.keys()].filter(id => !marking.marked.has(id));
-  marking.dying = new Set(dead); say(dead.length ? `Sweep: ${dead.length} unmarked object${dead.length > 1 ? "s" : ""} can't be reached. Freeing.` : "Sweep: everything is reachable. Nothing to free."); render(); await sleep(700);
+  marking.dying = new Set(dead); say(dead.length ? `Sweep: ${dead.length} unmarked object${dead.length > 1 ? "s" : ""} can't be reached. Freeing.` : "Sweep: everything is reachable. Nothing to free."); render(); await pause(700);
   heap.collect(); marking = null; busy = false; render();
 };
 document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { if (busy) return; mode = b.dataset.mode; scenario("cycle"); });

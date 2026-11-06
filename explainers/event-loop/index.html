@@ -56,7 +56,7 @@
   <p class="caveat">Real browsers have several task queues (input often gets priority), clamp nested timers to ≥ 4 ms, and repaint about every 16 ms when there's time. Web Workers give you extra threads, each with its own loop. Related: <a href="../race-conditions/">race conditions</a>, which are what you get with real threads instead.</p>
 </main>
 <script type="module">
-import { chrome, $, escapeHtml, sleep } from "../../shared/common.js";
+import { chrome, $, escapeHtml, pause } from "../../shared/common.js";
 import { run, PRESETS } from "./eventloop.js";
 chrome();
 
@@ -72,7 +72,7 @@ function show() {
   $("#prog").textContent = `Step ${i} of ${r.steps.length}.`; $("#step").disabled = i >= r.steps.length;
 }
 $("#step").onclick = () => { if (i < r.steps.length) i++; show(); };
-$("#play").onclick = async () => { const my = ++playing; while (my === playing && i < r.steps.length) { i++; show(); await sleep(700); } };
+$("#play").onclick = async () => { const my = ++playing; while (my === playing && i < r.steps.length) { i++; show(); await pause(700); } };
 $("#reset").onclick = () => { i = 0; playing++; show(); };
 $("#preset").onchange = load;
 load();

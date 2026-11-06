@@ -66,7 +66,7 @@
   <div class="note">Try it: switch to <b>first letter only</b>, turn growth off, and add keys. Everything starting with the same letter lands in one slot, and the table degrades into a slow list. Switch back to FNV-1a and see the keys spread out.</div>
 </main>
 <script type="module">
-import { chrome, $, sleep, escapeHtml, statTile } from "../../shared/common.js";
+import { chrome, $, escapeHtml, statTile, pause } from "../../shared/common.js";
 import { HashTable, HASHES, TOMBSTONE } from "../../shared/hashtable.js";
 chrome();
 
@@ -114,7 +114,7 @@ async function animate(r, verdict) {
       if (p.pos != null) mark.slot[p.slot] = mark.slot[p.slot] || (cls === "probe" ? "probe" : cls);
     });
     render(mark);
-    await sleep(r.probes.length > 6 ? 110 : 260);
+    await pause(r.probes.length > 6 ? 110 : 260);
   }
 }
 
@@ -139,7 +139,7 @@ async function op(kind, key = $("#key").value.trim()) {
     pre.slots = r.resized.before.slots; pre.size = snapshot.size;
     t = pre; await animate(r, "hit"); t = snapshot;
     $("#calc").innerHTML = msg + `<br>Load passed ${t.maxLoad}, so the table grew from ${r.resized.from} to ${r.resized.to} slots and re-inserted all ${r.resized.moves} keys.`;
-    await sleep(300);
+    await pause(300);
     render();
   } else {
     await animate(r, kind === "ins" || r.found ? "hit" : "miss");
@@ -156,7 +156,7 @@ $("#rand").onclick = async () => {
     const have = new Set(t.entries().map(e => e.key));
     const pool = WORDS.filter(w => !have.has(w));
     const w = pool.length ? pool[Math.random() * pool.length | 0] : "key" + (Math.random() * 1e4 | 0);
-    $("#key").value = w; await op("ins", w); await sleep(150);
+    $("#key").value = w; await op("ins", w); await pause(150);
   }
 };
 $("#reset").onclick = () => { if (!busy) { t = null; make(false); $("#calc").textContent = "Empty table, 8 slots."; } };
