@@ -29,7 +29,7 @@
   <p class="lede">Language models don't read letters or words. They read <b>tokens</b>, chunks of text learned from data. Most modern models build their chunks with <b>byte-pair encoding</b>: start from single characters and keep gluing together the pair that appears most often.</p>
 
   <div class="panel">
-    <label class="status" for="corpus">Training text (edit it, the vocabulary is relearned instantly)</label>
+    <label class="status" for="corpus">Training text</label>
     <textarea id="corpus" rows="5" spellcheck="false"></textarea>
     <label class="inline" style="margin-top:10px;display:flex">Merges learned: <b id="vk" style="min-width:3ch"></b><input type="range" id="k" min="0" max="150" value="0" style="flex:1"></label>
     <div class="controls" style="margin:8px 0 0"><button id="next" class="primary">Learn next merge ▶</button><button id="play">▶ Play</button><button id="zero">Back to characters</button></div>
@@ -39,17 +39,17 @@
   <div class="two">
     <div class="panel">
       <b>Most common neighbouring pairs right now</b>
-      <p class="status" style="margin:2px 0 8px">The top one gets merged next.</p>
+      
       <div class="pairs" id="pairs"></div>
     </div>
     <div class="panel">
-      <b>Merge rules so far</b> <span class="status">(the learned vocabulary, in order)</span>
+      <b>Merge rules so far</b>
       <ol class="merges" id="merges"></ol>
     </div>
   </div>
 
   <div class="panel">
-    <b>The training text, tokenized</b> <span class="status">(<span style="opacity:.45">▁</span> marks the start of a word; outlined = created by the latest merge)</span>
+    <b>The training text, tokenized</b> <ul class="legend" style="margin:4px 0 0"><li><span style="opacity:.45">▁</span> word start</li><li><i style="border:1.5px solid var(--accent)"></i>latest merge</li></ul>
     <div class="toks" id="corpusToks" style="margin-top:6px"></div>
   </div>
 
@@ -96,7 +96,7 @@ function render() {
   if (top) {
     const mx = top[0][1];
     $("#pairs").innerHTML = top.map(([p, c], i) => `<span>${escapeHtml(p[0])} + ${escapeHtml(p[1])}</span><div class="track"><div class="fill" style="width:${c / mx * 100}%;opacity:${i ? 0.5 : 1}"></div></div><span>${c}×</span>`).join("");
-  } else $("#pairs").innerHTML = `<span class="status" style="grid-column:1/-1">No pair appears twice any more. The vocabulary is done for this text.</span>`;
+  } else $("#pairs").innerHTML = `<span class="status" style="grid-column:1/-1">No pair repeats: vocabulary done.</span>`;
   $("#merges").innerHTML = model.merges.slice(0, k).map((m, i) => `<li class="${i === k - 1 ? "cur" : ""}">${escapeHtml(m.pair[0])} + ${escapeHtml(m.pair[1])} → <b>${escapeHtml(m.token)}</b> <span class="status">(${m.count}×)</span></li>`).join("") || `<li class="status" style="list-style:none;margin-left:-34px">None yet: every token is a single character.</li>`;
   $("#merges").scrollTop = 1e9;
   probe();

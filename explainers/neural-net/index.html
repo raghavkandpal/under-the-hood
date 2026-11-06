@@ -74,7 +74,7 @@
       <div class="stats" id="stats"></div>
       <svg id="lossChart" viewBox="0 0 300 80" preserveAspectRatio="none"></svg>
       <svg id="net" viewBox="0 0 300 170" role="img" aria-label="Network diagram"></svg>
-      <p class="status">Edges: blue = positive weight, red = negative, thickness = size.</p>
+      <ul class="legend"><li><i style="--c:var(--blue)"></i>positive weight</li><li><i style="--c:var(--red)"></i>negative</li><li>thickness: size</li></ul>
     </div>
   </div>
   <div class="note">Try it: the <b>spiral</b> with no hidden layer can only draw a straight line, so it gets stuck near 50%. Give it 16 → 16 → 16 and it winds the boundary around the arms. XOR with no hidden layer is the famous case that stalled neural network research in 1969.</div>
