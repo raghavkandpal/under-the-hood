@@ -222,10 +222,13 @@ section.reading, section.related { margin-top: 56px; }
 .side-close, header.site .browse { display: none; }
 
 @media (min-width: 1180px) {
-  body.with-side { display: grid; grid-template-columns: 260px minmax(0, 1fr); grid-template-areas: "header header" "side main"; }
-  body.with-side > header.site { grid-area: header; }
-  body.with-side > .sidenav { grid-area: side; position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding: 24px 12px 40px 16px; border-right: 1px solid var(--border); }
-  body.with-side > main { grid-area: main; min-width: 0; width: 100%; }
+  /* Linear-style: a fixed left column with the brand and buttons on top and the navigation below; no full-width bar. */
+  body.with-side { padding-left: 260px; }
+  body.with-side > header.site, body.with-side > .sidenav { position: fixed; left: 0; width: 260px; border-right: 1px solid var(--border); background: var(--bg); }
+  body.with-side > header.site { top: 0; z-index: 2; border-bottom: 0; }
+  body.with-side > header.site .inner { height: 48px; padding: 0 12px 0 24px; }
+  body.with-side > header.site .crumb { display: none; } /* the sidebar shows the area, topic and current page */
+  body.with-side > .sidenav { top: 48px; bottom: 0; overflow-y: auto; padding: 16px 12px 40px 16px; }
   .side-backdrop { display: none; }
 }
 @media (max-width: 1179px) {
