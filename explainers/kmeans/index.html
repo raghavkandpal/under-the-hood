@@ -84,7 +84,7 @@ function stepOnce() {
 }
 function draw() {
   const dark = matchMedia("(prefers-color-scheme: dark)").matches;
-  ctx.fillStyle = dark ? "#1f1e1b" : "#ffffff"; ctx.fillRect(0, 0, W, W);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim(); ctx.fillRect(0, 0, W, W);
   if (labels || phase !== "init") {
     const S = 8; // Voronoi background
     for (let py = 0; py < W; py += S) for (let px = 0; px < W; px += S) {
@@ -93,7 +93,7 @@ function draw() {
       ctx.fillStyle = COLORS[b] + (dark ? "22" : "18"); ctx.fillRect(px, py, S, S);
     }
   }
-  pts.forEach((p, i) => { ctx.beginPath(); ctx.arc(X(p[0]), Y(p[1]), 3.6, 0, 7); ctx.fillStyle = labels ? COLORS[labels[i]] : (dark ? "#a19e94" : "#6b6860"); ctx.fill(); });
+  pts.forEach((p, i) => { ctx.beginPath(); ctx.arc(X(p[0]), Y(p[1]), 3.6, 0, 7); ctx.fillStyle = labels ? COLORS[labels[i]] : getComputedStyle(document.documentElement).getPropertyValue("--muted").trim(); ctx.fill(); });
   trails.forEach((t, j) => { ctx.strokeStyle = COLORS[j]; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]); ctx.beginPath(); t.forEach((c, i) => i ? ctx.lineTo(X(c[0]), Y(c[1])) : ctx.moveTo(X(c[0]), Y(c[1]))); ctx.stroke(); ctx.setLineDash([]); });
   C.forEach((c, j) => {
     ctx.beginPath(); ctx.arc(X(c[0]), Y(c[1]), 10, 0, 7); ctx.fillStyle = COLORS[j]; ctx.fill();

@@ -105,19 +105,19 @@ function draw(agentAt = null) {
   const lo = Math.min(0, ...live), hi = Math.max(1e-6, ...live);
   for (let s = 0; s < grid.n; s++) {
     const x = (s % W) * CS, y = Math.floor(s / W) * CS, c = grid.at(s);
-    if (c === "#") ctx.fillStyle = dark ? "#000" : "#2a2925";
+    if (c === "#") ctx.fillStyle = dark ? "#000" : "#1f2937";
     else if (c === "X") ctx.fillStyle = "#e0453a";
     else if (c === "G") ctx.fillStyle = grid.small.has(s) ? "#8fd19e" : "#17a35a";
     else { const v = vals[s], t = v >= 0 ? v / hi : -v / (lo || -1); ctx.fillStyle = v >= 0 ? `rgba(23,163,90,${0.08 + t * 0.55})` : `rgba(224,69,58,${0.08 + t * 0.45})`; ctx.fillRect(x, y, CS, CS); ctx.fillStyle = "transparent"; }
     if (ctx.fillStyle !== "rgba(0, 0, 0, 0)") ctx.fillRect(x, y, CS, CS);
     ctx.strokeStyle = dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"; ctx.strokeRect(x, y, CS, CS);
-    ctx.fillStyle = dark ? "#ecebe6" : "#1d1c1a"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--text").trim(); ctx.textAlign = "center"; ctx.textBaseline = "middle";
     if (c === "G") { ctx.font = `bold ${CS * 0.32}px sans-serif`; ctx.fillStyle = "#fff"; ctx.fillText(grid.small.has(s) ? "+5" : "+20", x + CS / 2, y + CS / 2); }
     else if (c === "X") { ctx.font = `bold ${CS * 0.3}px sans-serif`; ctx.fillStyle = "#fff"; ctx.fillText("−20", x + CS / 2, y + CS / 2); }
     else if (c !== "#") {
       const q = vi ? null : agent.Q[s], visited = vi || q.some(v => v !== 0);
       if (visited) { const a = vi ? vi.policy[s] : q.indexOf(Math.max(...q)); const [dx, dy] = ACTIONS[a]; const cx = x + CS / 2, cy = y + CS / 2, L = CS * 0.28;
-        ctx.strokeStyle = dark ? "#ecebe6" : "#1d1c1a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - dx * L, cy - dy * L); ctx.lineTo(cx + dx * L, cy + dy * L); ctx.stroke();
+        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--text").trim(); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - dx * L, cy - dy * L); ctx.lineTo(cx + dx * L, cy + dy * L); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(cx + dx * L, cy + dy * L); ctx.lineTo(cx + dx * L * 0.4 - dy * L * 0.5, cy + dy * L * 0.4 + dx * L * 0.5); ctx.lineTo(cx + dx * L * 0.4 + dy * L * 0.5, cy + dy * L * 0.4 - dx * L * 0.5); ctx.closePath(); ctx.fill(); }
       if (s === grid.start) { ctx.font = `bold ${CS * 0.22}px sans-serif`; ctx.fillText("START", x + CS / 2, y + CS * 0.18); }
     }

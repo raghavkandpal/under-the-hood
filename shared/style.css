@@ -1,17 +1,18 @@
+/* Theme: slate and indigo. Cool neutral greys, an indigo accent; blue leans cyan so it reads apart from the accent. */
 :root {
-  --bg: #f7f6f2;
+  --bg: #f5f7fa;
   --surface: #ffffff;
-  --surface-2: #efede6;
-  --text: #1d1c1a;
-  --muted: #6b6860;
-  --border: #dcd9d0;
-  --accent: #c2410c;
-  --accent-soft: #fde4d6;
+  --surface-2: #eaeef3;
+  --text: #111827;
+  --muted: #5b6474;
+  --border: #d6dce5;
+  --accent: #4f46e5;
+  --accent-soft: #e3e1fc;
   --on-accent: #ffffff;
-  --control-border: #8f8b80;
-  --blue: #1d4ed8;
-  --blue-soft: #dbe6ff;
-  --green: #15803d;
+  --control-border: #7a8496;
+  --blue: #0b6b80;
+  --blue-soft: #d3eef4;
+  --green: #137336;
   --green-soft: #d7f2df;
   --red: #b91c1c;
   --red-soft: #fbdada;
@@ -21,18 +22,18 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #161513;
-    --surface: #1f1e1b;
-    --surface-2: #2a2925;
-    --text: #ecebe6;
-    --muted: #a19e94;
-    --border: #3a3833;
-    --accent: #fb923c;
-    --accent-soft: #4a2716;
-    --on-accent: #1d1c1a;
-    --control-border: #6d6a62;
-    --blue: #7aa2ff;
-    --blue-soft: #1e2a4a;
+    --bg: #0f1218;
+    --surface: #171b23;
+    --surface-2: #222733;
+    --text: #e6e9ef;
+    --muted: #9aa3b2;
+    --border: #2e3442;
+    --accent: #a5b4fc;
+    --accent-soft: #262a52;
+    --on-accent: #111827;
+    --control-border: #68718a;
+    --blue: #67d3e6;
+    --blue-soft: #123039;
     --green: #4ade80;
     --green-soft: #173523;
     --red: #f87171;
