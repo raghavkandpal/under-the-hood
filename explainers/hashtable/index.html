@@ -60,7 +60,7 @@
   <p><b>Collisions are inevitable.</b> With 23 keys and 365 slots there's already a 50% chance two share a slot (the birthday paradox). There are two classic fixes:</p>
   <ul>
     <li><b>Separate chaining:</b> each slot holds a small list. Colliding keys line up in it.</li>
-    <li><b>Linear probing:</b> if your slot is taken, try the next, and the next. It's cache-friendly, but neighbouring keys pile into <i>clusters</i> (orange = not in its home slot). Deleting can't just empty a slot, or lookups for keys that probed past it would stop early, so it leaves a <b>tombstone</b> instead.</li>
+    <li><b>Linear probing:</b> if your slot is taken, try the next, and the next. It's cache-friendly, but neighbouring keys pile into <i>clusters</i> (indigo = not in its home slot). Deleting can't just empty a slot, or lookups for keys that probed past it would stop early, so it leaves a <b>tombstone</b> instead.</li>
   </ul>
   <p><b>Load factor and resizing.</b> As the table fills, collisions multiply, especially with probing. So when <code>size / capacity</code> crosses a threshold, the table doubles and re-inserts every key. A key's home slot depends on the capacity, so every key has to move. Doubling makes this rare enough that inserts stay cheap on average (<i>amortised O(1)</i>).</p>
   <div class="note">Try it: switch to <b>first letter only</b>, turn growth off, and add keys. Everything starting with the same letter lands in one slot, and the table degrades into a slow list. Switch back to FNV-1a and see the keys spread out.</div>

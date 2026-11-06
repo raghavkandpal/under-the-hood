@@ -36,14 +36,14 @@
   </div>
 
   <div class="panel">
-    <h3>Gap buffer <span class="status">(Emacs)</span></h3>
-    <p class="status" style="margin:0">One array with a hole (striped) at the cursor. Typing fills the hole, which is free. Moving the cursor elsewhere slides the hole there, copying the characters in between.</p>
+    <h3>Gap buffer</h3>
+    <p class="status" style="margin:0">Typing fills the striped gap; moving the cursor slides it.</p>
     <div class="cells" id="cells"></div>
   </div>
 
   <div class="panel">
-    <h3>Piece table <span class="status">(VS Code, Microsoft Word)</span></h3>
-    <p class="status" style="margin:0">The original file is never touched. New text is appended to an “add” buffer, and the document is a list of pieces pointing into one buffer or the other.</p>
+    <h3>Piece table</h3>
+    <p class="status" style="margin:0">The file is never touched; new text goes to an “add” buffer.</p>
     <div class="pieces" id="pieces"></div>
     <div class="buf" id="bufs"></div>
   </div>

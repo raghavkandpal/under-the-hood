@@ -20,6 +20,7 @@ const sum = (html, re) => [...html.matchAll(re)].reduce((n, m) => n + words(m[1]
  * - labels: <label> text, minus the control inside it
  * - small:  <small> text
  * - note:   .note boxes
+ * - legend: .legend text (a colour key is allowed, but its words still count, so prose can't hide there)
  * - caveat: the simplifications note (.caveat), counted separately: it belongs on every page, but short
  */
 export function measure(html) {
@@ -27,9 +28,9 @@ export function measure(html) {
   const status = [...main.matchAll(/<(p|div|span) class="status"[^>]*>([\s\S]*?)<\/\1>/g)].reduce((n, m) => n + words(m[2]), 0)
     + sum(script, /class="status"[^>]*>([^<`]*?)<\//g);
   return { status, labels: sum(main, /<label[^>]*>([\s\S]*?)<\/label>/g), small: sum(main, /<small[^>]*>([\s\S]*?)<\/small>/g),
-    note: sum(main, /class="note"[^>]*>([\s\S]*?)<\/(?:p|div)>/g), caveat: sum(main, /<p class="caveat"[^>]*>([\s\S]*?)<\/p>/g) };
+    note: sum(main, /class="note"[^>]*>([\s\S]*?)<\/(?:p|div)>/g), legend: [...main.matchAll(/<(ul|div) class="legend"[^>]*>([\s\S]*?)<\/\1>/g)].reduce((n, m) => n + words(m[2]), 0), caveat: sum(main, /<p class="caveat"[^>]*>([\s\S]*?)<\/p>/g) };
 }
-export const helper = m => m.status + m.labels + m.small + m.note;
+export const helper = m => m.status + m.labels + m.small + m.note + m.legend;
 
 export function measureAll() {
   const dir = `${root}explainers/`;
@@ -44,7 +45,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.log(`wrote ${BASELINE}`);
   }
   const rows = Object.entries(all).sort((a, b) => helper(b[1]) - helper(a[1]));
-  for (const [id, m] of rows) console.log(`${String(helper(m)).padStart(4)}  ${id.padEnd(22)} status ${m.status}, labels ${m.labels}, small ${m.small}, note ${m.note} · caveat ${m.caveat}`);
+  for (const [id, m] of rows) console.log(`${String(helper(m)).padStart(4)}  ${id.padEnd(22)} status ${m.status}, labels ${m.labels}, small ${m.small}, note ${m.note}, legend ${m.legend} · caveat ${m.caveat}`);
   const t = k => rows.reduce((n, [, m]) => n + (k ? m[k] : helper(m)), 0);
-  console.log(`\nhelper text: ${t()} words (status ${t("status")}, labels ${t("labels")}, small ${t("small")}, note ${t("note")}) · caveats ${t("caveat")} words · ${rows.length} pages`);
+  console.log(`\nhelper text: ${t()} words (status ${t("status")}, labels ${t("labels")}, small ${t("small")}, note ${t("note")}, legend ${t("legend")}) · caveats ${t("caveat")} words · ${rows.length} pages`);
 }

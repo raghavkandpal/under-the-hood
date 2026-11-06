@@ -47,7 +47,7 @@
   </div>
 
   <h2>How it works</h2>
-  <p><b>The random surfer.</b> Start on any page. With probability <i>d</i> (usually 0.85) click a random link on it. Otherwise get bored and jump to a random page anywhere. Do this forever, and a page's rank is the fraction of time the surfer spends there. Release a surfer and its orange visit counts slowly settle onto the blue bars.</p>
+  <p><b>The random surfer.</b> Start on any page. With probability <i>d</i> (usually 0.85) click a random link on it. Otherwise get bored and jump to a random page anywhere. Do this forever, and a page's rank is the fraction of time the surfer spends there. Release a surfer and its indigo visit counts slowly settle onto the blue bars.</p>
   <p><b>The equation.</b> Each page passes its rank, split evenly, to the pages it links to: <code>rank(p) = (1−d)/N + d · Σ rank(q) / links(q)</code>, summed over pages <i>q</i> that link to <i>p</i>. Start everyone equal and apply it repeatedly. This <i>power iteration</i> converges in a few dozen steps, even for billions of pages.</p>
   <p><b>Why the jump matters.</b> Without it, a surfer who walks into a group of pages that only link to each other never leaves, and they soak up all the rank. Try "A trap" and push damping to 0.99. The jump also makes sure the answer is unique.</p>
   <p><b>Gaming it.</b> Links from unimportant pages are worth little. A "link farm" of throwaway pages all pointing at one site does lift it, though, which is why modern search engines use hundreds of other signals and actively detect such patterns.</p>

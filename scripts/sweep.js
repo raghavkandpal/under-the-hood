@@ -3,10 +3,11 @@
 // Prints [] when every page is clean; uncaught errors also show in the console, tagged with the iframe's URL.
 // Not run by npm test: it needs a real browser to lay pages out.
 //   await (await import("/scripts/sweep.js")).sweep()
+//   await (await import("/scripts/sweep.js")).sweep({ only: ["tls", "dns"] })   → just those explainers
 import { CATALOG, hrefOf } from "../catalog.js";
 
-export async function sweep({ width = 360, themes = ["light", "dark"] } = {}) {
-  const pages = ["", "path/", "path/?id=llms", ...CATALOG.map(hrefOf)], problems = [];
+export async function sweep({ width = 360, themes = ["light", "dark"], only } = {}) {
+  const pages = only ? CATALOG.filter(c => only.includes(c.id)).map(hrefOf) : ["", "path/", "path/?id=llms", ...CATALOG.map(hrefOf)], problems = [];
   const saved = localStorage.getItem("uth.theme");
   for (const theme of themes) {
     localStorage.setItem("uth.theme", theme);

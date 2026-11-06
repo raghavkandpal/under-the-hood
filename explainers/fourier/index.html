@@ -72,7 +72,7 @@ function render() {
   line(t, clean, -M, M, "var(--muted)", 1, 0.5);
   line(t, x, -M, M, "var(--blue)", y ? 1 : 1.8, y ? 0.35 : 1);
   if (y) line(t, y, -M, M, "var(--accent)", 2.2);
-  t.append(svgEl("text", { x: 12, y: 12 }, y ? "blue = noisy input · orange = after filter · grey = the pure waves" : "blue = recorded signal · grey = the pure waves without noise"));
+  t.append(svgEl("text", { x: 12, y: 12 }, y ? "blue = noisy input · indigo = after filter · grey = the pure waves" : "blue = recorded signal · grey = the pure waves without noise"));
   const s = spectrum(x).slice(0, 65), sv = $("#spec"); sv.replaceChildren();
   const smx = Math.max(0.2, ...s), bw = 680 / s.length;
   s.forEach((a, k) => {

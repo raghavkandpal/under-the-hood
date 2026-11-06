@@ -38,13 +38,13 @@
     <div class="cmd" id="cmd"></div>
     <div class="row" style="margin-top:8px"><button id="play" class="primary">▶ Run</button><button id="reset">Reset</button><span class="status" id="clock" style="min-height:0"></span></div>
     <div class="flow scroll-x" id="flow"></div>
-    <p class="status" style="margin:4px 0 0">Sliders set each program's speed (lines per tick). Gauges show each pipe's buffer. Green: working. Orange: blocked, output pipe full. Blue: waiting for input. Red: killed.</p>
+    <ul class="legend" style="margin:4px 0 0"><li><i style="--c:var(--green)"></i>working</li><li><i style="--c:var(--accent)"></i>blocked: pipe full</li><li><i style="--c:var(--blue)"></i>waiting for input</li><li><i style="--c:var(--red)"></i>killed</li></ul>
     <div class="stats" id="stats" style="--stat-min:130px"></div>
   </div>
 
   <h2>How it works</h2>
   <p><b>All at once, not one after another.</b> The shell starts every program in the pipeline at the same moment and connects each one's output to the next one's input with a pipe: a small buffer in the kernel, 64 KB on Linux. Lines flow through while <code>cat</code> is still reading. Nothing waits for a whole file to be written anywhere.</p>
-  <p><b>Backpressure.</b> When a pipe fills up, the writer is simply paused by the OS until the reader catches up (orange). When it's empty, the reader waits (blue). So the whole pipeline settles at the speed of its slowest program, and memory stays at a few buffers' worth, whether the file is a kilobyte or a terabyte. Try the slow <code>sed</code> pipeline and drag its speed.</p>
+  <p><b>Backpressure.</b> When a pipe fills up, the writer is simply paused by the OS until the reader catches up (indigo). When it's empty, the reader waits (blue). So the whole pipeline settles at the speed of its slowest program, and memory stays at a few buffers' worth, whether the file is a kilobyte or a terabyte. Try the slow <code>sed</code> pipeline and drag its speed.</p>
   <p><b>Stopping early.</b> <code>head -n 10</code> exits after ten lines and closes its end of the pipe. The next time <code>grep</code> writes, the OS kills it with SIGPIPE, and the same happens to <code>cat</code>. Most of the file is never even read.</p>
   <p><b>Some programs can't stream.</b> <code>sort</code> can't output its first line until it has seen the last one, so it holds everything in memory (red count) and the stages after it sit idle. <code>wc -l</code> also reads everything, but only keeps a counter. Put <code>grep</code> before <code>sort</code> and it has far less to hold.</p>
   <p class="caveat">The same ideas appear in <a href="../queues/">message queues</a>, streaming frameworks and network flow control (<a href="../tcp/">TCP</a>'s window is backpressure too). Simplified: rates are fixed per program, and real pipes carry bytes, not lines.</p>

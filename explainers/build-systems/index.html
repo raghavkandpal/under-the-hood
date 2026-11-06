@@ -33,13 +33,14 @@
   <div class="panel">
     <div class="controls" style="margin:0"><button id="full" class="primary">🔨 Clean build</button><button id="none">Nothing changed</button>
       <label class="inline"><input type="checkbox" id="cycle"> add a circular dependency</label></div>
-    <p class="status" style="margin:6px 0 0"><b>Click a source file</b> (grey) to pretend you edited it. Orange = must rebuild. Each box shows its compile time.</p>
+    <ul class="legend" style="margin:6px 0 0"><li>click a source file to edit it</li><li><i style="--c:var(--red)"></i>edited</li><li><i style="--c:var(--accent)"></i>rebuild</li></ul>
     <div class="scroll-x"><svg id="dag" role="img" aria-label="Dependency graph"></svg></div>
     <p id="msg"></p>
     <div class="stats" id="stats"></div>
   </div>
 
-  <div class="panel"><b>The build, with unlimited parallel workers</b> <span class="status">(red = critical path: the chain that sets the total time)</span><div class="gantt" id="gantt"></div></div>
+  <div class="panel"><b>The build, with unlimited parallel workers</b>
+    <ul class="legend" style="margin:4px 0 0"><li><i style="--c:var(--red)"></i>critical path</li></ul><div class="gantt" id="gantt"></div></div>
 
   <h2>How it works</h2>
   <p><b>A dependency graph.</b> Each output (an object file, a library, the app, the tests) lists what it's built from. Since nothing may depend on itself, even indirectly, it's a <i>directed acyclic graph</i>.</p>

@@ -107,7 +107,7 @@ Not allowed:
 - Borders, pills and boxes used only for decoration. One accent colour (`--accent`); `--blue`, `--green` and
   `--red` carry meaning in diagrams only.
 
-`tests/text-budget.test.js` keeps a per-page count of helper text (static `.status`, label, `<small>` and `.note`
+`tests/text-budget.test.js` keeps a per-page count of helper text (static `.status`, label, `<small>`, `.note` and `.legend`
 words, fixed sentences scripts write into `.status`, and the caveat) in
 `tests/text-budget.json`. A page may never go over its count. When you cut text, run
 `npm run text-budget -- --update` so the drop shows in the diff. A new page starts at whatever it has,
