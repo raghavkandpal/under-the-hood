@@ -28,19 +28,19 @@
       <button id="newkey">New random key</button>
     </div>
     <div class="grid4">
-      <figure><canvas id="c-plain"></canvas><figcaption><b>Original</b></figcaption></figure>
-      <figure><canvas id="c-ecb"></canvas><figcaption><b>ECB</b> <span id="r-ecb"></span><small>each block alone</small></figcaption></figure>
-      <figure><canvas id="c-cbc"></canvas><figcaption><b>CBC</b> <span id="r-cbc"></span><small>chained to the previous block</small></figcaption></figure>
-      <figure><canvas id="c-ctr"></canvas><figcaption><b>CTR</b> <span id="r-ctr"></span><small>encrypted counter, XORed in</small></figcaption></figure>
+      <figure><canvas id="c-plain" role="img" aria-label="Original picture"></canvas><figcaption><b>Original</b></figcaption></figure>
+      <figure><canvas id="c-ecb" role="img" aria-label="Picture encrypted with ECB"></canvas><figcaption><b>ECB</b> <span id="r-ecb"></span><small>each block alone</small></figcaption></figure>
+      <figure><canvas id="c-cbc" role="img" aria-label="Picture encrypted with CBC"></canvas><figcaption><b>CBC</b> <span id="r-cbc"></span><small>chained to the previous block</small></figcaption></figure>
+      <figure><canvas id="c-ctr" role="img" aria-label="Picture encrypted with CTR"></canvas><figcaption><b>CTR</b> <span id="r-ctr"></span><small>encrypted counter, XORed in</small></figcaption></figure>
     </div>
   </div>
 
   <div class="panel">
     <b>Click an encrypted pixel above to flip a bit</b>
     <div class="grid3">
-      <figure><canvas id="d-ecb"></canvas><figcaption><b>ECB, decrypted</b><small id="t-ecb">no damage yet</small></figcaption></figure>
-      <figure><canvas id="d-cbc"></canvas><figcaption><b>CBC, decrypted</b><small id="t-cbc">no damage yet</small></figcaption></figure>
-      <figure><canvas id="d-ctr"></canvas><figcaption><b>CTR, decrypted</b><small id="t-ctr">no damage yet</small></figcaption></figure>
+      <figure><canvas id="d-ecb" role="img" aria-label="ECB ciphertext decrypted after the bit flip"></canvas><figcaption><b>ECB, decrypted</b><small id="t-ecb">no damage yet</small></figcaption></figure>
+      <figure><canvas id="d-cbc" role="img" aria-label="CBC ciphertext decrypted after the bit flip"></canvas><figcaption><b>CBC, decrypted</b><small id="t-cbc">no damage yet</small></figcaption></figure>
+      <figure><canvas id="d-ctr" role="img" aria-label="CTR ciphertext decrypted after the bit flip"></canvas><figcaption><b>CTR, decrypted</b><small id="t-ctr">no damage yet</small></figcaption></figure>
     </div>
   </div>
 
@@ -48,9 +48,9 @@
     <b>Never reuse a nonce</b>
     <div class="row" style="margin-top:6px"><label class="inline"><input type="checkbox" id="reuse" checked> encrypt both pictures with the same CTR nonce</label></div>
     <div class="grid3">
-      <figure><canvas id="n-a"></canvas><figcaption><b>Secret picture A, encrypted</b></figcaption></figure>
-      <figure><canvas id="n-b"></canvas><figcaption><b>Secret picture B, encrypted</b></figcaption></figure>
-      <figure><canvas id="n-x"></canvas><figcaption><b>A ⊕ B ciphertexts</b><small id="n-msg"></small></figcaption></figure>
+      <figure><canvas id="n-a" role="img" aria-label="Secret picture A, encrypted with CTR"></canvas><figcaption><b>Secret picture A, encrypted</b></figcaption></figure>
+      <figure><canvas id="n-b" role="img" aria-label="Secret picture B, encrypted with CTR"></canvas><figcaption><b>Secret picture B, encrypted</b></figcaption></figure>
+      <figure><canvas id="n-x" role="img" aria-label="The two ciphertexts XORed together"></canvas><figcaption><b>A ⊕ B ciphertexts</b><small id="n-msg"></small></figcaption></figure>
     </div>
   </div>
 

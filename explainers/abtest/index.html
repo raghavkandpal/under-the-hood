@@ -30,9 +30,9 @@
       <label>Visitors per variant <b id="vn"></b><input type="range" id="n" min="200" max="10000" step="100" value="4000"></label>
     </div>
     <div class="controls" style="margin:12px 0 0"><button id="go" class="primary">▶ Run experiment</button><button id="again">🎲 Re-run with new visitors</button></div>
-    <svg class="chart" id="rates" viewBox="0 0 700 200" preserveAspectRatio="none"></svg>
+    <svg class="chart" id="rates" viewBox="0 0 700 200" preserveAspectRatio="none" role="img" aria-label="Measured conversion rates of A and B as visitors arrive, with 95% intervals and the true rates"></svg>
     <ul class="legend" style="margin:0"><li><i style="--c:var(--blue)"></i>A measured</li><li><i style="--c:var(--accent)"></i>B measured</li><li>band: 95% interval</li><li>dashed: true rate</li></ul>
-    <svg class="chart" id="pv" viewBox="0 0 700 120" preserveAspectRatio="none" style="margin-top:8px"></svg>
+    <svg class="chart" id="pv" viewBox="0 0 700 120" preserveAspectRatio="none" style="margin-top:8px" role="img" aria-label="p-value over the experiment, log scale, with the 0.05 line"></svg>
     <ul class="legend" style="margin:0"><li>p-value, log scale</li><li><i style="--c:var(--red)"></i>0.05</li></ul>
     <div class="stats" id="stats"></div>
     <p class="banner" id="banner"></p>
@@ -42,7 +42,7 @@
   <p>It's tempting to watch the dashboard and stop the moment the result turns significant. Here are 400 <b>A/A tests</b>, where both variants are identical so any "win" is a false alarm. Each one is checked every 100 visitors.</p>
   <div class="panel">
     <div class="controls" style="margin:0"><button id="peek" class="primary">Run 400 A/A tests</button><span class="status" id="peekStatus" role="status"></span></div>
-    <svg class="chart" id="peekChart" viewBox="0 0 700 160" preserveAspectRatio="none"></svg>
+    <svg class="chart" id="peekChart" viewBox="0 0 700 160" preserveAspectRatio="none" role="img" aria-label="Share of A/A tests that falsely declare a winner, checking after every 100 visitors"></svg>
     <div class="stats" id="peekStats"></div>
   </div>
 

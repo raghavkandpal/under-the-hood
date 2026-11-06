@@ -57,7 +57,7 @@
   <p>Most popular engines (JavaScript, Python, Java, PCRE) don't track all states at once. They <b>backtrack</b>: try one way, and if it fails, rewind and try the next. Usually that's fine. But <code>(a+)+b</code> on a string of a's with no b has exponentially many ways to split the a's, and a backtracker tries them all before giving up.</p>
   <div class="panel">
     <label class="inline">Length of “aaaa…” input <input type="range" id="n" min="4" max="28" value="16"> <b id="vn"></b></label>
-    <svg class="chart" id="race" viewBox="0 0 600 160" preserveAspectRatio="none"></svg>
+    <svg class="chart" id="race" viewBox="0 0 600 160" preserveAspectRatio="none" role="img" aria-label="Steps taken by backtracking and by NFA state sets as the input grows, log scale"></svg>
     <ul class="legend" style="margin:0"><li><i style="--c:var(--red)"></i>backtracking steps</li><li><i style="--c:var(--green)"></i>NFA state sets</li><li>log scale</li></ul>
     <p id="raceNote"></p>
   </div>

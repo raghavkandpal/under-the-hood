@@ -38,7 +38,7 @@
 
   <div class="panel">
     <b>Scores the model gives</b> <ul class="legend" style="margin:4px 0 0"><li><i style="--c:var(--red)"></i>real positives</li><li><i style="--c:var(--blue)"></i>real negatives</li><li>dashed: threshold, flag right of it</li></ul>
-    <svg class="chart" id="hist" viewBox="0 0 700 150" preserveAspectRatio="none"></svg>
+    <svg class="chart" id="hist" viewBox="0 0 700 150" preserveAspectRatio="none" role="img" aria-label="Model scores for real positives and real negatives, with the threshold"></svg>
   </div>
 
   <div class="three">
@@ -47,8 +47,8 @@
       <table class="cm" id="cm" style="margin-top:8px"></table>
       <div class="stats" id="stats"></div>
     </div>
-    <div class="panel"><b>ROC curve</b> <span class="status" id="auc" role="status"></span><svg class="chart" id="rocc" viewBox="0 0 220 220"></svg><p class="status">Catch rate vs. false-alarm rate at every threshold. The dot is yours. The diagonal is guessing.</p></div>
-    <div class="panel"><b>Precision–recall curve</b><svg class="chart" id="prc" viewBox="0 0 220 220"></svg><ul class="legend"><li>dashed: prevalence</li></ul></div>
+    <div class="panel"><b>ROC curve</b> <span class="status" id="auc" role="status"></span><svg class="chart" id="rocc" viewBox="0 0 220 220" role="img" aria-label="ROC curve: catch rate against false-alarm rate, with your threshold marked"></svg><p class="status">Catch rate vs. false-alarm rate at every threshold. The dot is yours. The diagonal is guessing.</p></div>
+    <div class="panel"><b>Precision–recall curve</b><svg class="chart" id="prc" viewBox="0 0 220 220" role="img" aria-label="Precision against recall at every threshold, with prevalence dashed"></svg><ul class="legend"><li>dashed: prevalence</li></ul></div>
   </div>
 
   <h2>The vocabulary</h2>
