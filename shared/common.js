@@ -194,6 +194,8 @@ export function tabs(el, options, active, onPick) {
 
 /** True when the reader has asked the OS for less motion: auto-playing demos should start paused, and steps jump to their end state. */
 export const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** sleep() between the steps of an animation: resolves at once under reduced motion, so the demo lands on its end state. */
+export const pause = ms => (reducedMotion() ? Promise.resolve() : sleep(ms));
 
 /**
  * Make a drag-only control usable from the keyboard: it joins the tab order and gets a name, and the

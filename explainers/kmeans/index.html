@@ -54,7 +54,7 @@
   <p class="caveat">Other methods handle those shapes better: DBSCAN (density), Gaussian mixtures (soft, elliptical clusters) and spectral clustering. Choosing k honestly also takes care: the elbow, silhouette scores, or knowledge of the problem.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, statTile, isDark, onThemeChange, cssVar } from "../../shared/common.js";
+import { chrome, $, svgEl, statTile, isDark, onThemeChange, cssVar, reducedMotion } from "../../shared/common.js";
 import { SHAPES, makePoints, init, assign, update, inertia, run } from "./kmeans.js";
 chrome();
 
@@ -121,7 +121,7 @@ function elbow() {
 }
 const stop = () => { clearInterval(timer); timer = null; $("#play").textContent = "▶ Run"; };
 $("#step").onclick = () => { stop(); stepOnce(); };
-$("#play").onclick = () => { if (timer) return stop(); if (phase === "done") start(); $("#play").textContent = "⏸ Pause"; timer = setInterval(() => { if (!stepOnce()) stop(); }, 450); };
+$("#play").onclick = () => { if (timer) return stop(); if (phase === "done") start(); if (reducedMotion()) { while (stepOnce()); return; } $("#play").textContent = "⏸ Pause"; timer = setInterval(() => { if (!stepOnce()) stop(); }, 450); };
 $("#restart").onclick = () => { seed++; start(); };
 $("#shape").onchange = () => { pts = makePoints($("#shape").value, 1); if ($("#shape").value === "blobs5") $("#k").value = 5; start(); };
 $("#k").oninput = start; $("#init").onchange = start;

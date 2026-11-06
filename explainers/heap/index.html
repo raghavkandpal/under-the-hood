@@ -44,7 +44,7 @@
   <p class="caveat">Used in Dijkstra's and A* <a href="../pathfinding/">pathfinding</a>, OS <a href="../scheduling/">schedulers</a>, Huffman coding, timer wheels, merging sorted files, and “top 10 of a billion” queries: keep a heap of the best 10 and discard anything smaller than its root.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, sleep, statTile } from "../../shared/common.js";
+import { chrome, $, svgEl, statTile, pause } from "../../shared/common.js";
 import { Heap, heapify } from "./heap.js";
 chrome();
 
@@ -65,17 +65,17 @@ function draw() {
 async function replay(before, log, popped) {
   busy = true; view = [...before]; swaps = 0;
   for (const [op, i, j] of log) {
-    if (op === "remove") { hot = new Set([0]); draw(); await sleep(350); }
+    if (op === "remove") { hot = new Set([0]); draw(); await pause(350); }
     else if (op === "move") { view[0] = view[i]; view.length = i; hot = new Set([0]); }
-    else if (op === "swap") { swaps++; hot = new Set([i, j]); draw(); await sleep(320); [view[i], view[j]] = [view[j], view[i]]; }
-    draw(); await sleep(320);
+    else if (op === "swap") { swaps++; hot = new Set([i, j]); draw(); await pause(320); [view[i], view[j]] = [view[j], view[i]]; }
+    draw(); await pause(320);
   }
   view = [...h.a]; hot = new Set(); busy = false; draw();
 }
 async function push(x) {
   if (busy) return; if (h.size >= 31) { $("#msg").textContent = "Full for this demo (31 items = 5 levels)."; return; }
   const before = [...h.a]; h.log = []; h.push(x); const log = h.log;
-  busy = true; view = [...before, x]; hot = new Set([before.length]); draw(); await sleep(350);
+  busy = true; view = [...before, x]; hot = new Set([before.length]); draw(); await pause(350);
   $("#msg").textContent = `Pushed ${x} at the end (slot ${before.length}), then sifted it up.`;
   await replay([...before, x], log.slice(1)); // skip the "add" entry: x is already drawn at the end
   $("#msg").textContent = `Pushed ${x}: ${swaps} swap${swaps === 1 ? "" : "s"} up the tree. At most ${Math.floor(Math.log2(h.size))} ever needed at this size.`;

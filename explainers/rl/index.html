@@ -69,7 +69,7 @@
   <p class="caveat">Tabular Q-learning (Watkins, 1989) with ε-greedy exploration. Deep RL replaces the table with a neural network so it can handle huge state spaces like game screens.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, sleep, statTile, isDark, onThemeChange, cssVar } from "../../shared/common.js";
+import { chrome, $, svgEl, statTile, isDark, onThemeChange, cssVar, pause, reducedMotion } from "../../shared/common.js";
 import { Grid, QLearner, valueIteration, ACTIONS } from "./rl.js";
 chrome();
 
@@ -142,8 +142,9 @@ function stats() {
 async function watch() {
   if (busy) return; busy = true; showVI = false; Object.assign(agent, opts());
   const { path } = agent.episode(); trail = [];
-  for (const s of path) { trail.push(s); draw(s); await sleep(path.length > 60 ? 30 : 90); }
-  await sleep(300); trail = []; draw(); busy = false;
+  for (const s of path) { trail.push(s); draw(s); await pause(path.length > 60 ? 30 : 90); }
+  if (!reducedMotion()) { await pause(300); trail = []; draw(); }
+  busy = false;
 }
 $("#ep").onclick = watch;
 $("#ep100").onclick = () => { if (busy) return; showVI = false; Object.assign(agent, opts()); for (let i = 0; i < 100; i++) agent.episode(); trail = agent.policyPath(); draw(); setTimeout(() => { trail = []; draw(); }, 1200); };

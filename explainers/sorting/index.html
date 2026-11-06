@@ -49,7 +49,7 @@
   <p class="caveat">Bars are coloured where the current operation is: indigo = comparing, red = writing. Each comparison counts as one operation, a swap as two writes.</p>
 </main>
 <script type="module">
-import { chrome, $, onThemeChange } from "../../shared/common.js";
+import { chrome, $, onThemeChange, reducedMotion } from "../../shared/common.js";
 import { ALGOS, INPUTS, count } from "./sorting.js";
 import { mulberry } from "../../shared/random.js";
 chrome();
@@ -78,7 +78,8 @@ function draw(L) {
   el.classList.toggle("done", L.done);
   el.querySelector(".ops").innerHTML = `${L.cmps.toLocaleString()} comparisons · ${L.writes.toLocaleString()} writes` + (L.done ? ` · <span class="place">#${L.place}</span>` : "");
 }
-function frame() {
+function frame(quick) {
+  quick = quick === true; // requestAnimationFrame passes a timestamp
   const budget = +$("#speed").value;
   let alive = false;
   for (const L of lanes) {
@@ -92,8 +93,9 @@ function frame() {
       if (op.type === "cmp") L.cmps++; else L.writes += cost;
     }
     if (!L.done) alive = true;
-    draw(L);
+    if (!quick) draw(L);
   }
+  if (quick) return alive;
   if (alive) raf = requestAnimationFrame(frame); else { raf = null; $("#go").textContent = "↺ Again"; }
 }
 function totals() {
@@ -101,7 +103,7 @@ function totals() {
   $("#totals").innerHTML = `<tr><th>Algorithm</th><th>Comparisons</th><th>Writes</th><th>Total ops</th><th>vs. least</th></tr>` +
     rows.sort((x, y) => (x.cmps + x.writes) - (y.cmps + y.writes)).map(r => `<tr><td>${r.a.label}</td><td class="num">${r.cmps.toLocaleString()}</td><td class="num">${r.writes.toLocaleString()}</td><td class="num">${(r.cmps + r.writes).toLocaleString()}</td><td class="num">${((r.cmps + r.writes) / best).toFixed(1)}×</td></tr>`).join("");
 }
-$("#go").onclick = () => { if (raf) { cancelAnimationFrame(raf); raf = null; $("#go").textContent = "▶ Race"; return; } if (lanes.every(l => l.done)) reset(); $("#go").textContent = "⏸ Pause"; raf = requestAnimationFrame(frame); };
+$("#go").onclick = () => { if (raf) { cancelAnimationFrame(raf); raf = null; $("#go").textContent = "▶ Race"; return; } if (lanes.every(l => l.done)) reset(); if (reducedMotion()) { while (frame(true)); lanes.forEach(draw); $("#go").textContent = "↺ Again"; return; } $("#go").textContent = "⏸ Pause"; raf = requestAnimationFrame(frame); };
 $("#shuffle").onclick = () => { seed++; makeData(); };
 $("#input").onchange = makeData;
 $("#n").oninput = makeData;

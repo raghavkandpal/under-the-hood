@@ -86,11 +86,11 @@
   <p class="caveat">Simplified from the Raft paper (Ongaro &amp; Ousterhout, 2014): no membership changes, snapshots or pre-vote; timings slowed down so you can watch.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, escapeHtml, isDark, onThemeChange } from "../../shared/common.js";
+import { chrome, $, svgEl, escapeHtml, isDark, onThemeChange, reducedMotion } from "../../shared/common.js";
 import { Raft } from "./raft.js";
 chrome();
 
-let r, playing = true, speed = 1, last = performance.now(), cmdN = 0, seed = 11, lastEvent;
+let r, playing = !reducedMotion(), speed = 1, last = performance.now(), cmdN = 0, seed = 11, lastEvent;
 const N = 5, CX = 250, CY = 210, RAD = 150, NR = 38;
 const pos = i => { const a = -Math.PI / 2 + i * 2 * Math.PI / N; return { x: CX + RAD * Math.cos(a), y: CY + RAD * Math.sin(a) }; };
 const termColor = t => `hsl(${(t * 67) % 360} 70% ${isDark() ? "30%" : "84%"})`;
@@ -162,7 +162,9 @@ $("#nodebtns").addEventListener("click", e => {
   if (b.dataset.act === "crash") toggleCrash(id); else r.setGroup(id, r.nodes[id].group ? 0 : 1);
   draw();
 });
-$("#play").onclick = () => { playing = !playing; $("#play").textContent = playing ? "⏸ Pause" : "▶ Play"; };
+const playLabel = () => { $("#play").textContent = playing ? "⏸ Pause" : "▶ Play"; };
+$("#play").onclick = () => { playing = !playing; playLabel(); };
+playLabel(); // starts paused under reduced motion
 $("#speed").oninput = e => { speed = +e.target.value; $("#vspeed").textContent = speed + "×"; };
 $("#write").onclick = () => {
   const cmd = `${"xyzwv"[cmdN % 5]}=${++cmdN}`;

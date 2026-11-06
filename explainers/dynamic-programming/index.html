@@ -55,7 +55,7 @@
   <p class="caveat">The same pattern solves edit distance (spell checkers, <a href="../diff/">diff</a>), shortest paths (Bellman-Ford, as in <a href="../routing/">routing</a>), sequence alignment in genomics, the knapsack problem, speech recognition (Viterbi), and how a typesetter breaks a paragraph into lines.</p>
 </main>
 <script type="module">
-import { chrome, $, sleep, statTile } from "../../shared/common.js";
+import { chrome, $, statTile, pause } from "../../shared/common.js";
 import { greedy, dp, calls } from "./dp.js";
 chrome();
 
@@ -86,7 +86,7 @@ function render(upto = Infinity, cur = -1) {
 }
 async function fill() {
   const my = ++anim, A = +$("#amt").value; filling = true;
-  for (let a = 0; a <= A; a++) { if (my !== anim) { filling = false; return; } render(a, a); await sleep(Math.max(60, 1500 / (A + 1))); }
+  for (let a = 0; a <= A; a++) { if (my !== anim) { filling = false; return; } render(a, a); await pause(Math.max(60, 1500 / (A + 1))); }
   filling = false; render();
 }
 $("#fill").onclick = fill;

@@ -67,7 +67,7 @@
   <p class="caveat">Toy version: lowercase letters only and a tiny corpus. Real tokenizers (GPT, Llama, Claude) work on raw bytes so any Unicode works, train on terabytes of text, and learn 50,000–200,000 merges.</p>
 </main>
 <script type="module">
-import { chrome, $, escapeHtml, statTile, isDark, onThemeChange } from "../../shared/common.js";
+import { chrome, $, escapeHtml, statTile, isDark, onThemeChange, reducedMotion } from "../../shared/common.js";
 import { train, encode, vocab, words, SPACE } from "./bpe.js";
 chrome();
 
@@ -112,6 +112,7 @@ $("#next").onclick = () => { stop(); if (k < model.merges.length) { k++; render(
 $("#zero").onclick = () => { stop(); k = 0; render(); };
 $("#play").onclick = () => {
   if (timer) return stop();
+  if (reducedMotion()) { k = model.merges.length; return render(); }
   $("#play").textContent = "⏸ Pause";
   timer = setInterval(() => { if (k >= model.merges.length) return stop(); k++; render(); }, 350);
 };

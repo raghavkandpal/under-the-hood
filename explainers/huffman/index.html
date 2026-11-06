@@ -70,7 +70,7 @@
   </ul>
 </main>
 <script type="module">
-import { chrome, $, svgEl, escapeHtml, statTile } from "../../shared/common.js";
+import { chrome, $, svgEl, escapeHtml, statTile, reducedMotion } from "../../shared/common.js";
 import { buildSteps, codesFrom, encode, entropyBits, frequencies } from "./huffman.js";
 chrome();
 
@@ -199,6 +199,7 @@ $("#reset").onclick = () => { stop(); go(0); };
 $("#end").onclick = () => { stop(); go(steps.length - 1); };
 $("#play").onclick = () => {
   if (timer) return stop();
+  if (reducedMotion()) return go(steps.length - 1);
   $("#play").textContent = "⏸ Pause";
   timer = setInterval(() => { if (idx >= steps.length - 1) stop(); else go(idx + 1); }, 700);
 };

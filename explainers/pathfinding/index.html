@@ -48,7 +48,7 @@
   <p class="caveat">Moves are up, down, left and right; open cells cost 1 and mud costs 6. The estimate is Manhattan distance, which never overestimates here.</p>
 </main>
 <script type="module">
-import { chrome, $, keyboardDraggable, onThemeChange } from "../../shared/common.js";
+import { chrome, $, keyboardDraggable, onThemeChange, reducedMotion } from "../../shared/common.js";
 import { search, maze, ALGOS } from "./pathfinding.js";
 chrome();
 
@@ -98,7 +98,7 @@ function finish() {
 }
 function run() {
   if (anim) return finish();
-  const r = search(grid, W, start, goal, $("#algo").value); let i = 0;
+  const r = search(grid, W, start, goal, $("#algo").value); let i = reducedMotion() ? r.order.length : 0;
   $("#run").textContent = "⏭ Skip";
   const tick = () => { i += +$("#speed").value; draw(r, i); $("#status").textContent = `Exploring… ${Math.min(i, r.order.length)} cells`; if (i >= r.order.length) return finish(); anim = requestAnimationFrame(tick); };
   tick();

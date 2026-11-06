@@ -48,7 +48,7 @@
   <p class="caveat">Also used for image segmentation, network connectivity, percolation simulations, type inference (unification) and the "same account?" grouping in fraud detection.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, sleep, statTile } from "../../shared/common.js";
+import { chrome, $, svgEl, statTile, pause } from "../../shared/common.js";
 import { DSU, gridGraph, kruskal } from "./unionfind.js";
 chrome();
 
@@ -88,7 +88,7 @@ function drawGrid(steps = []) {
 function newGrid() { edges = gridGraph(GW, GH, seedG++); drawGrid(); $("#knote").textContent = ""; }
 $("#kgo").onclick = async () => {
   if (running) return; running = true; const { steps, total } = kruskal(GW * GH, edges);
-  for (let k = 1; k <= steps.length; k++) { drawGrid(steps.slice(0, k)); $("#knote").textContent = `considered ${k} edges · kept ${steps.slice(0, k).filter(s => s.taken).length} · skipped ${steps.slice(0, k).filter(s => !s.taken).length} (would make a loop)`; await sleep(steps.length > 60 ? 35 : 80); }
+  for (let k = 1; k <= steps.length; k++) { drawGrid(steps.slice(0, k)); $("#knote").textContent = `considered ${k} edges · kept ${steps.slice(0, k).filter(s => s.taken).length} · skipped ${steps.slice(0, k).filter(s => !s.taken).length} (would make a loop)`; await pause(steps.length > 60 ? 35 : 80); }
   $("#knote").textContent += ` · total cost ${total}`; running = false;
 };
 $("#knew").onclick = () => { if (!running) newGrid(); };
