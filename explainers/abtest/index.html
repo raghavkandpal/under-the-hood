@@ -41,7 +41,7 @@
   <h2>2. The peeking problem</h2>
   <p>It's tempting to watch the dashboard and stop the moment the result turns significant. Here are 400 <b>A/A tests</b>, where both variants are identical so any "win" is a false alarm. Each one is checked every 100 visitors.</p>
   <div class="panel">
-    <div class="controls" style="margin:0"><button id="peek" class="primary">Run 400 A/A tests</button><span class="status" id="peekStatus"></span></div>
+    <div class="controls" style="margin:0"><button id="peek" class="primary">Run 400 A/A tests</button><span class="status" id="peekStatus" role="status"></span></div>
     <svg class="chart" id="peekChart" viewBox="0 0 700 160" preserveAspectRatio="none"></svg>
     <div class="stats" id="peekStats"></div>
   </div>
@@ -54,7 +54,7 @@
       <label>Power <b id="vpow"></b><input type="range" id="pow" min="0.5" max="0.95" step="0.05" value="0.8"></label>
     </div>
     <p style="margin:12px 0 0"><span class="big" id="ss"></span> <span class="status">visitors per variant</span></p>
-    <p class="status" id="ssNote"></p>
+    <p class="status" id="ssNote" role="status"></p>
   </div>
 
   <h2>What to remember</h2>

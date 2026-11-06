@@ -36,7 +36,7 @@
       <label class="inline">pipe buffer <input type="range" id="buf" min="4" max="256" step="4" value="64"> <b id="bv"></b> lines</label>
     </div>
     <div class="cmd" id="cmd"></div>
-    <div class="row" style="margin-top:8px"><button id="play" class="primary">▶ Run</button><button id="reset">Reset</button><span class="status" id="clock" style="min-height:0"></span></div>
+    <div class="row" style="margin-top:8px"><button id="play" class="primary">▶ Run</button><button id="reset">Reset</button><span class="status" id="clock" style="min-height:0" role="status"></span></div>
     <div class="flow scroll-x" id="flow"></div>
     <ul class="legend" style="margin:4px 0 0"><li><i style="--c:var(--green)"></i>working</li><li><i style="--c:var(--accent)"></i>blocked: pipe full</li><li><i style="--c:var(--blue)"></i>waiting for input</li><li><i style="--c:var(--red)"></i>killed</li></ul>
     <div class="stats" id="stats" style="--stat-min:130px"></div>

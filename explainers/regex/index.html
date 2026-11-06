@@ -47,7 +47,7 @@
   <div class="panel">
     <div class="controls" style="margin:0"><button id="prev">◀</button><input type="range" id="step" min="0" value="0" style="flex:1;min-width:120px"><button id="next" class="primary">▶ Read next char</button></div>
     <div class="chars" id="chars"></div>
-    <p class="status" id="explain"></p>
+    <p class="status" id="explain" role="status"></p>
     <div class="scroll-x"><svg id="nfa" role="img" aria-label="State machine"></svg></div>
     <p class="verdict" id="verdict"></p>
     <ul class="legend"><li>solid: reads a character</li><li>dashed ε: free jump</li><li><i style="--c:var(--accent)"></i>possible now</li><li><i style="border:2px solid var(--blue);border-radius:50%"></i>start</li><li><i style="border:2px solid var(--green);border-radius:50%"></i>accept</li></ul>
