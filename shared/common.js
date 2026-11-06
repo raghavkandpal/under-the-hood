@@ -23,14 +23,15 @@ export function chrome() {
   const area = page && areaOf(page), topic = page && topicOf(page);
   header.innerHTML = `<div class="inner">
     <a class="brand" href="${linkTo()}">How it <span>works</span></a>
-    <nav>
-      ${page ? `<span class="crumb"><a href="${linkTo()}?area=${area.id}">${area.title}</a> › <a href="${linkTo()}?area=${area.id}#topic-${topic.id}">${topic.title}</a></span>` : ""}
-      <a href="${linkTo()}"${page ? "" : ' aria-current="page"'}>All explainers (${CATALOG.length})</a>
+    <nav aria-label="Site">
+      ${page ? `<span class="crumb" aria-label="Breadcrumb"><a href="${linkTo()}?area=${area.id}">${area.title}</a> › <a href="${linkTo()}?area=${area.id}#topic-${topic.id}">${topic.title}</a></span>` : ""}
+      <a class="all" href="${linkTo()}"${page ? "" : ' aria-current="page"'}>All explainers (${CATALOG.length})</a>
     </nav>
   </div>`;
   document.body.prepend(header);
 
   const main = document.querySelector("main");
+  let endLink = null;
   if (page && main) {
     markRead(page.id);
     // ---- learning path navigation: the ?path= the reader arrived with, if this page is on it
@@ -42,14 +43,15 @@ export function chrome() {
       const bar = document.createElement("nav");
       bar.className = "pathbar"; bar.setAttribute("aria-label", "Learning path");
       bar.innerHTML = `<a class="pathname" href="${linkTo()}#path-${onPath.id}">${onPath.title}</a><span class="pathpos">Part ${i + 1} of ${onPath.steps.length}</span>
-        <span class="pathdots">${onPath.steps.map((id, j) => `<a href="${stepLink(onPath, id)}" title="${j + 1}. ${byId(id).title}" class="${j === i ? "here" : readSet().has(id) ? "read" : ""}"></a>`).join("")}</span>
+        <span class="pathdots">${onPath.steps.map((id, j) => { const state = j === i ? "here" : readSet().has(id) ? "read" : ""; const label = `Part ${j + 1}: ${byId(id).title}${state === "here" ? " (you are here)" : state === "read" ? " (read)" : ""}`;
+          return `<a href="${stepLink(onPath, id)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="${state}"${state === "here" ? ' aria-current="step"' : ""}></a>`; }).join("")}</span>
         <span class="pathlinks">${prev ? `<a href="${stepLink(onPath, prev)}">← ${byId(prev).title}</a>` : ""}${next ? `<a href="${stepLink(onPath, next)}">Next: ${byId(next).title} →</a>` : `<a href="${linkTo()}#path-${onPath.id}">Path complete ✓</a>`}</span>`;
       (main.querySelector("p.lede") || main.querySelector("h1")).after(bar);
       const end = document.createElement("a");
       end.className = "pathnext";
       end.href = next ? stepLink(onPath, next) : `${linkTo()}#path-${onPath.id}`;
-      end.innerHTML = next ? `<small>${onPath.title} · part ${i + 2} of ${onPath.steps.length}</small>Next: ${byId(next).title} →` : `<small>${onPath.title}</small>You've reached the end of this path ✓`;
-      main.append(end);
+      end.innerHTML = next ? `<small>${onPath.title} · Part ${i + 2} of ${onPath.steps.length}</small>Next: ${byId(next).title} →` : `<small>${onPath.title}</small>You've reached the end of this path ✓`;
+      endLink = end;
     } else if (pathsWith(page.id).length) {
       const note = document.createElement("p");
       note.className = "status pathsof";
@@ -78,6 +80,8 @@ export function chrome() {
       main.append(sec);
     }
   }
+  // the path's big "Next" link goes last, after everything else on the page
+  if (endLink) main.append(endLink);
   const footer = document.createElement("footer");
   footer.className = "site";
   footer.textContent = "Interactive explainers · everything runs in your browser";
@@ -104,4 +108,26 @@ export function tabs(el, options, active, onPick) {
   const set = k => el.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.k === k));
   el.onclick = e => { const b = e.target.closest("[data-k]"); if (!b) return; set(b.dataset.k); onPick(b.dataset.k); };
   return set;
+}
+
+/** True when the reader has asked the OS for less motion: auto-playing demos should start paused, and steps jump to their end state. */
+export const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/**
+ * Make a drag-only control usable from the keyboard: it joins the tab order and gets a name, and the
+ * arrow keys call onNudge(dx, dy, event) with a step of `step` (or `bigStep` with Shift held), in
+ * whatever units the page uses. `label` should say what the control is and which keys do what.
+ * Works on HTML elements and SVG elements alike. Pages can add their own keydown listener for other keys.
+ */
+export function keyboardDraggable(el, label, onNudge, { step = 1, bigStep = 10, role = "button" } = {}) {
+  el.setAttribute("tabindex", "0");
+  el.setAttribute("role", role);
+  el.setAttribute("aria-label", label);
+  el.addEventListener("keydown", e => {
+    const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (!d || e.metaKey || e.ctrlKey) return;
+    e.preventDefault();
+    const s = e.shiftKey ? bigStep : step;
+    onNudge(d[0] * s, d[1] * s, e);
+  });
 }

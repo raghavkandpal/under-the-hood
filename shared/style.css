@@ -7,6 +7,8 @@
   --border: #dcd9d0;
   --accent: #c2410c;
   --accent-soft: #fde4d6;
+  --on-accent: #ffffff;
+  --control-border: #8f8b80;
   --blue: #1d4ed8;
   --blue-soft: #dbe6ff;
   --green: #15803d;
@@ -27,6 +29,8 @@
     --border: #3a3833;
     --accent: #fb923c;
     --accent-soft: #4a2716;
+    --on-accent: #1d1c1a;
+    --control-border: #6d6a62;
     --blue: #7aa2ff;
     --blue-soft: #1e2a4a;
     --green: #4ade80;
@@ -79,15 +83,22 @@ button, select, input[type="text"], input[type="number"], textarea {
   font: inherit; font-size: 14px;
   color: var(--text);
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 8px;
   padding: 7px 12px;
 }
+input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); flex-shrink: 0; }
+
+/* Keyboard focus: one visible ring everywhere (WCAG 2.4.7). */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary:focus-visible, .pathnext:focus-visible { outline-color: var(--text); }
+svg a:focus-visible { outline: none; }
+svg a:focus-visible rect { stroke: var(--accent); stroke-width: 3; }
 textarea { width: 100%; font-family: var(--mono); resize: vertical; }
 input[type="text"] { min-width: 0; }
 button { cursor: pointer; }
 button:hover { border-color: var(--muted); }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 button:disabled { opacity: 0.45; cursor: default; }
 label.inline { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; color: var(--muted); }
 
@@ -99,6 +110,15 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; font-size: 1
 }
 .status { font-size: 14px; color: var(--muted); min-height: 1.6em; }
 .scroll-x { overflow-x: auto; }
+/* Fade the edges of a sideways-scrolling strip while there is more to scroll (scroll-driven; no-op where unsupported). */
+@supports (animation-timeline: scroll(x)) {
+  .scroll-x { animation: scroll-fade linear both; animation-timeline: scroll(self x); }
+  @keyframes scroll-fade {
+    from { mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
+    1%, 99% { mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent); }
+    to { mask-image: linear-gradient(to right, transparent, #000 24px); }
+  }
+}
 
 table.data { border-collapse: collapse; font-size: 14px; width: 100%; }
 table.data th, table.data td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
@@ -121,14 +141,21 @@ footer.site { text-align: center; color: var(--muted); font-size: 13px; padding:
 @media (max-width: 600px) {
   main { padding-top: 20px; }
   .panel { padding: 12px; }
+  /* bigger touch targets on phones */
+  button, select { min-height: 40px; }
+  header.site .inner { padding: 10px 16px; gap: 4px 16px; }
+  header.site nav .all { display: none; } /* the brand already links home */
 }
 
 header.site nav .crumb { color: var(--muted); }
-header.site nav .crumb::after { content: " ·"; }
+header.site nav .crumb + a::before { content: "· "; }
 section.related { margin-top: 56px; border-top: 1px solid var(--border); padding-top: 8px; }
 
 select { max-width: 100%; text-overflow: ellipsis; }
 label.inline { flex-wrap: wrap; max-width: 100%; min-width: 0; }
+/* a checkbox or radio stays next to its text when the text wraps */
+label.inline:has(> input[type="checkbox"], > input[type="radio"]) { flex-wrap: nowrap; align-items: flex-start; }
+label.inline:has(> input[type="checkbox"], > input[type="radio"]) > input { margin-top: 0.2em; }
 
 /* ---------- Shared components (used by many explainers; pages override locally if needed) ---------- */
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -143,13 +170,15 @@ header.site .crumb { color: var(--muted); }
 .pathbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: -8px 0 20px; padding: 8px 12px; border: 1.5px solid var(--accent); border-radius: 12px; background: var(--accent-soft); font-size: 14px; }
 .pathbar .pathname { font-weight: 700; color: var(--text); text-decoration: none; }
 .pathbar .pathpos { color: var(--muted); }
-.pathbar .pathdots { display: flex; gap: 4px; flex-wrap: wrap; }
-.pathbar .pathdots a { width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--muted); }
-.pathbar .pathdots a.read { background: var(--muted); }
-.pathbar .pathdots a.here { background: var(--accent); border-color: var(--accent); }
+.pathbar .pathdots { display: flex; flex-wrap: wrap; }
+/* 24x24 hit area around a 10px dot */
+.pathbar .pathdots a { display: block; width: 24px; height: 24px; padding: 7px; border-radius: 50%; }
+.pathbar .pathdots a::before { content: ""; display: block; width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--muted); }
+.pathbar .pathdots a.read::before { background: var(--muted); }
+.pathbar .pathdots a.here::before { background: var(--accent); border-color: var(--accent); }
 .pathbar .pathlinks { margin-left: auto; display: flex; gap: 12px; flex-wrap: wrap; }
 .pathbar .pathlinks a { color: var(--text); }
-.pathnext { display: block; margin: 32px 0 0; padding: 14px 18px; border-radius: 12px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 700; font-size: 17px; }
+.pathnext { display: block; margin: 40px 0 0; padding: 14px 18px; border-radius: 12px; background: var(--accent); color: var(--on-accent); text-decoration: none; font-weight: 700; font-size: 17px; }
 .pathnext small { display: block; font-weight: 400; font-size: 13px; opacity: .85; }
 .pathsof { margin: -10px 0 18px; }
 .pathcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
@@ -173,3 +202,11 @@ section.reading .src { font-size: 13px; color: var(--muted); display: inline-fle
 section.reading .kind { font-size: 11px; border: 1px solid var(--border); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
 section.reading .kind-standard, section.reading .kind-paper { border-color: var(--accent); color: var(--accent); }
 section.reading p.status { margin-top: 10px; }
+
+/* ---------- Reduced motion: no transitions, animations or hover lifts ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+  .card:hover { transform: none; }
+  .scroll-x { animation-duration: auto !important; } /* the scroll-linked edge fade is not motion */
+}
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

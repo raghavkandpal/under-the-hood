@@ -13,6 +13,7 @@
   #plane .key { cursor: grab; stroke: var(--text); stroke-width: 2; }
   #plane .q { stroke: var(--text); stroke-width: 3; }
   #plane .qh { fill: var(--text); cursor: grab; }
+  #plane circle:focus-visible { outline: none; stroke: var(--accent); stroke-width: 5; }
   #plane text { font-size: 13px; fill: var(--text); font-family: var(--mono); pointer-events: none; }
   .bars { display: flex; flex-direction: column; gap: 6px; font-family: var(--mono); font-size: 13px; }
   .bar { display: grid; grid-template-columns: 60px 1fr 54px; align-items: center; gap: 8px; }
@@ -40,9 +41,9 @@
   <p class="lede">The mechanism at the heart of every large language model. Each word asks a question, every word offers an answer, and each word takes in a blend of the others, weighted by how well they match.</p>
 
   <h2>1. A soft dictionary lookup</h2>
-  <p>A normal dictionary returns the value of the one key that matches <i>exactly</i>. Attention compares the <b>query</b> with every <b>key</b> (a dot product), turns the scores into weights that sum to 1 (softmax), and returns a <i>weighted blend</i> of all the <b>values</b>. Here the values are colours. <b>Drag the query arrow, or the keys.</b></p>
+  <p>A normal dictionary returns the value of the one key that matches <i>exactly</i>. Attention compares the <b>query</b> with every <b>key</b> (a dot product), turns the scores into weights that sum to 1 (softmax), and returns a <i>weighted blend</i> of all the <b>values</b>. Here the values are colours. <b>Drag the query arrow, or the keys</b> (or tab to one and use the arrow keys).</p>
   <div class="two">
-    <div class="panel"><svg id="plane" viewBox="-210 -210 420 420" role="img" aria-label="Query and keys"></svg></div>
+    <div class="panel"><svg id="plane" viewBox="-210 -210 420 420" role="group" aria-label="Query and keys"></svg></div>
     <div class="panel">
       <div class="bars" id="bars"></div>
       <div class="row" style="margin-top:14px"><div class="outsw" id="outsw"></div><div><b>Output</b><br><span class="status">the blend of values</span></div></div>
@@ -84,7 +85,7 @@
   <p class="status">Toy version: an 8-feature hand-made vocabulary plus position, single-layer heads, and values equal to the input embedding (real models also project values and mix heads with an output matrix). Unknown words get a generic "other" feature, shown with a dashed border.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";
+import { chrome, $, svgEl, escapeHtml, keyboardDraggable } from "../../shared/common.js";
 import { softmax, dot, tokenize, known, runHead, HEADS, FEATURES } from "./attention.js";
 chrome();
 
@@ -102,19 +103,26 @@ const lin = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.
 const gam = c => Math.round(255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055));
 function blend(ws) { const acc = [0, 0, 0]; keys.forEach((k, i) => hex(k.color).forEach((c, j) => acc[j] += ws[i] * lin(c))); return `rgb(${acc.map(gam).join(",")})`; }
 
+const clamp = v => Math.max(-200, Math.min(200, v));
+function handle(circle, name, get, set) {
+  keyboardDraggable(circle, `${name}. Arrow keys move it, Shift for bigger steps.`, (dx, dy) => { const p = get(); set([clamp(p[0] + dx), clamp(p[1] + dy)]); part1(); }, { step: 10, bigStep: 40 });
+}
 function part1() {
-  const svg = $("#plane"); svg.replaceChildren();
+  const svg = $("#plane"), focused = svg.contains(document.activeElement) ? document.activeElement.dataset.h : null; svg.replaceChildren();
   svg.append(svgEl("line", { x1: -200, x2: 200, y1: 0, y2: 0, class: "axis" }), svgEl("line", { y1: -200, y2: 200, x1: 0, x2: 0, class: "axis" }));
   const S = 100 * 100 / 4; // keep scores in a readable range
   const scores = keys.map(k => dot([q[0], -q[1]], [k.p[0], -k.p[1]]) / S);
   const ws = softmax(scores, temp());
   keys.forEach((k, i) => {
     svg.append(svgEl("line", { x1: 0, y1: 0, x2: k.p[0], y2: k.p[1], stroke: k.color, "stroke-width": 1 + ws[i] * 6, opacity: 0.35 + ws[i] * 0.65 }));
-    svg.append(svgEl("circle", { cx: k.p[0], cy: k.p[1], r: 13, fill: k.color, class: "key", "data-k": i }));
+    const kc = svgEl("circle", { cx: k.p[0], cy: k.p[1], r: 13, fill: k.color, class: "key", "data-k": i, "data-h": "k" + i });
+    handle(kc, `Key ${k.name}`, () => k.p, p => k.p = p); svg.append(kc);
     svg.append(svgEl("text", { x: k.p[0] + 17, y: k.p[1] + 4 }, k.name));
   });
   svg.append(svgEl("line", { x1: 0, y1: 0, x2: q[0], y2: q[1], class: "q" }));
-  svg.append(svgEl("circle", { cx: q[0], cy: q[1], r: 10, class: "qh", "data-q": 1 }));
+  const qc = svgEl("circle", { cx: q[0], cy: q[1], r: 10, class: "qh", "data-q": 1, "data-h": "q" });
+  handle(qc, "Query", () => q, p => q = p); svg.append(qc);
+  if (focused) svg.querySelector(`[data-h="${focused}"]`)?.focus();
   svg.append(svgEl("text", { x: q[0] + 14, y: q[1] - 8 }, "query"));
   $("#bars").innerHTML = keys.map((k, i) => `<div class="bar"><span>${k.name} <span style="color:var(--muted)">${scores[i].toFixed(1)}</span></span><div class="track"><div class="fill" style="width:${(ws[i] * 100).toFixed(1)}%;background:${k.color}"></div></div><span>${(ws[i] * 100).toFixed(0)}%</span></div>`).join("") +
     `<div class="status">score = query · key, weight = softmax(score / T)</div>`;
@@ -144,7 +152,7 @@ function recompute() {
   draw2();
 }
 function draw2() {
-  $("#toks").innerHTML = tokens.map((t, i) => `<span class="tok${i === sel ? " sel" : ""}${known(t) ? "" : " unk"}" data-i="${i}" title="${known(t) ? "" : "not in the toy vocabulary"}">${escapeHtml(t)}</span>`).join("");
+  $("#toks").innerHTML = tokens.map((t, i) => `<button type="button" class="tok${i === sel ? " sel" : ""}${known(t) ? "" : " unk"}" data-i="${i}" aria-pressed="${i === sel}" title="${known(t) ? "" : "not in the toy vocabulary"}">${escapeHtml(t)}</button>`).join("");
   requestAnimationFrame(drawArcs);
   const w = res.weights[sel];
   const top = w.map((v, j) => [v, j]).sort((a, b) => b[0] - a[0]).slice(0, 3).filter(([v]) => v > 0.05);
@@ -176,7 +184,7 @@ function drawArcs() {
     svg.append(svgEl("path", { d: j === sel ? `M${sx - 6} 88 C ${sx - 16} 60, ${sx + 16} 60, ${sx + 6} 88` : `M${sx} 88 C ${sx} ${88 - h}, ${tx} ${88 - h}, ${tx} 88`, fill: "none", stroke: "var(--accent)", "stroke-width": 1 + v * 7, opacity: 0.25 + v * 0.75, "stroke-linecap": "round" }));
   });
 }
-$("#toks").onclick = e => { const t = e.target.closest("[data-i]"); if (t) { sel = +t.dataset.i; draw2(); } };
+$("#toks").onclick = e => { const t = e.target.closest("[data-i]"); if (t) { sel = +t.dataset.i; draw2(); $(`#toks [data-i="${sel}"]`)?.focus(); } };
 $("#heat").onclick = e => { const t = e.target.closest("[data-i]"); if (t) { sel = +t.dataset.i; draw2(); } };
 $("#sent").addEventListener("input", recompute);
 $("#preset").onchange = e => { if (e.target.value) { $("#sent").value = e.target.value; sel = 0; recompute(); } e.target.value = ""; };
