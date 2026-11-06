@@ -3,6 +3,13 @@
 Interactive explainers for the machinery under computing: systems, networking, security, algorithms,
 distributed systems, data science and machine learning. Static site, no build step, no dependencies.
 
+## Site
+
+Live at **https://raghavkandpal.github.io/under-the-hood/**, served by GitHub Pages straight from `main`
+(no build step; `.nojekyll` tells Pages to serve the files as they are).
+
+GitHub Actions runs `npm test` on every push and pull request, and fetches every further-reading link weekly.
+
 ## Run
 
     npm start        # serves on http://localhost:8765 with caching off, so a reload shows your edits
