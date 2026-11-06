@@ -85,7 +85,7 @@
     document.getElementById("paths").hidden = !showPaths;
     if (showPaths) document.getElementById("pathcards").innerHTML = PATHS.map(p => {
       const done = p.steps.filter(id => read.has(id)).length, next = byId(nextStep(p, read));
-      return `<a class="pathcard" id="path-${p.id}" href="${hrefOf(next)}?path=${p.id}"><h3>${escapeHtml(p.title)}</h3><p>${escapeHtml(p.blurb)}</p>
+      return `<a class="pathcard" id="path-${p.id}" href="path/?id=${p.id}"><h3>${escapeHtml(p.title)}</h3><p>${escapeHtml(p.blurb)}</p>
         <div class="prog"><i style="width:${done / p.steps.length * 100}%"></i></div><small>${done ? `${done} of ${p.steps.length} read · continue: ${escapeHtml(next.title)}` : `${p.steps.length} steps · start: ${escapeHtml(next.title)}`}</small></a>`;
     }).join("");
     document.getElementById("empty").hidden = items.length > 0;

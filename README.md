@@ -19,6 +19,7 @@ GitHub Actions runs `npm test` on every push and pull request, and fetches every
 
 ```
 index.html                 home page: learning paths, search, area filters, cards by topic / concept map
+path/index.html            a learning path's introduction, steps and progress (path/?id=llms); path/ lists them all
                            (?q= ?area= ?view= and #topic-<id> / #path-<id> are shareable)
 sources.js                 further reading for every explainer: trusted, free sources (npm run check-sources)
 catalog.js                 the single list of explainers (area, topic, level, tags, prerequisites),
@@ -35,6 +36,8 @@ tests/                     site-wide checks: catalog ↔ pages, links, prerequis
 scripts/new.js             scaffolds a new explainer
 ```
 
+- Every page gets a sidebar (built in `shared/common.js`): the current path's steps, the area's topics, "On this page"
+  and the list of paths. It's a sticky column from 1180px wide and a drawer behind the Browse button below that.
 - `catalog.js` drives the home page, search, the Area › Topic breadcrumb, "Keep exploring" links and learning-path
   navigation. Opening a page with `?path=<id>` shows that path's progress bar and next step; which explainers a
   reader has opened is remembered in their browser only.
@@ -71,8 +74,8 @@ Shared building blocks, so pages only carry what's unique to them:
 ## Conventions
 
 - Everything runs client-side and is deterministic per seed where randomness is involved.
-- Colours come from CSS variables in `shared/style.css`, so every page works in light and dark mode. Readers pick Auto,
-  Light or Dark from the header; canvas code must ask `isDark()` and redraw in `onThemeChange()` (from `shared/common.js`),
+- Colours come from CSS variables in `shared/style.css`, so every page works in light and dark mode. Pages start in the
+  system's theme and readers can switch between light and dark from the header; canvas code must ask `isDark()` and redraw in `onThemeChange()` (from `shared/common.js`),
   never query `prefers-color-scheme` itself (a test enforces this). Every page loads `shared/theme.js` in `<head>`.
 - Pages must fit a 360px-wide phone with no sideways scroll. Wide tables and diagrams go in `.scroll-x`.
 - Simplifications are stated on each page (look for the small grey note at the bottom).

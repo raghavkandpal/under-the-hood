@@ -65,3 +65,11 @@ test("learning paths use real explainers, once each, prerequisites first", () =>
 });
 
 test("search matches topic names", () => { assert.ok(search("storage engines").some(c => c.id === "lsm")); });
+
+test("every learning path has an introduction for its page", () => {
+  for (const p of PATHS) {
+    assert.ok(p.intro && p.intro.length > 120, `${p.id}: intro missing or too short`);
+    assert.ok(p.audience, `${p.id}: audience missing`);
+    assert.ok(Array.isArray(p.outcomes) && p.outcomes.length >= 3, `${p.id}: needs 3+ outcomes`);
+  }
+});

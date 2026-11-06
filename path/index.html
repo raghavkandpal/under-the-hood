@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning Path</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/theme.js"></script>
+<style>
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 14px; margin: -8px 0 16px; }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin: 8px 0 8px; }
+  @media (max-width: 640px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  .two h2 { font-size: 15px; margin: 0 0 6px; }
+  .two ul { margin: 0; padding-left: 20px; }
+  .two li { margin: 3px 0; }
+  .prog { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; max-width: 420px; margin: 4px 0 0; }
+  .prog i { display: block; height: 100%; background: var(--accent); }
+  ol.steps { list-style: none; padding: 0; margin: 12px 0 0; counter-reset: step; display: grid; gap: 8px; }
+  ol.steps li a { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 12px; align-items: start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); text-decoration: none; }
+  ol.steps li a:hover { border-color: var(--accent); }
+  ol.steps .n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--surface-2); color: var(--muted); }
+  ol.steps li.read .n { background: var(--accent); color: var(--on-accent); }
+  ol.steps li.next a { border-color: var(--accent); border-width: 2px; }
+  ol.steps h3 { margin: 0; font-size: 16px; }
+  ol.steps p { margin: 2px 0 0; font-size: 14px; color: var(--muted); }
+  ol.steps .where { font-size: 12px; color: var(--muted); }
+  ol.steps .tick { font-size: 12px; color: var(--green); font-weight: 700; white-space: nowrap; }
+  .pathcards { margin-top: 16px; }
+</style>
+</head>
+<body>
+<main id="main">
+  <h1 id="title">Learning paths</h1>
+  <p class="lede" id="blurb"></p>
+  <div id="body"></div>
+</main>
+<script type="module">
+import { chrome, escapeHtml, readSet, nextStep, linkTo } from "../shared/common.js";
+import { PATHS, pathById, pathMinutes, byId, areaOf, topicOf, hrefOf } from "../catalog.js";
+chrome();
+
+const path = pathById(new URLSearchParams(location.search).get("id")), read = readSet();
+const hours = m => (m < 90 ? `${m} minutes` : `${(m / 60).toFixed(m % 60 ? 1 : 0)} hours`);
+if (!path) {
+  // no (or unknown) id: list every path
+  document.title = "Learning Paths";
+  $("#blurb").textContent = "Hand-picked reading orders. Each starts from the basics and links every step to the next.";
+  $("#body").innerHTML = `<div class="pathcards">${PATHS.map(p => { const done = p.steps.filter(id => read.has(id)).length;
+    return `<a class="pathcard" href="./?id=${p.id}"><h3>${escapeHtml(p.title)}</h3><p>${escapeHtml(p.blurb)}</p><div class="prog"><i style="width:${done / p.steps.length * 100}%"></i></div><small>${p.steps.length} steps · about ${hours(pathMinutes(p))}${done ? ` · ${done} read` : ""}</small></a>`; }).join("")}</div>`;
+} else {
+  document.title = `${path.title} · Learning Path`;
+  $("#title").textContent = path.title;
+  $("#blurb").textContent = path.blurb;
+  const done = path.steps.filter(id => read.has(id)).length, next = byId(nextStep(path, read)), started = done > 0, finished = done === path.steps.length;
+  $("#body").innerHTML = `
+    <div class="meta"><span>${path.steps.length} explainers</span><span>about ${hours(pathMinutes(path))}</span><span>${done ? `${done} of ${path.steps.length} read` : "not started"}</span></div>
+    <p>${escapeHtml(path.intro)}</p>
+    <div class="two">
+      <div class="panel"><h2>Who it's for</h2><p style="margin:0">${escapeHtml(path.audience)}</p></div>
+      <div class="panel"><h2>You'll be able to</h2><ul>${path.outcomes.map(o => `<li>${escapeHtml(o)}</li>`).join("")}</ul></div>
+    </div>
+    <a class="pathnext" href="${linkTo(next)}?path=${path.id}"><small>${finished ? "You've read every step. Revisit" : started ? `Continue · part ${path.steps.indexOf(next.id) + 1} of ${path.steps.length}` : "Start the path"}</small>${escapeHtml(next.title)} →</a>
+    <div class="prog" style="margin-top:14px" aria-hidden="true"><i style="width:${done / path.steps.length * 100}%"></i></div>
+    <h2>The steps</h2>
+    <ol class="steps">${path.steps.map((id, i) => { const c = byId(id), isRead = read.has(id);
+      return `<li class="${isRead ? "read" : ""}${id === next.id && !finished ? " next" : ""}"><a href="${linkTo(c)}?path=${path.id}">
+        <span class="n" aria-hidden="true">${i + 1}</span>
+        <span><span class="where">${escapeHtml(areaOf(c).title)} › ${escapeHtml(topicOf(c).title)}</span><h3>${escapeHtml(c.title)}</h3><p>${escapeHtml(c.blurb)}</p></span>
+        <span class="tick">${isRead ? "✓ read" : ""}</span></a></li>`; }).join("")}</ol>
+    <p class="status" style="margin-top:12px">Progress is remembered in this browser only. Steps can be read in any order; this order puts each one after what it builds on.</p>`;
+}
+function $(s) { return document.querySelector(s); }
+</script>
+</body>
+</html>
