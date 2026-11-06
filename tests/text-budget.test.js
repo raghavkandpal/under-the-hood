@@ -8,8 +8,8 @@ const all = measureAll();
 
 test("measure counts helper text by kind and the caveat on its own", () => {
   const m = measure(`<main><h1>X</h1><p class="status">Click a cell to flip it.</p><p class="status" id="out"></p>
-    <label>Rate <input type="range"></label><small>(per second)</small><h2>How it works</h2><p>Prose is free.</p><p class="caveat">Toy model.</p></main>`);
-  assert.deepEqual(m, { status: 6, labels: 1, small: 2, note: 0, caveat: 2 });
+    <label>Rate <input type="range"></label><small>(per second)</small><ul class="legend"><li><i></i>lost</li></ul><h2>How it works</h2><p>Prose is free.</p><p class="caveat">Toy model.</p></main>`);
+  assert.deepEqual(m, { status: 6, labels: 1, small: 2, note: 0, legend: 1, caveat: 2 });
 });
 
 test("helper text never grows: each page stays at or under its count in tests/text-budget.json", () => {
