@@ -28,9 +28,9 @@
     <div class="tabs" id="q"></div>
     <p id="qtext" style="margin:8px 0 0;font-family:var(--mono);font-size:13px"></p>
     <div class="key" id="key"></div>
-    <div class="lay"><b>Row store <small>(Postgres, MySQL): each order's fields side by side</small></b><div class="strip" id="row"></div></div>
-    <div class="lay"><b>Column store <small>(Parquet, ClickHouse, BigQuery): each column's values side by side</small></b><div class="strip" id="col"></div></div>
-    <p class="status" style="margin:4px 0 0">8 orders × 8 columns as they sit on disk, in order. Highlighted cells are what the query has to read. Disks read in blocks, so scattered cells cost far more than adjacent ones.</p>
+    <div class="lay"><b>Row store</b><div class="strip" id="row"></div></div>
+    <div class="lay"><b>Column store</b><div class="strip" id="col"></div></div>
+    <ul class="legend" style="margin:4px 0 0"><li>8 orders × 8 columns, in disk order</li><li><i style="--c:var(--accent)"></i>read by the query</li></ul>
     <div class="stats" id="stats"></div>
   </div>
 

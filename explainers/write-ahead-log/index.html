@@ -70,7 +70,7 @@ function reset() { e = new Engine(INIT, { wal: $("#wal").checked }); crashed = f
 const rec = r => r.type === "update" ? `#${r.lsn} T${r.tx} ${r.key}: ${r.old} → ${r.new}` : `#${r.lsn} T${r.tx} ${r.type.toUpperCase()}`;
 function render() {
   const keys = ["A", "B"];
-  $("#cache").innerHTML = crashed ? `<span class="status">(empty: wiped by the crash)</span>` : keys.map(k => `<span class="pg ${e.dirty.has(k) ? "dirty" : ""}">${k} = ${e.read(k)}</span>`).join("");
+  $("#cache").innerHTML = crashed ? `<span class="status">wiped by the crash</span>` : keys.map(k => `<span class="pg ${e.dirty.has(k) ? "dirty" : ""}">${k} = ${e.read(k)}</span>`).join("");
   $("#disk").innerHTML = keys.map(k => `<span class="pg">${k} = ${e.disk[k]}</span>`).join("");
   $("#logbuf").innerHTML = e.wal ? (e.logBuf.length ? `<span class="status">log buffer, not yet on disk:</span>` : "") + e.logBuf.map(r => `<div class="${r.type}">${rec(r)}</div>`).join("") : "";
   $("#logdisk").innerHTML = e.wal ? `<span class="status">log file:</span>` + (e.logDisk.map(r => `<div class="${r.type}">${rec(r)}</div>`).join("") || ` <i class="status">(empty)</i>`) : `<span class="status">no log</span>`;

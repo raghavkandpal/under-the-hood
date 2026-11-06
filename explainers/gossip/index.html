@@ -35,13 +35,13 @@
       <button id="go" class="primary">▶ Spread a rumour</button>
     </div>
     <div class="two">
-      <div><div class="nodes" id="nodes"></div><p class="status" style="margin:4px 0 0">400 nodes. Outlined: the source. Green: learned this round.</p></div>
+      <div><div class="nodes" id="nodes"></div><ul class="legend" style="margin:4px 0 0"><li><i style="border:1.5px solid var(--text)"></i>source</li><li><i style="--c:var(--green)"></i>learned this round</li></ul></div>
       <div><svg id="curve" viewBox="0 0 320 200" role="img" aria-label="Informed nodes per round"></svg></div>
     </div>
     <div class="stats" id="stats"></div>
   </div>
 
-  <div class="panel scroll-x"><b>Bigger clusters barely take longer</b> <span class="status">(push, 1 contact per round, average of several runs)</span><table class="data" id="scale" style="margin-top:6px"></table></div>
+  <div class="panel scroll-x"><b>Bigger clusters barely take longer</b> <span class="status">push, 1 contact, averaged</span><table class="data" id="scale" style="margin-top:6px"></table></div>
 
   <h2>How it works</h2>
   <p><b>Exponential spread.</b> In round 1 one node knows. If each informed node tells one random peer, about 2 know after round 1, 4 after round 2, 8 after round 3. Doubling alone would reach n nodes in log₂ n rounds. The slow finish described below adds about ln n more, so going from a thousand nodes to a million adds only about 17 rounds. The curve is the S-shape of any epidemic: slow start, explosive middle, slow finish.</p>

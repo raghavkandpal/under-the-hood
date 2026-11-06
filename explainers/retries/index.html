@@ -27,7 +27,7 @@
     <div class="tabs" id="pol"></div>
     <div class="row">
       <label class="inline">outage length <input type="range" id="len" min="0" max="30" value="3"> <b id="lenv"></b> ticks</label>
-      <span class="status">Traffic: 70 requests per tick. Capacity: 100.</span>
+      <span class="status">70 requests/tick, capacity 100</span>
     </div>
     <svg id="chart" viewBox="0 0 620 230" role="img" aria-label="Load and successful requests over time"></svg>
     <div class="lg"><span><i style="background:var(--red)"></i>load hitting the service</span><span><i style="background:var(--green)"></i>requests served</span><span><i style="background:var(--text);height:1px"></i>capacity</span><span><i style="background:var(--muted);opacity:.3;height:10px"></i>outage</span><span><i style="background:var(--blue);opacity:.25;height:10px"></i>breaker open</span></div>
