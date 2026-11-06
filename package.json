@@ -6,6 +6,7 @@
     "start": "node scripts/serve.js",
     "test": "node --test",
     "new": "node scripts/new.js",
-    "check-sources": "node scripts/check-sources.js"
+    "check-sources": "node scripts/check-sources.js",
+    "text-budget": "node scripts/text-budget.js"
   }
 }

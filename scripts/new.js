@@ -43,7 +43,7 @@ writeFileSync(files.page, `<!doctype html>
 <link rel="stylesheet" href="../../shared/style.css">
 <script src="../../shared/theme.js"></script>
 <style>
-  /* Page-specific styles only. Shared: .row .tabs .stats .stat .panel .controls .status .scroll-x (shared/style.css) */
+  /* Page-specific styles only. Shared: .row .tabs .seg .stats .stat .panel .controls .status .legend .caveat .scroll-x (shared/style.css). No helper text above the first h2: README › Text */
 </style>
 </head>
 <body>
@@ -59,7 +59,7 @@ writeFileSync(files.page, `<!doctype html>
 
   <h2>How it works</h2>
   <p><b>First idea.</b> Explain what the reader just saw.</p>
-  <p class="status">Where it's used in the real world, and links to related explainers.</p>
+  <p class="caveat">What this simulation simplifies, in a sentence or two.</p>
 </main>
 <script type="module">
 import { chrome, $, statTile, tabs } from "../../shared/common.js";

@@ -14,11 +14,12 @@ GitHub Actions runs `npm test` on every push and pull request, and fetches every
 
     npm start        # serves on http://localhost:8765 with caching off, so a reload shows your edits
     npm test         # all tests: simulation logic, catalog and links (Node 22+)
+    npm run text-budget   # helper-text words per page, worst first (see Text below)
 
 ## Layout
 
 ```
-index.html                 home page: learning paths, search, area filters, cards by topic / concept map
+index.html                 home page: search, area filter, learning paths, cards by topic / concept map
 path/index.html            a learning path's introduction, steps and progress (path/?id=llms); path/ lists them all
                            (?q= ?area= ?view= and #topic-<id> / #path-<id> are shareable)
 sources.js                 further reading for every explainer: trusted, free sources (npm run check-sources)
@@ -29,7 +30,7 @@ explainers/<id>/
   <name>.js                its DOM-free simulation logic
   <name>.test.js           tests for that logic
 shared/
-  style.css, common.js     theme (light/dark), header/footer, related links, small DOM helpers
+  style.css, common.js     theme (light/dark), header, sidebar, path bar, related links, small DOM helpers
   random.js                seeded random numbers (mulberry32), so demos and tests are reproducible
   autograd.js, git.js, …   logic used by more than one explainer
 tests/                     site-wide checks: catalog ↔ pages, links, prerequisite graph
@@ -62,13 +63,16 @@ area and topic (the topic defaults to the area's first), and refuses to overwrit
 4. If it belongs in a learning path, add its id to that path's `steps` in `PATHS`, after its prerequisites.
 5. Add at least two sources to `sources.js`: a primary one (standard, paper, official docs or free book) and an
    approachable one. Only free-to-read sites from the `TRUSTED` list; `npm run check-sources` confirms every link loads.
+6. Check the page against [Text](#text), then record its helper-text count with `npm run text-budget -- --update`.
 
 Shared building blocks, so pages only carry what's unique to them:
-- CSS in `shared/style.css`: `.panel`, `.controls`, `.row`, `.tabs` (pressed state), `.stats`/`.stat` tiles
-  (set `--stat-min` on `.stats` to change tile width), `.status`, `.scroll-x`, `label.inline`.
+- CSS in `shared/style.css`: `.panel`, `.controls`, `.row`, `.tabs` (pressed state), `.seg` (segmented control:
+  one bordered group of `aria-pressed` buttons), `.stats`/`.stat` tiles (set `--stat-min` on `.stats` to change
+  tile width), `.legend` (colour key: `<ul class="legend"><li><i style="--c:var(--red)"></i>lost</li></ul>`),
+  `.status` (live readout), `.caveat`, `.cards`/`.card` (explainer cards), `.list` (dense rows of links), `.scroll-x`, `label.inline`, `.sr-only`.
 - JS in `shared/common.js`: `chrome()`, `$`, `svgEl`, `sleep`, `escapeHtml`, `statTile` (one stat tile,
-  for `items.map(statTile)`), `tabs(el, options, active, onPick)`, and `linkTo(entry)` for links to other
-  explainers that work from any page.
+  for `items.map(statTile)`), `tabs(el, options, active, onPick)`, `entryCards(entries)` (a grid of explainer cards),
+  and `linkTo(entry)` for links to other explainers that work from any page.
 - Links between explainers in page text are relative: `<a href="../tls/">TLS</a>`.
 
 ## Conventions
@@ -78,6 +82,35 @@ Shared building blocks, so pages only carry what's unique to them:
   system's theme and readers can switch between light and dark from the header; canvas code must ask `isDark()` and redraw in `onThemeChange()` (from `shared/common.js`),
   never query `prefers-color-scheme` itself (a test enforces this). Every page loads `shared/theme.js` in `<head>`.
 - Pages must fit a 360px-wide phone with no sideways scroll. Wide tables and diagrams go in `.scroll-x`.
-- Simplifications are stated on each page (look for the small grey note at the bottom).
+- Simplifications are stated on each page, in one `<p class="caveat">` at the end of the prose.
+
+## Text
+
+The site aims to read like a calm product UI. The interactive part of a page explains itself through its
+layout; explanation lives in the prose under the `<h2>`s. If a control needs a sentence to make sense,
+change the control (shorter label with its value inline, better default, a `.legend`, button text that
+says what happens) rather than adding the sentence.
+
+Allowed:
+- `<h1>`, one lede paragraph (a sentence or two), `<h2>` section headings and the prose under them.
+- Short control labels: one to three words, with the current value inline (`Servers 4`, `Power 80%`).
+- Live readouts in `.status` that a script writes: step counters, results, errors. They start empty.
+- A `.legend` for colours and line styles, one or two words per entry.
+- One `.caveat` per page, at most about two sentences.
+- Text only screen readers need goes in `aria-label`, `<title>`/`<desc>` in SVG, or `.sr-only`.
+
+Not allowed:
+- Taglines, footers, "helper" paragraphs describing what a control does or how to use it ("Click a cell to…",
+  "Drag the slider…", "(edit any number)"), and prose descriptions of colours ("grey = …, orange = …").
+- Secondary labels and meta lines: category pills, uppercase tags, "Part n of m" next to a visible progress
+  indicator, counts that repeat what the list shows.
+- Borders, pills and boxes used only for decoration. One accent colour (`--accent`); `--blue`, `--green` and
+  `--red` carry meaning in diagrams only.
+
+`tests/text-budget.test.js` keeps a per-page count of helper text (static `.status`, label, `<small>` and `.note`
+words, fixed sentences scripts write into `.status`, and the caveat) in
+`tests/text-budget.json`. A page may never go over its count. When you cut text, run
+`npm run text-budget -- --update` so the drop shows in the diff. A new page starts at whatever it has,
+which should be close to zero.
 
 See [ROADMAP.md](ROADMAP.md) for planned explainers and working notes.
