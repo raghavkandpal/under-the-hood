@@ -35,7 +35,7 @@
   <p><b>Ranking.</b> Below the prefix there may be thousands of words. Each node also remembers the best popularity score anywhere beneath it, so the search can explore the most promising branches first and stop once it has the top 5, skipping the rest entirely. Compare “nodes visited” with “words a scan would check”.</p>
   <p><b>Learning.</b> Picking a suggestion bumps its score, which is how your phone keyboard learns your words. Real search boxes blend global popularity, your own history and recency.</p>
   <p><b>Saving space.</b> Long chains with no branching (like <i>u-n-c-t-i-o-n</i> after “f”) waste a node per letter. A <i>radix tree</i> merges them into one edge labelled with the whole chunk. Routers use the same idea to match IP address prefixes, and so do many web frameworks to match URL routes.</p>
-  <p class="status">Typo tolerance (“fucntion”) needs more: walking the trie while allowing a few edits, or a separate fuzzy index.</p>
+  <p class="caveat">Typo tolerance (“fucntion”) needs more: walking the trie while allowing a few edits, or a separate fuzzy index.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml, statTile } from "../../shared/common.js";

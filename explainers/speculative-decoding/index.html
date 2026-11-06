@@ -51,7 +51,7 @@
   <p><b>The round.</b> The draft model, perhaps 50× smaller, proposes k tokens one after another. The big model runs once over all of them. Going left to right, each guess is accepted with probability min(1, p/q), where p is the big model's probability for that token and q the draft's. At the first rejection, the big model picks a replacement from the probability the draft under-weighted (p − q, wherever that's positive), and the round ends. If all k pass, the same big pass also provides one bonus token.</p>
   <p><b>Exact, not approximate.</b> That accept/replace rule is built so that every token's probability is exactly what the big model alone would give, however bad the draft. The bars in the last panel agree. A bad draft only costs speed, never quality.</p>
   <p><b>Tuning.</b> More guesses per round helps only while they keep being accepted: with acceptance rate a, a round yields (1 − a<sup>k+1</sup>)/(1 − a) tokens on average, while each guess costs a draft pass. Lower the quality or raise the draft cost and the best k shrinks, sometimes to “don't bother”.</p>
-  <p class="status">The two “models” are tiny word-pair tables so every probability is visible. Real systems draft with a small sibling model, extra prediction heads (Medusa), or text copied from the prompt, a big win when editing code.</p>
+  <p class="caveat">The two “models” are tiny word-pair tables so every probability is visible. Real systems draft with a small sibling model, extra prediction heads (Medusa), or text copied from the prompt, a big win when editing code.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile } from "../../shared/common.js";

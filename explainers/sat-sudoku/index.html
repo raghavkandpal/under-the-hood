@@ -43,7 +43,7 @@
   <p><b>Pick the most constrained cell</b> (“minimum remaining values”). Instead of the next cell in reading order, fill the one with the fewest legal digits. If it has one, there's nothing to guess. If it has two, a wrong guess fails fast. Choosing well what to decide next is most of the battle.</p>
   <p><b>Propagation.</b> After every placement, apply the rules exhaustively: a cell with one candidate left must take it, and a digit that fits in only one cell of a row, column or box must go there. Each forced move creates more. Most published puzzles fall to this alone, with zero guesses. When it does need a guess, a contradiction shows up immediately.</p>
   <p><b>The bigger picture.</b> Sudoku is a <i>constraint satisfaction problem</i>, and the same search-plus-propagation engine (SAT and constraint solvers) schedules exams and airline crews, checks chip designs, picks compatible package versions, and verifies software. These problems are NP-complete in general, so no trick works every time, but reasoning first and guessing cleverly makes huge real instances solvable.</p>
-  <p class="status">Puzzles are generated here: fill a random complete grid, then remove clues one at a time, keeping each removal only if the puzzle still has exactly one solution. Related: <a href="../dynamic-programming/">dynamic programming</a>, the other way to avoid redoing work.</p>
+  <p class="caveat">Puzzles are generated here: fill a random complete grid, then remove clues one at a time, keeping each removal only if the puzzle still has exactly one solution. Related: <a href="../dynamic-programming/">dynamic programming</a>, the other way to avoid redoing work.</p>
 </main>
 <script type="module">
 import { chrome, $, statTile, tabs } from "../../shared/common.js";

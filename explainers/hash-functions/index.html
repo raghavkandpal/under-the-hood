@@ -40,12 +40,11 @@
     <label class="inline">People in the room <input type="range" id="n" min="2" max="80" value="23"> <b id="vn"></b></label>
     <p class="big" id="bday"></p>
     <svg class="chart" id="bcurve" viewBox="0 0 600 130" preserveAspectRatio="none"></svg>
-    <p class="status">Chance that at least two people share a birthday. It reaches 50% at just 23 people, because 23 people make 253 pairs.</p>
   </div>
 
   <h2>3. Find a collision yourself</h2>
   <div class="panel">
-    <div class="controls" style="margin:0"><label class="inline">Keep only the first <select id="bitsSel"><option>16</option><option selected>20</option><option>24</option><option>28</option></select> bits of SHA-1</label><button id="hunt" class="primary">🔎 Hunt for a collision</button></div>
+    <div class="controls" style="margin:0"><label class="inline">SHA-1 cut to <select id="bitsSel"><option>16</option><option selected>20</option><option>24</option><option>28</option></select> bits</label><button id="hunt" class="primary">🔎 Hunt for a collision</button></div>
     <p id="huntOut"></p>
     <div class="scroll-x"><table class="data" id="scale"></table></div>
   </div>
@@ -54,7 +53,7 @@
   <p><b>What a good hash promises.</b> It's quick to compute, but you can't run it backwards to find an input for a given hash (<i>preimage resistance</i>), and you can't find two inputs with the same hash (<i>collision resistance</i>). The avalanche effect is a symptom: each output bit should flip with probability ½ whenever anything in the input changes, so the output reveals nothing about how similar two inputs were.</p>
   <p><b>Collisions come at √N, not N.</b> With N possible hashes you'd think you need about N tries to hit a repeat. But every new value can collide with <i>every</i> earlier one, so the number of pairs grows like n². A repeat becomes likely after only about √N values. For a 20-bit hash (a million values) that's around a thousand tries, and the hunt above usually finds one in a blink.</p>
   <p><b>Why output size matters.</b> A b-bit hash only gives about b/2 bits of collision resistance. SHA-1's 160 bits mean about 2⁸⁰ work by brute force, and cryptographers found shortcuts well below that. A real SHA-1 collision was published in 2017, which is why it's retired for security. SHA-256 gives 2¹²⁸, far beyond any computer.</p>
-  <p class="status">Uses SHA-1 (via this site's own implementation, verified against real git) so the page runs synchronously. SHA-1 is fine for illustrating hash behaviour and still used by Git for content addressing, but not for new security designs.</p>
+  <p class="caveat">Uses SHA-1 (via this site's own implementation, verified against real git) so the page runs synchronously. SHA-1 is fine for illustrating hash behaviour and still used by Git for content addressing, but not for new security designs.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml } from "../../shared/common.js";

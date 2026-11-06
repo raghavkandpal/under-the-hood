@@ -54,7 +54,7 @@
   <p><b>Narrow valleys</b> are the usual problem. The slope across the valley is steep and the slope along it is gentle, so plain GD zig-zags from wall to wall. <b>Momentum</b> keeps a running velocity, so the zig-zags cancel out and the along-valley motion builds up. <b>RMSProp</b> and <b>Adam</b> scale each direction by how big its gradients have been, so steep and flat directions get comparable steps. Adam combines both ideas and is the default for most deep learning today.</p>
   <p><b>Local minima and saddles.</b> On "two valleys", start on the left and some optimisers settle into the shallower basin. They only see the slope where they stand. Momentum sometimes carries one over the ridge. On the saddle, the gradient is almost zero at the centre, so starting near it takes a long time to get going. Real networks have millions of dimensions, where saddles are far more common than bad local minima.</p>
   <p><b>Noise.</b> Real training estimates the gradient from a small random batch of data, so every step is a bit off. Turn the noise up. The paths get jittery but still head downhill, and that randomness can help shake an optimiser out of shallow traps.</p>
-  <p class="status">Gradients here are computed by the same small autograd engine that powers the neural network explainer. RMSProp and Adam use a learning rate scaled by 0.1 so all four share one slider.</p>
+  <p class="caveat">Gradients here are computed by the same small autograd engine that powers the neural network explainer. RMSProp and Adam use a learning rate scaled by 0.1 so all four share one slider.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, keyboardDraggable, isDark, onThemeChange } from "../../shared/common.js";

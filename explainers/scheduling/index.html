@@ -42,7 +42,7 @@
   <p><b>Shortest job first</b> runs the quickest job next, which provably minimises average waiting time when all jobs are known. The catch: the OS rarely knows how long a job will take, and a stream of short jobs can starve a long one forever.</p>
   <p><b>Shortest remaining time</b> is SJF that can <i>preempt</i>. A new short job interrupts a long one. Even better averages, more context switches.</p>
   <p><b>Round robin</b> gives each job a small time slice in turn. Nobody waits long to <i>start</i> (good response time, which is what makes interactive programs feel snappy), but long jobs finish later and every switch has overhead. Shrink the slice to see switches climb, or grow it until RR behaves like FCFS.</p>
-  <p class="status">Real schedulers mix these ideas. Linux's CFS and its successor EEVDF give each task a fair share of CPU time weighted by priority. Many systems use multi-level feedback queues that guess "interactive vs. batch" from past behaviour. Context-switch cost isn't charged in this simulation.</p>
+  <p class="caveat">Real schedulers mix these ideas. Linux's CFS and its successor EEVDF give each task a fair share of CPU time weighted by priority. Many systems use multi-level feedback queues that guess "interactive vs. batch" from past behaviour. Context-switch cost isn't charged in this simulation.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml } from "../../shared/common.js";

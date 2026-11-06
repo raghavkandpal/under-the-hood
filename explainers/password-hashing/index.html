@@ -25,9 +25,7 @@
   <p class="lede">Websites get breached. What matters then is what the attacker finds in the database. Here's a fictional site's user table stored four ways, and an attacker with a list of common passwords. Everything below uses your browser's real cryptography.</p>
 
   <div class="panel">
-    <div class="row"><label class="status" for="mine">Add your own (made-up!) password as user “you”. It stays in this tab:</label></div>
-    <div class="row"><input id="mine" type="text" value="dragon1" spellcheck="false" autocomplete="off" aria-label="Your example password"></div>
-    <p class="status" style="margin:6px 0 0">Don't type a real password, even though nothing leaves this page.</p>
+    <label class="inline">Made-up password for “you” <input id="mine" type="text" value="dragon1" spellcheck="false" autocomplete="off"></label>
   </div>
 
   <div class="panel">
@@ -46,7 +44,7 @@
   <p><b>A salt</b> is a random value stored next to each hash and mixed in before hashing. It's not secret. Its job is to make every user's hash unique, so each guess has to be redone per user and precomputed tables become useless.</p>
   <p><b>A slow hash</b> is the real defence. SHA-256 was built for speed, and a modern GPU computes billions per second. Password-hashing functions (PBKDF2, bcrypt, scrypt, Argon2) are deliberately expensive, tuned so a login takes milliseconds but an attacker's billions of guesses take years. Argon2 and scrypt also use lots of memory, which blunts GPUs.</p>
   <p><b>And still:</b> no hashing scheme saves a password that's on the list. "dragon1" falls in every mode, just more slowly. The long passphrase never falls. Length and unpredictability beat clever substitutions, and a password manager beats both.</p>
-  <p class="status">Toy scale: a ~100-word dictionary where real attackers use billions of candidates plus mutation rules. The GPU figure is a rough order of magnitude for unsalted SHA-256 on a single high-end card. The browser's PBKDF2 is the real algorithm, and real deployments use 600,000+ iterations or Argon2.</p>
+  <p class="caveat">Toy scale: a ~100-word dictionary where real attackers use billions of candidates plus mutation rules. The GPU figure is a rough order of magnitude for unsalted SHA-256 on a single high-end card. The browser's PBKDF2 is the real algorithm, and real deployments use 600,000+ iterations or Argon2.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml, statTile } from "../../shared/common.js";

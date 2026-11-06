@@ -33,16 +33,16 @@
 
   <div class="panel">
     <div class="grid">
-      <label>Browser may reuse for (max-age) <select id="ma"><option value="0">0 s</option><option value="60" selected>1 minute</option><option value="3600">1 hour</option><option value="31536000">1 year</option></select></label>
-      <label>CDN may reuse for (s-maxage) <select id="sma"><option value="">same as max-age</option><option value="0">0 s</option><option value="300" selected>5 minutes</option><option value="86400">1 day</option></select></label>
-      <label class="inline"><input type="checkbox" id="etag" checked> send an ETag (version fingerprint)</label>
-      <label class="inline"><input type="checkbox" id="nostore"> no-store (never cache)</label>
+      <label>Browser max-age <select id="ma"><option value="0">0 s</option><option value="60" selected>1 minute</option><option value="3600">1 hour</option><option value="31536000">1 year</option></select></label>
+      <label>CDN s-maxage <select id="sma"><option value="">same as max-age</option><option value="0">0 s</option><option value="300" selected>5 minutes</option><option value="86400">1 day</option></select></label>
+      <label class="inline"><input type="checkbox" id="etag" checked> ETag</label>
+      <label class="inline"><input type="checkbox" id="nostore"> no-store</label>
     </div>
     <div class="hdr" id="hdr"></div>
   </div>
 
   <div class="panel">
-    <div class="controls" style="margin:0"><span class="status">clock: <span class="clock" id="clock"></span></span>
+    <div class="controls" style="margin:0"><span class="clock" id="clock"></span>
       <button data-dt="10">+10 s</button><button data-dt="60">+1 min</button><button data-dt="600">+10 min</button><button data-dt="3600">+1 h</button></div>
     <div class="controls" style="margin:8px 0 0"><button id="me" class="primary">🌐 You load the page</button><button id="other">👥 Another user loads it</button><button id="deploy">🚀 Deploy a new version</button><button id="reset">Reset</button></div>
     <div class="three" id="state" style="margin-top:10px"></div>
@@ -56,7 +56,7 @@
   <p><b>Stale means "ask, cheaply".</b> After it expires, a browser holding an <b>ETag</b> sends <code>If-None-Match</code>. If nothing changed, the answer is a tiny <b>304 Not Modified</b>, a round trip with no body. Without an ETag (or Last-Modified), it has to download everything again.</p>
   <p><b>The catch: long lifetimes hide deploys.</b> Set max-age to 1 hour, load, then deploy. You keep seeing the old version (red) until the hour is up, and nothing on the server can reach into your cache to fix it. The standard fix is <b>cache busting</b>: put a content hash in the file name (<code>app.3f9a1c.js</code>), cache it "forever", and change the name on every deploy. The HTML that references it gets a short max-age or <code>no-cache</code>.</p>
   <p><b><code>no-store</code></b> is for things that must never be kept, like a bank statement. <code>no-cache</code>, confusingly, means "store it, but revalidate every time".</p>
-  <p class="status">Simplified model of RFC 9111: one browser per user, one CDN shared by everyone, a 200 KB file, roughly 20 ms to the CDN and 150 ms to the origin.</p>
+  <p class="caveat">Simplified model of RFC 9111: one browser per user, one CDN shared by everyone, a 200 KB file, roughly 20 ms to the CDN and 150 ms to the origin.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml, statTile } from "../../shared/common.js";

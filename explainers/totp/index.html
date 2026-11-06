@@ -44,7 +44,7 @@
   </div>
 
   <div class="panel">
-    <b>2. How the phone turns the time into a code</b> <span class="status">(the same steps run on the server)</span>
+    <b>2. How the phone turns the time into a code</b>
     <div class="steps" id="steps"></div>
   </div>
 
@@ -53,7 +53,7 @@
   <p><b>Time as the counter.</b> Both sides count how many 30-second periods have passed since 1 January 1970, then run HMAC-SHA1 with the secret as the key. HMAC is a keyed <a href="../hash-functions/">hash</a>: without the secret you can't predict its output, even after seeing many codes. A step called <i>dynamic truncation</i> picks 4 of the 20 output bytes (where depends on the last byte), and the last 6 decimal digits are the code.</p>
   <p><b>Clocks drift</b>, so servers also accept the code from one step before or after. Drag the slider: 30 seconds off always works, somewhere between 30 and 60 it depends on where in the period you are, and from 60 on it's always refused. Phones sync their clocks over the network, so this rarely matters.</p>
   <p><b>What it protects against.</b> A stolen password alone is no longer enough: the attacker also needs your phone's secret. <b>What it doesn't:</b> a fake login page can ask for your code and relay it to the real site within the 30 seconds. Passkeys (WebAuthn) close that gap by binding the login to the real website's address, so there's nothing to type and nothing to relay.</p>
-  <p class="status">This page implements the real standards (RFC 4226 and 6238, the ones Google Authenticator and most apps use), checked against their published test vectors. The secret is generated in your browser and never leaves it.</p>
+  <p class="caveat">This page implements the real standards (RFC 4226 and 6238, the ones Google Authenticator and most apps use), checked against their published test vectors. The secret is generated in your browser and never leaves it.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl } from "../../shared/common.js";

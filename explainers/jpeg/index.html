@@ -51,7 +51,7 @@
   <p><b>2. Quantise: the only lossy step.</b> Each coefficient is divided by a number from a table and rounded. The table has small numbers top-left and big ones bottom-right, because human vision is far more sensitive to gentle gradients than to fine texture. Lower the quality and the divisors grow, so most coefficients round to zero.</p>
   <p><b>3. Pack the zeros.</b> Coefficients are read in a zig-zag from low to high frequency, so the zeros bunch up at the end and compress to almost nothing (run-length plus Huffman coding).</p>
   <p><b>The artefacts you know.</b> Drop the quality to 5. Tiles turn into flat blocks (blocking), and sharp edges like text sprout ripples (ringing), because a hard edge needs high-frequency patterns that got thrown away. That's why JPEG suits photos, and PNG suits screenshots and text.</p>
-  <p class="status">Brightness only. Real JPEG also converts colour to luma plus two chroma channels and stores chroma at lower resolution, since we see colour detail even less than brightness detail. The size shown is an estimate from the non-zero coefficients.</p>
+  <p class="caveat">Brightness only. Real JPEG also converts colour to luma plus two chroma channels and stores chroma at lower resolution, since we see colour detail even less than brightness detail. The size shown is an estimate from the non-zero coefficients.</p>
 </main>
 <script type="module">
 import { chrome, $, statTile } from "../../shared/common.js";

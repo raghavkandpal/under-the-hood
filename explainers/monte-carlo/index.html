@@ -30,13 +30,13 @@
       <div class="controls" style="margin:0"><button data-n="100">100 darts</button><button data-n="1000">1,000</button><button data-n="10000" class="primary">10,000</button><button data-n="1000000">1,000,000</button></div>
       <p class="big" id="est"></p><p class="status" id="estNote"></p>
       <svg class="chart" id="conv" viewBox="0 0 400 150" preserveAspectRatio="none"></svg>
-      <p class="status">Estimate as darts accumulate (log scale), with the true π dashed. Each 100× more darts buys about one more correct digit.</p>
+      <ul class="legend"><li>estimate, log scale</li><li>dashed: π</li></ul>
     </div>
   </div>
 
   <h2>2. When will the project finish?</h2>
+  <p>Each task has a best, a likely and a worst case, in days, and the tasks run one after another.</p>
   <div class="panel">
-    <p class="status" style="margin-top:0">Each task has a best case, a likely case and a worst case (days). Tasks run one after another.</p>
     <div class="tasks" id="tasks"></div>
     <label class="inline" style="margin-top:10px">Promised deadline <input type="range" id="dl" min="5" max="60" value="22"> <b id="vdl"></b></label>
     <svg class="chart" id="histo" viewBox="0 0 600 150" preserveAspectRatio="none"></svg>
@@ -47,7 +47,7 @@
   <p><b>Darts.</b> Throw uniformly random darts at a square with a circle inside. The share that lands in the circle approaches the area ratio, π/4, so 4 × (share inside) estimates π. No geometry or calculus needed, just counting.</p>
   <p><b>The catch is speed.</b> The error shrinks like 1/√n. Ten times the accuracy costs a hundred times the samples. But that rate doesn't depend on how many dimensions the problem has, which is why Monte Carlo wins for high-dimensional problems where grids explode.</p>
   <p><b>Planning with uncertainty.</b> Adding up each task's <i>likely</i> duration gives a plan you'll almost always miss, because overruns are bigger than underruns: a task can't take less than zero days but can easily take double. Simulating thousands of possible projects gives a <i>distribution</i> of finish dates, so you can quote "90% confident by day X" instead of a single number that's probably optimistic.</p>
-  <p class="status">Named after the Monte Carlo casino by Stanislaw Ulam and John von Neumann, who used it for neutron diffusion in the 1940s. Task durations here follow triangular distributions; 5,000 simulated projects per update.</p>
+  <p class="caveat">Named after the Monte Carlo casino by Stanislaw Ulam and John von Neumann, who used it for neutron diffusion in the 1940s. Task durations here follow triangular distributions; 5,000 simulated projects per update.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile, onThemeChange } from "../../shared/common.js";

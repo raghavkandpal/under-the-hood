@@ -45,7 +45,7 @@
   <p><b>Each set is a tree</b>, and each item points to a parent. The root represents the whole set. <code>find(x)</code> follows parents up to the root. Two items are connected exactly when they have the same root. <code>union(a, b)</code> hangs one root under the other.</p>
   <p><b>The danger is tall trees.</b> Union things in an unlucky order without care and you build a long chain, so every <code>find</code> walks the whole thing. Untick both boxes and press "Worst case".</p>
   <p><b>Trick 1: union by rank.</b> Always hang the shorter tree under the taller one, so height grows only when two equal trees merge. Height then stays under log₂(n). <b>Trick 2: path compression.</b> After a find, point every node you passed straight at the root, so the next find is one hop. Together they make operations take <i>α(n)</i> time, the inverse Ackermann function, which is at most 4 for any input that could fit in the universe.</p>
-  <p class="status">Also used for image segmentation, network connectivity, percolation simulations, type inference (unification) and the "same account?" grouping in fraud detection.</p>
+  <p class="caveat">Also used for image segmentation, network connectivity, percolation simulations, type inference (unification) and the "same account?" grouping in fraud detection.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, sleep, statTile } from "../../shared/common.js";

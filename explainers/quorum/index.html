@@ -54,7 +54,7 @@
   <p><b>Latency.</b> An operation finishes when the slowest of the replicas it waits for responds. Waiting for 1 replica means waiting for the fastest; waiting for all N means waiting for the slowest. That's why W = N or R = N hurts tail latency.</p>
   <p><b>Availability.</b> Crash replicas by clicking them. With N = 3 and R = W = 2, any one machine can fail and everything still works. Crash two and both reads and writes fail. W = 1 keeps accepting writes through more failures, but those writes live on fewer machines.</p>
   <p><b>Common choices:</b> N = 3 with R = W = 2 (balanced and consistent), W = N with R = 1 (fast reads, slow fragile writes), or R = W = 1 (fastest, eventually consistent), picked per query in Cassandra via its consistency levels.</p>
-  <p class="status">Simplified: real systems also use read repair, hinted handoff and anti-entropy (often with <a href="../merkle/">Merkle trees</a>) to bring stale replicas up to date in the background, and concurrent writes need version vectors or timestamps to resolve.</p>
+  <p class="caveat">Simplified: real systems also use read repair, hinted handoff and anti-entropy (often with <a href="../merkle/">Merkle trees</a>) to bring stale replicas up to date in the background, and concurrent writes need version vectors or timestamps to resolve.</p>
 </main>
 <script type="module">
 import { chrome, $ } from "../../shared/common.js";

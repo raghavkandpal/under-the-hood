@@ -31,9 +31,9 @@
     </div>
     <div class="controls" style="margin:12px 0 0"><button id="go" class="primary">▶ Run experiment</button><button id="again">🎲 Re-run with new visitors</button></div>
     <svg class="chart" id="rates" viewBox="0 0 700 200" preserveAspectRatio="none"></svg>
-    <p class="status" style="margin:0"><span style="color:var(--blue)">━</span> A's measured rate · <span style="color:var(--accent)">━</span> B's measured rate · bands = 95% confidence · dashed = true rates (unknown in real life)</p>
+    <ul class="legend" style="margin:0"><li><i style="--c:var(--blue)"></i>A measured</li><li><i style="--c:var(--accent)"></i>B measured</li><li>band: 95% interval</li><li>dashed: true rate</li></ul>
     <svg class="chart" id="pv" viewBox="0 0 700 120" preserveAspectRatio="none" style="margin-top:8px"></svg>
-    <p class="status" style="margin:0">p-value over time (log scale). Below the red line (0.05) counts as “significant”.</p>
+    <ul class="legend" style="margin:0"><li>p-value, log scale</li><li><i style="--c:var(--red)"></i>0.05</li></ul>
     <div class="stats" id="stats"></div>
     <p class="banner" id="banner"></p>
   </div>
@@ -50,8 +50,8 @@
   <div class="panel">
     <div class="grid">
       <label>Baseline rate <b id="vbase"></b><input type="range" id="base" min="0.01" max="0.5" step="0.01" value="0.10"></label>
-      <label>Smallest lift worth detecting <b id="vlift"></b><input type="range" id="lift" min="1" max="50" step="1" value="10"></label>
-      <label>Power (chance of catching a real effect) <b id="vpow"></b><input type="range" id="pow" min="0.5" max="0.95" step="0.05" value="0.8"></label>
+      <label>Minimum lift <b id="vlift"></b><input type="range" id="lift" min="1" max="50" step="1" value="10"></label>
+      <label>Power <b id="vpow"></b><input type="range" id="pow" min="0.5" max="0.95" step="0.05" value="0.8"></label>
     </div>
     <p style="margin:12px 0 0"><span class="big" id="ss"></span> <span class="status">visitors per variant</span></p>
     <p class="status" id="ssNote"></p>
@@ -61,7 +61,7 @@
   <p><b>A p-value</b> answers one narrow question: <i>if there were no real difference, how surprising would data like this be?</i> Below 0.05 means "fewer than 1 in 20 no-difference worlds look this extreme". It's not the probability that B is better.</p>
   <p><b>Small effects need big samples.</b> Detecting a 10% → 11% change takes roughly four times as many visitors as 10% → 12%, because the noise shrinks only with √n. Run the experiment at 1,000 visitors with a true 2-point lift and press 🎲 a few times. Sometimes B "loses".</p>
   <p><b>Decide the sample size first, then look once.</b> Every peek is another chance for noise to cross the line, so stopping at the first significant result can multiply false positives several times over. If you must monitor continuously, use methods built for it: sequential tests, alpha spending, or Bayesian approaches with appropriate priors.</p>
-  <p class="status">Uses a two-sided, two-proportion z-test with pooled variance. Sample sizes use the standard normal approximation at α = 0.05.</p>
+  <p class="caveat">Uses a two-sided, two-proportion z-test with pooled variance. Sample sizes use the standard normal approximation at α = 0.05.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile } from "../../shared/common.js";

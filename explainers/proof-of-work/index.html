@@ -27,7 +27,7 @@
 
   <div class="panel">
     <div class="controls" style="margin:0">
-      <label class="inline">Difficulty: hash must start with <select id="z"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select> zeros</label>
+      <label class="inline">Leading zeros <select id="z"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
       <button id="mineAll" class="primary">⛏ Mine the whole chain</button><button id="reset">Reset</button>
       <span class="status" id="prog"></span>
     </div>
@@ -35,16 +35,15 @@
   </div>
 
   <div class="chain" id="chain"></div>
-  <p class="status">Edit any block's data. Its hash changes, so it no longer starts with enough zeros, <i>and</i> the next block's "previous hash" no longer matches. Everything after it turns red.</p>
 
-  <div class="panel scroll-x"><b>What each extra zero costs</b> <span class="status">(at the speed this tab measured)</span><table class="data" id="cost" style="margin-top:6px"></table></div>
+  <div class="panel scroll-x"><b>What each extra zero costs at this tab's speed</b><table class="data" id="cost" style="margin-top:6px"></table></div>
 
   <h2>How it works</h2>
   <p><b>A block</b> holds some data, the hash of the previous block, and a <b>nonce</b>, a number the miner is free to change. Its hash is SHA-256 of all three. Change any character and the hash changes completely and unpredictably.</p>
   <p><b>The puzzle.</b> The block only counts if its hash starts with a certain number of zeros. Since hashes are unpredictable, the only strategy is to try nonce 0, 1, 2… Each extra hex zero makes it 16 times harder on average. Checking an answer takes a single hash, so work is expensive to do and cheap to verify.</p>
   <p><b>Why history becomes hard to rewrite.</b> To alter an old block you must redo its work, which changes its hash, which breaks the next block's link, so you must redo that one's work too, and every block after it, faster than the rest of the network keeps adding new ones. With enough honest computing power, that race can't be won. Bitcoin's network collectively computes hundreds of quintillions of hashes per second.</p>
   <p><b>The cost is the point, and the problem.</b> Security comes from burning electricity, which is why many newer blockchains use proof of stake instead. The hash-chaining idea itself, with each record committing to the one before, is the same one Git and <a href="../merkle/">Merkle trees</a> use without any mining.</p>
-  <p class="status">Toy chain: the hash covers "previous hash | data | nonce" as text. Real Bitcoin hashes a binary header twice with SHA-256 and compares against a numeric target rather than counting zeros.</p>
+  <p class="caveat">Toy chain: the hash covers "previous hash | data | nonce" as text. Real Bitcoin hashes a binary header twice with SHA-256 and compares against a numeric target rather than counting zeros.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml, statTile } from "../../shared/common.js";
@@ -72,7 +71,7 @@ function render() {
   }).join("");
   $("#stats").innerHTML = [[`~${expectedTries(z).toLocaleString()}`, "expected guesses per block"], [rate ? Math.round(rate).toLocaleString() + "/s" : "—", "hashes per second, this tab"], [rate ? (expectedTries(z) / rate).toFixed(2) + " s" : "—", "expected time per block"]].map(statTile).join("");
   if (rate) $("#cost").innerHTML = `<tr><th>Leading zeros</th><th>Expected guesses</th><th>Time at this speed</th></tr>` + [3, 4, 5, 6, 8, 10, 12, 16, 19].map(k => { const s = expectedTries(k) / rate; return `<tr><td>${k}</td><td class="num">16^${k} ≈ ${expectedTries(k).toExponential(1)}</td><td class="num">${s < 60 ? s.toFixed(1) + " s" : s < 86400 ? (s / 3600).toFixed(1) + " h" : s < 3.15e9 ? (s / 3.15e7).toFixed(1) + " years" : `10^${Math.round(Math.log10(s / 3.15e7))} years`}</td></tr>`; }).join("");
-  else $("#cost").innerHTML = `<tr><td class="status">Mine a block to measure your speed.</td></tr>`;
+  else $("#cost").innerHTML = `<tr><td class="status">Mine a block first</td></tr>`;
 }
 async function mineOne(i) {
   const b = blocks[i], t0 = performance.now();

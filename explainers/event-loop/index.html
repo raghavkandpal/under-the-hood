@@ -53,7 +53,7 @@
   <p><b>Timers live outside.</b> <code>setTimeout</code> hands the waiting to the browser (or Node) and returns at once. When the time is up, the callback joins the <i>task queue</i>. It runs only when the stack is empty <i>and</i> it reaches the front. The delay is a minimum, never a promise.</p>
   <p><b>Microtasks cut in line.</b> Promise callbacks (<code>.then</code>, and the code after <code>await</code>) go into a separate <i>microtask queue</i>, which is completely drained after every task, before the next task or the next screen repaint. That's why “3” prints before “2” in the classic puzzle, even with a 0 ms timer. Microtasks that queue more microtasks run straight away too, so an endless chain of them can starve timers and rendering just like a busy loop.</p>
   <p><b>The loop</b>: run one task to completion, drain all microtasks, maybe repaint the screen, take the next task, and so on. Node.js has the same core with a few extra phases for I/O.</p>
-  <p class="status">Real browsers have several task queues (input often gets priority), clamp nested timers to ≥ 4 ms, and repaint about every 16 ms when there's time. Web Workers give you extra threads, each with its own loop. Related: <a href="../race-conditions/">race conditions</a>, which are what you get with real threads instead.</p>
+  <p class="caveat">Real browsers have several task queues (input often gets priority), clamp nested timers to ≥ 4 ms, and repaint about every 16 ms when there's time. Web Workers give you extra threads, each with its own loop. Related: <a href="../race-conditions/">race conditions</a>, which are what you get with real threads instead.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml, sleep } from "../../shared/common.js";

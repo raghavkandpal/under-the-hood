@@ -31,7 +31,7 @@
   </div>
 
   <div class="panel">
-    <b>Does it work? Repeat the whole thing 200 times</b> <span class="status">New sample from the population each time, bootstrap it, and check whether its 95% interval contains the truth.</span>
+    <b>200 fresh samples: how often does the 95% interval catch the truth?</b>
     <div class="row" style="margin-top:6px"><button id="cov" class="primary">Run 200 experiments</button></div>
     <svg class="chart" id="forest" viewBox="0 0 600 220" role="img" aria-label="Intervals from repeated experiments"></svg>
     <div id="covv"></div>
@@ -41,7 +41,7 @@
   <p><b>The idea.</b> If we could survey the population again and again, we'd see directly how much the median varies from sample to sample. We can't. But our sample is our best picture of the population, so we resample <i>it</i>: draw n values with replacement (some people picked twice, some not at all), compute the statistic, and repeat a few thousand times. The middle 95% of those results is the bootstrap confidence interval.</p>
   <p><b>Why it's useful.</b> It works the same way for a median, a 90th percentile, a ratio, a correlation or a model's accuracy, where the textbook formulas are messy or don't exist. For the mean of bell-shaped data it agrees with the classic t-interval.</p>
   <p><b>Where it breaks.</b> The bootstrap can only reshuffle what you saw. With a tiny sample, or data with an extreme tail, the rare huge values that drive the true mean are usually missing from your sample, so every resample misses them too. Its intervals come out too narrow and too low. Try “startup outcomes” with the mean: the 95% interval catches the truth far less than 95% of the time, even at n = 200, while the median holds up. The fix is more data, or a statistic that isn't ruled by outliers.</p>
-  <p class="status">Related: the <a href="../clt/">central limit theorem</a> (why means become bell-shaped), <a href="../monte-carlo/">Monte Carlo</a> (the same “simulate it many times” spirit), and <a href="../abtest/">A/B tests</a>, where bootstrapping a metric's difference is common practice. Percentile intervals are the simplest kind; BCa intervals correct some of the bias.</p>
+  <p class="caveat">Related: the <a href="../clt/">central limit theorem</a> (why means become bell-shaped), <a href="../monte-carlo/">Monte Carlo</a> (the same “simulate it many times” spirit), and <a href="../abtest/">A/B tests</a>, where bootstrapping a metric's difference is common practice. Percentile intervals are the simplest kind; BCa intervals correct some of the bias.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";

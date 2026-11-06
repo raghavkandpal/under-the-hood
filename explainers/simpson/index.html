@@ -33,16 +33,15 @@
   <div class="panel"><p class="verdict" id="verdict" style="margin-top:0"></p><p class="mix" id="mix"></p></div>
 
   <div class="panel">
-    <b>Edit the counts</b> <span class="status">(successes / patients)</span>
+    <b>Successes / patients</b>
     <div class="cells" id="cells" style="margin-top:8px"></div>
-    <p class="status">Try making the two arms see the same mix of easy and hard cases (equal patient counts in each group). The paradox disappears.</p>
   </div>
 
   <h2>What's going on</h2>
   <p><b>Overall rates are weighted averages.</b> A's overall success mixes its small-stone rate and its large-stone rate, weighted by how many of <i>its</i> patients had each. Doctors gave A mostly to large stones, the hard cases, so A's average is pulled down by difficulty, not by being a worse treatment. B got mostly easy cases and looks good for the same reason.</p>
   <p><b>The hidden variable is a confounder.</b> Stone size affects both <i>which treatment</i> a patient got and <i>how well they did</i>. Whenever a third factor drives both, the pooled comparison can point the wrong way.</p>
   <p><b>Which answer is right?</b> It depends on the causal story, not on the arithmetic. Here severity influenced treatment choice, so the within-group comparison is the fair one, and A is better. That's why medical trials <b>randomise</b>: random assignment breaks the link between the confounder and the treatment, so the overall comparison becomes trustworthy.</p>
-  <p class="status">Kidney-stone figures from Charig et al., BMJ 1986, a classic teaching example of the paradox. The course example is invented.</p>
+  <p class="caveat">Kidney-stone figures from Charig et al., BMJ 1986, a classic teaching example of the paradox. The course example is invented.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml } from "../../shared/common.js";

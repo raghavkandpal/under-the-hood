@@ -55,7 +55,7 @@
   <p><b>The window is a trade-off.</b> A bigger window finds older repeats but costs more memory and search time, and needs more bits per distance. Set it to 8 characters and watch the repeats of "sea shells" go unnoticed. gzip uses 32 KB. Modern compressors like zstd and Brotli use megabytes.</p>
   <p><b>Nothing compresses random data.</b> With no repeats there's nothing to point back to, and the format's overhead makes it slightly <i>bigger</i>. That's why compressing an already-compressed file doesn't help.</p>
   <p><b>Then Huffman.</b> DEFLATE (the format inside ZIP, gzip and PNG) runs LZ77 first, then Huffman-codes the resulting literals, lengths and distances, so common ones get short codes. See the <a href="../huffman/">Huffman</a> explainer for that half.</p>
-  <p class="status">Size estimate: a literal costs about 9 bits (a flag plus 8 bits), a back-reference about 21 bits. Real formats are smarter, and greedy matching (always take the longest) isn't always optimal; zlib looks one step ahead ("lazy matching").</p>
+  <p class="caveat">Size estimate: a literal costs about 9 bits (a flag plus 8 bits), a back-reference about 21 bits. Real formats are smarter, and greedy matching (always take the longest) isn't always optimal; zlib looks one step ahead ("lazy matching").</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml, statTile } from "../../shared/common.js";

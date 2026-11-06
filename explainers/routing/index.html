@@ -29,7 +29,7 @@
   <div class="panel">
     <div class="row">
       <button id="step" class="primary">Exchange once ▶</button><button id="run">Run until stable</button><button id="reset">Restart routers</button>
-      <label class="inline"><input type="checkbox" id="sh"> split horizon (poisoned reverse)</label>
+      <label class="inline"><input type="checkbox" id="sh"> split horizon</label>
     </div>
     <div class="row" style="margin-top:6px">
       <label class="inline">packet from <select id="src"></select> to <select id="dst"></select></label>
@@ -37,7 +37,7 @@
     </div>
     <div class="two">
       <svg id="net" viewBox="0 0 420 270" style="width:100%;height:auto;display:block" role="img" aria-label="Network of routers"></svg>
-      <div><b>Router <span id="who"></span>'s table</b> <span class="status">(click a router)</span><div class="scroll-x"><table class="data" id="tbl"></table></div></div>
+      <div><b>Router <span id="who"></span>'s table</b><div class="scroll-x"><table class="data" id="tbl"></table></div></div>
     </div>
     <p class="msg" id="msg"></p>
   </div>

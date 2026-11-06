@@ -1,5 +1,5 @@
 // Shared header/footer + tiny helpers for every explainer page.
-import { CATALOG, AREAS, PATHS, byId, hrefOf, unlocks, areaOf, topicOf, pathById, pathsWith } from "../catalog.js";
+import { CATALOG, AREAS, PATHS, byId, hrefOf, unlocks, areaOf, topicOf, pathById } from "../catalog.js";
 import { SOURCES, KINDS } from "../sources.js";
 
 // ---- reading progress: which explainers this browser has opened (a per-viewer convenience; never required)
@@ -39,18 +39,17 @@ export function chrome() {
   header.className = "site";
   const area = page && areaOf(page), topic = page && topicOf(page);
   header.innerHTML = `<div class="inner">
-    <a class="brand" href="${linkTo()}">How it <span>works</span></a>
-    <nav aria-label="Site">
-      ${page ? `<span class="crumb" aria-label="Breadcrumb"><a href="${linkTo()}?area=${area.id}">${area.title}</a> › <a href="${linkTo()}?area=${area.id}#topic-${topic.id}">${topic.title}</a></span>` : ""}
-      <a class="all" href="${linkTo()}"${page ? "" : ' aria-current="page"'}>All explainers (${CATALOG.length})</a>
-      <button type="button" class="browse" aria-controls="sidenav" aria-expanded="false">☰ Browse</button>
-      <button type="button" class="theme-toggle"></button>
-    </nav>
+    <a class="brand" href="${linkTo()}">How it works</a>
+    ${page ? `<nav class="crumb" aria-label="Breadcrumb"><a href="${linkTo()}?area=${area.id}">${area.title}</a><span aria-hidden="true">/</span><a href="${linkTo()}?area=${area.id}#topic-${topic.id}">${topic.title}</a></nav>` : ""}
+    <span class="tools">
+      <button type="button" class="icon browse" aria-controls="sidenav" aria-expanded="false" aria-label="Browse explainers" title="Browse">☰</button>
+      <button type="button" class="icon theme-toggle"></button>
+    </span>
   </div>`;
   document.body.prepend(header);
   const toggle = header.querySelector(".theme-toggle");
-  // the button names the theme it switches to
-  const label = () => { const next = isDark() ? "light" : "dark"; toggle.textContent = next === "dark" ? "☾ Dark" : "☀ Light"; toggle.setAttribute("aria-label", `Switch to ${next} theme`); };
+  // the button shows and names the theme it switches to
+  const label = () => { const next = isDark() ? "light" : "dark"; toggle.textContent = next === "dark" ? "☾" : "☀"; toggle.setAttribute("aria-label", `Switch to ${next} theme`); toggle.title = `${next[0].toUpperCase()}${next.slice(1)} theme`; };
   toggle.onclick = () => setTheme(isDark() ? "light" : "dark");
   onThemeChange(label); // also relabel if the system theme changes before the reader has chosen
   label();
@@ -64,53 +63,41 @@ export function chrome() {
     const onPath = path && path.steps.includes(page.id) ? path : null;
     const stepLink = (p, id) => `${linkTo(byId(id))}?path=${p.id}`;
     if (onPath) {
-      const i = onPath.steps.indexOf(page.id), prev = onPath.steps[i - 1], next = onPath.steps[i + 1];
+      const i = onPath.steps.indexOf(page.id), next = onPath.steps[i + 1], n = onPath.steps.length;
       const bar = document.createElement("nav");
-      bar.className = "pathbar"; bar.setAttribute("aria-label", "Learning path");
-      bar.innerHTML = `<a class="pathname" href="${pathLink(onPath)}">${onPath.title}</a><span class="pathpos">Part ${i + 1} of ${onPath.steps.length}</span>
+      bar.className = "pathbar"; bar.setAttribute("aria-label", `Learning path: ${onPath.title}, part ${i + 1} of ${n}`);
+      bar.innerHTML = `<a class="pathname" href="${pathLink(onPath)}">${onPath.title}</a>
         <span class="pathdots">${onPath.steps.map((id, j) => { const state = j === i ? "here" : readSet().has(id) ? "read" : ""; const label = `Part ${j + 1}: ${byId(id).title}${state === "here" ? " (you are here)" : state === "read" ? " (read)" : ""}`;
           return `<a href="${stepLink(onPath, id)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="${state}"${state === "here" ? ' aria-current="step"' : ""}></a>`; }).join("")}</span>
-        <span class="pathlinks">${prev ? `<a href="${stepLink(onPath, prev)}">← ${byId(prev).title}</a>` : ""}${next ? `<a href="${stepLink(onPath, next)}">Next: ${byId(next).title} →</a>` : `<a href="${pathLink(onPath)}">Path complete ✓</a>`}</span>`;
+        ${next ? `<a class="pathgo" href="${stepLink(onPath, next)}">${byId(next).title} →</a>` : `<a class="pathgo" href="${pathLink(onPath)}">Done ✓</a>`}`;
       (main.querySelector("p.lede") || main.querySelector("h1")).after(bar);
       const end = document.createElement("a");
       end.className = "pathnext";
       end.href = next ? stepLink(onPath, next) : pathLink(onPath);
-      end.innerHTML = next ? `<small>${onPath.title} · Part ${i + 2} of ${onPath.steps.length}</small>Next: ${byId(next).title} →` : `<small>${onPath.title}</small>You've reached the end of this path ✓`;
+      end.textContent = next ? `Next: ${byId(next).title} →` : `${onPath.title}: done ✓`;
       endLink = end;
-    } else if (pathsWith(page.id).length) {
-      const note = document.createElement("p");
-      note.className = "status pathsof";
-      note.innerHTML = `Part of the learning path${pathsWith(page.id).length > 1 ? "s" : ""}: ${pathsWith(page.id).map(p => `<a href="${stepLink(p, page.id)}">${p.title}</a>`).join(", ")}`;
-      (main.querySelector("p.lede") || main.querySelector("h1")).after(note);
     }
     // ---- further reading: trusted, free sources (sources.js)
     const reading = SOURCES[page.id] || [];
     if (reading.length) {
       const sec = document.createElement("section");
       sec.className = "reading";
-      sec.innerHTML = `<h2>Further reading</h2><ul>${reading.map(([title, url, kind, by]) =>
-        `<li><a href="${url}" target="_blank" rel="noopener">${escapeHtml(title)}</a><span class="src"><span class="kind kind-${kind}">${KINDS[kind]}</span>${escapeHtml(by)}</span></li>`).join("")}</ul>
-        <p class="status">All free to read. Standards and papers are the primary sources; the rest explain the same ideas another way.</p>`;
+      sec.innerHTML = `<h2>Further reading</h2><ul class="list">${reading.map(([title, url, kind, by]) =>
+        `<li><a href="${url}" target="_blank" rel="noopener"><b>${escapeHtml(title)}</b><span>${KINDS[kind]} · ${escapeHtml(by)}</span></a></li>`).join("")}</ul>`;
       main.append(sec);
     }
-    // ---- keep exploring: prerequisites, what builds on this, then the rest of its topic
-    const rel = [...page.prereqs.map(byId).filter(Boolean).map(c => ["Builds on", c]), ...unlocks(page.id).map(c => ["Next", c])];
-    const same = CATALOG.filter(c => c.area === page.area && c.topic === page.topic && c.id !== page.id && !rel.some(([, r]) => r.id === c.id)).slice(0, 3).map(c => ["Same topic", c]);
-    const all = [...rel, ...same];
+    // ---- keep exploring: what this builds on, what builds on it, then the rest of its topic
+    const rel = [...page.prereqs.map(byId).filter(Boolean), ...unlocks(page.id)];
+    const all = [...rel, ...CATALOG.filter(c => c.area === page.area && c.topic === page.topic && c.id !== page.id && !rel.includes(c)).slice(0, 3)];
     if (all.length) {
       const sec = document.createElement("section");
       sec.className = "related";
-      sec.innerHTML = `<h2>Keep exploring</h2><div class="cards">${all.map(([why, c]) => `
-        <a class="card" href="${linkTo(c)}"><div class="tag">${why}</div><h3>${c.title}</h3><p>${c.blurb}</p></a>`).join("")}</div>`;
+      sec.innerHTML = `<h2>Keep exploring</h2>${entryCards(all)}`;
       main.append(sec);
     }
   }
   // the path's big "Next" link goes last, after everything else on the page
   if (endLink) main.append(endLink);
-  const footer = document.createElement("footer");
-  footer.className = "site";
-  footer.textContent = "Interactive explainers · everything runs in your browser";
-  document.body.append(footer);
   if (main) sidebar(page, main, header);
 }
 
@@ -139,11 +126,13 @@ function sidebar(page, main, header) {
   const used = new Set();
   for (const h of heads) { if (!h.id) { let id = slug(h.textContent) || "section", k = id, n = 2; while (used.has(k) || document.getElementById(k)) k = `${id}-${n++}`; h.id = k; } used.add(h.id); }
   if (heads.length > 1) parts.push(`<section><h2>On this page</h2><ul class="toc">${heads.map(h => `<li><a href="#${h.id}">${escapeHtml(h.textContent.trim())}</a></li>`).join("")}</ul></section>`);
-  parts.push(`<section><h2><a href="${pathLink()}">Learning paths</a></h2><ul>${PATHS.map(p => link(pathLink(p), p.title, p === path && onPathPage)).join("")}</ul></section>`);
+  // paths that include this page link straight to it inside the path, marked with a dot
+  parts.push(`<section><h2><a href="${pathLink()}">Learning paths</a></h2><ul>${PATHS.map(p => { const has = here && p.steps.includes(here);
+    return link(has ? `${linkTo(page)}?path=${p.id}` : pathLink(p), p.title, p === path && onPathPage, has ? ` class="has" title="Includes this page"` : ""); }).join("")}</ul></section>`);
 
   const aside = document.createElement("aside");
   aside.id = "sidenav"; aside.className = "sidenav"; aside.setAttribute("aria-label", "Browse explainers");
-  aside.innerHTML = `<button type="button" class="side-close" aria-label="Close navigation">✕</button>${parts.join("")}`;
+  aside.innerHTML = `<button type="button" aria-label="Close navigation" class="icon side-close">✕</button>${parts.join("")}`;
   const backdrop = document.createElement("div"); backdrop.className = "side-backdrop";
   header.after(aside, backdrop);
   document.body.classList.add("with-side");
@@ -183,6 +172,10 @@ export function svgEl(tag, attrs = {}, text) {
 }
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
 export const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/** A grid of explainer cards: title and blurb, ✓ once read. Used by the home page and "Keep exploring". */
+export const entryCards = (entries, href = linkTo) => `<div class="cards">${entries.map(c =>
+  `<a class="card${readSet().has(c.id) ? " read" : ""}" href="${href(c)}"><h3>${escapeHtml(c.title)}${readSet().has(c.id) ? '<span class="sr-only"> (read)</span>' : ""}</h3><p>${escapeHtml(c.blurb)}</p></a>`).join("")}</div>`;
 
 /** One statistics tile: use as `$("#stats").innerHTML = [[value, label], ...].map(statTile).join("")`. Styles live in style.css (.stats/.stat). */
 export const statTile = ([value, label]) => `<div class="stat"><b>${value}</b><small>${label}</small></div>`;

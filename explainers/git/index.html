@@ -43,8 +43,7 @@
   .e.ref { stroke: var(--muted); stroke-dasharray: 3 3; }
   .rowlbl { font-size: 11px; fill: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
   pre.obj { background: var(--surface-2); border-radius: 8px; padding: 10px; font-size: 12.5px; overflow: auto; margin: 8px 0 0; white-space: pre-wrap; word-break: break-all; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
-  .legend i { display: inline-block; width: 12px; height: 12px; vertical-align: -1px; margin-right: 5px; border: 1.5px solid; }
+  .legend i { width: 12px; height: 12px; border: 1.5px solid; }
 </style>
 </head>
 <body>
@@ -92,7 +91,7 @@
     <li><b>HEAD is "where you are".</b> It usually names a branch, which names a commit.</li>
     <li><b><code>git add</code> writes objects.</b> The blob is created when you stage, not when you commit. Stage, edit and stage again, and the first blob becomes unreachable garbage.</li>
   </ul>
-  <p class="status">These hashes are real. <code>git hash-object</code> on the same file content gives the same blob ID here as on your machine. Commit IDs also depend on author and time, which this page fixes so they're reproducible. Simplifications: one author, merges are per-file (no line-level merging), no packfiles, no rebase.</p>
+  <p class="caveat">These hashes are real. <code>git hash-object</code> on the same file content gives the same blob ID here as on your machine. Commit IDs also depend on author and time, which this page fixes so they're reproducible. Simplifications: one author, merges are per-file (no line-level merging), no packfiles, no rebase.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";

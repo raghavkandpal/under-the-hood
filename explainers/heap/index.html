@@ -41,7 +41,7 @@
   <p><b>A tree with no pointers.</b> The tree is always filled level by level, left to right, so it fits in an array with no gaps. Parent and children are found by arithmetic, which is compact and cache-friendly.</p>
   <p><b>Push</b> appends at the end, then <i>sifts up</i>: while it's smaller than its parent, swap. <b>Pop</b> takes the root, moves the last item into its place, then <i>sifts down</i>, swapping with the smaller child until the rule holds. Either way the item travels at most the tree's height, which is log₂ n: about 20 swaps for a million items.</p>
   <p><b>Heapify</b> builds a heap from scratch in linear time by sifting down from the last parent backwards. Most nodes are near the bottom and barely move. Pop everything and you get <i>heapsort</i>.</p>
-  <p class="status">Used in Dijkstra's and A* <a href="../pathfinding/">pathfinding</a>, OS <a href="../scheduling/">schedulers</a>, Huffman coding, timer wheels, merging sorted files, and “top 10 of a billion” queries: keep a heap of the best 10 and discard anything smaller than its root.</p>
+  <p class="caveat">Used in Dijkstra's and A* <a href="../pathfinding/">pathfinding</a>, OS <a href="../scheduling/">schedulers</a>, Huffman coding, timer wheels, merging sorted files, and “top 10 of a billion” queries: keep a heap of the best 10 and discard anything smaller than its root.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, sleep, statTile } from "../../shared/common.js";

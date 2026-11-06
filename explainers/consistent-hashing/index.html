@@ -55,7 +55,7 @@
   <p><b>The ring.</b> Hash every server's name onto a circle of 2³² positions, and hash every key onto the same circle. Each key belongs to the next server clockwise. When a server joins, it only takes over the arc just before it, so only those keys move, about 1/N of them. When a server leaves, only its keys move, to its clockwise neighbour.</p>
   <p><b>Virtual nodes.</b> With one point per server the arcs are random sizes, so one server can easily get twice the load of another. Give each server many points (A#0, A#1, A#2 …) and the arcs average out. Slide virtual nodes up and watch the bars even out. It also means a departing server's keys spread across <i>all</i> the others instead of landing on one neighbour.</p>
   <p><b>Where you'll find it:</b> Amazon's Dynamo and its descendants (Cassandra, Riak), memcached client libraries, CDN request routing and load balancers. The same trick turns up anywhere work has to be split across machines that come and go.</p>
-  <p class="status">Keys and servers are hashed with FNV-1a plus a final bit-mixing step so similar names land far apart.</p>
+  <p class="caveat">Keys and servers are hashed with FNV-1a plus a final bit-mixing step so similar names land far apart.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";

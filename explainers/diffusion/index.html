@@ -45,7 +45,7 @@
   <p><b>The network learns to undo one bit of noise.</b> Shown a noisy point and t, it predicts the clean version (or, equivalently, the noise that was added). Training is plain regression on millions of such pairs.</p>
   <p><b>Generation runs time backwards.</b> Start from pure noise. Ask the denoiser for its best guess of the clean point, step a little toward it, re-add the right amount of noise for the new level, and repeat. Early steps decide the coarse layout, which arm of the spiral, and late steps fine-tune. Fewer steps is faster but rougher. Drag “denoising steps” down to 2.</p>
   <p><b>Memorisation vs creativity.</b> The denoiser here isn't a neural network. It's the mathematically <i>perfect</i> denoiser for these training points, and perfection is a problem: every sample lands exactly on a training point. It can only copy. A real network can't represent that perfect function, and its smoothing (the “blur” slider) is exactly what lets it generate <i>new</i> points along the shape, the 2-D version of a novel image. When a real model memorises some training images too well, it reproduces them, a live research and copyright issue.</p>
-  <p class="status">Text-to-image models condition the denoiser on a text embedding, so each step nudges toward “a cat in a hat”. They usually work in a compressed latent space rather than raw pixels, which is the “latent” in latent diffusion.</p>
+  <p class="caveat">Text-to-image models condition the denoiser on a text embedding, so each step nudges toward “a cat in a hat”. They usually work in a compressed latent space rather than raw pixels, which is the “latent” in latent diffusion.</p>
 </main>
 <script type="module">
 import { chrome, $, statTile } from "../../shared/common.js";

@@ -83,7 +83,7 @@
   <p><b>Ambiguity.</b> In the first example, the coreference head splits "it" between <i>cat</i> and <i>ball</i>. One shallow head can't tell which is meant. That takes world knowledge (balls aren't happy, boxes are heavy), which deeper layers build up. Try the "heavy" sentence. This head makes the same animate-first guess and gets it <i>wrong</i>, because it only knows word types, not meanings.</p>
   <p><b>Parallelism.</b> Every word attends to every other word at once, as one big matrix multiplication. That's what made transformers so much faster to train than older models that read one word at a time. It's also why cost grows with the <i>square</i> of the text length.</p>
   <p><b>The causal mask</b> is how GPT-style models generate text. Each position may only look at earlier ones, so the model can be trained to predict the next word without seeing it.</p>
-  <p class="status">Toy version: an 8-feature hand-made vocabulary plus position, single-layer heads, and values equal to the input embedding (real models also project values and mix heads with an output matrix). Unknown words get a generic "other" feature, shown with a dashed border.</p>
+  <p class="caveat">Toy version: an 8-feature hand-made vocabulary plus position, single-layer heads, and values equal to the input embedding (real models also project values and mix heads with an output matrix). Unknown words get a generic "other" feature, shown with a dashed border.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml, keyboardDraggable, isDark, onThemeChange } from "../../shared/common.js";

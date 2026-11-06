@@ -32,8 +32,7 @@
       <label class="inline"><input type="checkbox" id="peek"> show the prover's secret</label>
     </div>
     <div class="two">
-      <div><svg id="g" viewBox="0 0 320 300" role="img" aria-label="The graph, with committed colours"></svg>
-        <p class="status" style="text-align:center;margin:0">Each node shows the start of its commitment hash. Only the challenged edge gets opened.</p></div>
+      <div><svg id="g" viewBox="0 0 320 300" role="img" aria-label="The graph, with committed colours"></svg></div>
       <div><b>What the verifier has seen</b><div class="log" id="log" style="margin-top:6px"></div></div>
     </div>
     <div id="verdict"></div>
@@ -45,7 +44,7 @@
   <p><b>Challenge.</b> The verifier picks one edge at random and asks the prover to open just those two envelopes. If the colours differ and the hashes check out, the round passes.</p>
   <p><b>Why bluffing fails.</b> A prover without a valid colouring must have at least one edge whose ends match, and doesn't know which edge will be asked about. Each round has at least a 1-in-13 chance of exposing them here. That's small, but it compounds: after 100 rounds a bluffer with even one bad edge survives less than 0.1% of the time, and after 173 rounds less than one in a million.</p>
   <p><b>Why the verifier learns nothing.</b> Every opened pair is just two different colours, and because the colours are reshuffled every round, every pair is equally likely. The verifier could have produced the same log on its own by picking two random different colours. It's convinced, but it can't rebuild the colouring or prove anything to anyone else.</p>
-  <p class="status">Three-colouring is NP-complete, so any statement with a checkable proof can be turned into a graph like this. Practical systems (zk-SNARKs and zk-STARKs) do the same job far more efficiently and without back-and-forth. They're used for private payments, proving identity facts like “over 18” without revealing a birthday, and compressing blockchain transactions.</p>
+  <p class="caveat">Three-colouring is NP-complete, so any statement with a checkable proof can be turned into a graph like this. Practical systems (zk-SNARKs and zk-STARKs) do the same job far more efficiently and without back-and-forth. They're used for private payments, proving identity facts like “over 18” without revealing a birthday, and compressing blockchain transactions.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile } from "../../shared/common.js";

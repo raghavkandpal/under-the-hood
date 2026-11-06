@@ -64,7 +64,7 @@
   <p><b>Boxes only.</b> Every question looks at one feature, so the boundaries are always horizontal or vertical lines. A diagonal or circular boundary has to be built as a staircase of many small boxes. Look at "Circle in a ring" at depth 8.</p>
   <p><b>Greedy is short-sighted.</b> On <b>XOR</b>, no single first question helps much, because either half is still close to 50/50. So the root split lands wherever noise happens to make it look slightly better (look at the top node, usually nowhere near 0), and the tree spends extra levels recovering. With some samples a shallow XOR tree fails outright. The algorithm never plans ahead.</p>
   <p><b>Overfitting, again.</b> Unlimited depth isolates every training point in its own box: 100% training accuracy, worse on new data. Limiting depth or leaf size is the fix. In practice people average hundreds of slightly different trees (<b>random forests</b>) or add small trees one at a time to correct each other's errors (<b>gradient boosting</b>), and these are some of the strongest models for tabular data.</p>
-  <p class="status">This is CART with Gini impurity, as used by scikit-learn's <code>DecisionTreeClassifier</code>, without pruning.</p>
+  <p class="caveat">This is CART with Gini impurity, as used by scikit-learn's <code>DecisionTreeClassifier</code>, without pruning.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile, isDark, onThemeChange } from "../../shared/common.js";

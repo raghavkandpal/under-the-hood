@@ -45,7 +45,7 @@
   <p><b>Dijkstra</b> always expands the cheapest-so-far cell, so the frontier spreads like a ripple that slows down in mud. It's guaranteed to find the cheapest path, but it explores in every direction, including away from the goal.</p>
   <p><b>Greedy best-first</b> only asks "which cell looks closest to the goal?" It's often very fast and often wrong. In the <i>Trap</i> preset it charges straight into the cup and has to back out. In the <i>Swamp</i> it wades straight through the mud and pays more than double the best cost.</p>
   <p><b>A*</b> combines the two, ranking cells by <i>cost so far + estimated cost to go</i>. As long as the estimate never overestimates (here, straight-line grid distance), A* is still guaranteed optimal, and it explores far less than Dijkstra. That's why it's the default in games and robotics, and why route planners build on the same idea.</p>
-  <p class="status">Moves are up, down, left and right; open cells cost 1 and mud costs 6. The estimate is Manhattan distance, which never overestimates here.</p>
+  <p class="caveat">Moves are up, down, left and right; open cells cost 1 and mud costs 6. The estimate is Manhattan distance, which never overestimates here.</p>
 </main>
 <script type="module">
 import { chrome, $, keyboardDraggable, onThemeChange } from "../../shared/common.js";

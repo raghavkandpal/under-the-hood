@@ -79,13 +79,13 @@
   <div class="panel">
     <div class="row"><button id="crack" class="primary">Brute-force Alice's secret</button><span class="status" id="crackStatus"></span></div>
     <div class="scroll-x" style="margin-top:12px"><table class="data" id="extrap"></table></div>
-    <p class="status">For scale, the universe is about 1.4 × 10<sup>10</sup> years old. Each extra bit doubles the work. Real keys use 2048-bit primes or elliptic curves. Smarter attacks than brute force exist, and that's why the sizes are so large, but even those stay far beyond reach at these sizes.</p>
   </div>
+  <p>Each extra bit doubles the work; the universe is about 1.4 × 10<sup>10</sup> years old. Real keys use 2048-bit primes or elliptic curves, far beyond reach even for attacks smarter than brute force.</p>
 
   <h2>4. The catch: who are you talking to?</h2>
   <p>Tick <b>Mallory in the middle</b> above. If an attacker can <i>change</i> messages, not just read them, she can run one exchange with Alice and another with Bob. Each side ends up sharing a perfectly good key… with Mallory. She decrypts, reads and re-encrypts everything.</p>
   <p>Diffie-Hellman alone gives secrecy, not identity. That's why HTTPS pairs it with <b>certificates</b>. The server signs its half of the exchange with a key that a trusted authority has vouched for, so Mallory can't swap in her own.</p>
-  <p class="status">Toy sizes, built for clarity. Never roll your own crypto for real use.</p>
+  <p class="caveat">Toy sizes, built for clarity. Never roll your own crypto for real use.</p>
 </main>
 <script type="module">
 import { chrome, $ } from "../../shared/common.js";

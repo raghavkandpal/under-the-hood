@@ -48,7 +48,7 @@
   <p><b>Multiply, add, move.</b> For each output pixel, lay the kernel over the input pixel and its neighbours, multiply each pair, and add the products. That sum is the new pixel. Repeat for every position.</p>
   <p><b>What the numbers mean.</b> All positive and summing to 1 averages the neighbours, which <b>blurs</b>. A big centre minus the neighbours exaggerates differences, which <b>sharpens</b>. Negative on one side and positive on the other measures how fast brightness changes, which finds <b>edges</b>. Sobel x lights up vertical edges and Sobel y horizontal ones. Flat regions give 0 for any edge kernel, so they go grey in the output.</p>
   <p><b>Why neural networks love it.</b> A convolutional neural network (CNN) learns its kernels instead of using hand-made ones. Early layers end up learning edge and colour detectors much like these, and later layers combine them into textures, parts and objects. Because the same small kernel slides over the whole image, a cat in the corner is detected the same way as a cat in the middle, using few parameters.</p>
-  <p class="status">Processing uses brightness only, with clamped borders. Signed edge outputs are drawn with grey = 0, white = positive, black = negative. Strictly this is cross-correlation (no kernel flip), which is what image libraries and deep-learning frameworks call "convolution".</p>
+  <p class="caveat">Processing uses brightness only, with clamped borders. Signed edge outputs are drawn with grey = 0, white = positive, black = negative. Strictly this is cross-correlation (no kernel flip), which is what image libraries and deep-learning frameworks call "convolution".</p>
 </main>
 <script type="module">
 import { chrome, $ } from "../../shared/common.js";

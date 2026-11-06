@@ -44,7 +44,7 @@
   <p><b>Happens-before.</b> Event <i>a</i> happened before <i>b</i> if information could have flowed from a to b: same server and earlier, or a message chain connects them. If neither could have reached the other, they're <b>concurrent</b>. Neither saw the other, so neither "wins" by default, and two such writes to the same key are a genuine conflict.</p>
   <p><b>A vector clock</b> keeps one counter per server. Each server ticks its own counter at every event and stamps outgoing messages with its whole vector. On receiving one, it takes the element-wise maximum, then ticks. Then <i>a</i> → <i>b</i> exactly when a's vector is ≤ b's in every position. If each is bigger somewhere, they're concurrent.</p>
   <p><b>Lamport clocks</b> are the one-number version. They guarantee that if a → b then L(a) &lt; L(b), but not the converse. Switch the labels and find two concurrent events with different Lamport numbers. The smaller number looks "earlier", but that's an illusion. That's why systems that must detect conflicts, like Dynamo-style databases and some sync engines, carry vectors.</p>
-  <p class="status">Messages here are delivered instantly in the order you click. The price of vector clocks is size: one counter per participant, which is why large systems prune them or use variants like dotted version vectors.</p>
+  <p class="caveat">Messages here are delivered instantly in the order you click. The price of vector clocks is size: one counter per participant, which is why large systems prune them or use variants like dotted version vectors.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";

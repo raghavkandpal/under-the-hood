@@ -42,7 +42,7 @@
   <p><b>Why a code, and not the token directly?</b> The redirect travels through the browser, where URLs leak into history, logs and other apps. The code is single-use and short-lived. The app trades it for the real access token over a direct server-to-server request.</p>
   <p><b>PKCE</b> (“pixie”). Before starting, the app makes a random secret, the <i>verifier</i>, and sends only its hash, the <i>challenge</i>. To redeem the code it must show the verifier. Whoever intercepts the code doesn't have it. Mobile and single-page apps can't keep a client secret, so PKCE is what protects them, and OAuth 2.1 requires it for everyone.</p>
   <p><b>state</b> is a random value the app remembers in your session and expects back on the callback. It proves the login was one <i>you</i> started. Without it, an attacker can plant their own code and log you in to <i>their</i> account (login CSRF), then collect whatever you type.</p>
-  <p class="status">Access tokens are short-lived. A refresh token gets new ones without asking again, and revoking the app in your account settings kills both. “Sign in with…” adds OpenID Connect, an ID token saying who you are, on top of this same flow. Hashes here are shortened stand-ins for SHA-256.</p>
+  <p class="caveat">Access tokens are short-lived. A refresh token gets new ones without asking again, and revoking the app in your account settings kills both. “Sign in with…” adds OpenID Connect, an ID token saying who you are, on top of this same flow. Hashes here are shortened stand-ins for SHA-256.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl } from "../../shared/common.js";

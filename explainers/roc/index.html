@@ -56,7 +56,7 @@
   <p><b>The threshold is a business decision.</b> Slide it left and you catch more fraud (recall up) but annoy more honest customers (precision down). Slide it right and it's the reverse. No threshold is "correct". It depends on what a missed case costs against a false alarm.</p>
   <p><b>ROC and AUC</b> summarise the model over <i>every</i> threshold. AUC, the area under the ROC curve, is the probability that a random positive gets a higher score than a random negative: 0.5 is a coin flip, 1.0 is perfect. It's a good way to compare models before choosing a threshold.</p>
   <p><b>The rare-case trap.</b> Drop prevalence to 1%. The ROC curve barely moves, but precision collapses, because even a small false-positive rate on 99% of the data swamps the true hits (exactly <a href="../bayes/">Bayes' theorem</a>). Meanwhile "accuracy" looks fantastic, since flagging nothing at all would score 99%. For rare events, look at precision and recall, not accuracy.</p>
-  <p class="status">1,000 synthetic cases. The model's scores follow two overlapping bell curves; "separation" is the distance between their centres in standard deviations.</p>
+  <p class="caveat">1,000 synthetic cases. The model's scores follow two overlapping bell curves; "separation" is the distance between their centres in standard deviations.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile } from "../../shared/common.js";

@@ -45,15 +45,14 @@
     </div>
     <div class="party">
       <h3>Bob (verifier)</h3>
-      <p class="status" style="margin:0 0 6px">He has the public key (n, e), the message he received, and the signature.</p>
-      <label class="status" for="recv">Message as received (try changing one character)</label>
+      <label class="status" for="recv">Message received</label>
       <textarea id="recv" rows="3"></textarea>
       <div class="math" id="bob" style="margin-top:8px"></div>
       <div class="verdict" id="verdict"></div>
     </div>
     <div class="party evil">
       <h3>Mallory (forger)</h3>
-      <p class="status" style="margin:0 0 6px">She wants Bob to accept “<span id="evilMsg">Release v2.4.1-evil is safe to install.</span>”</p>
+      <p class="status" style="margin:0 0 6px">Goal: “<span id="evilMsg">Release v2.4.1-evil is safe to install.</span>”</p>
       <button id="guess">🎲 Guess 100,000 signatures</button>
       <div class="math" id="guessOut" style="margin:6px 0 10px"></div>
       <button id="crack">⛏ Factor n to steal the private key</button>
@@ -66,7 +65,7 @@
   <p><b>Signing</b> means hashing the message to a number <code>h</code> and computing <code>s = hᵈ mod n</code>, which only the holder of <code>d</code> can do. <b>Verifying</b> means computing <code>sᵉ mod n</code> with the public key and checking that it equals the hash of the message received. Change one character and the hash changes completely, so the check fails.</p>
   <p><b>Why forging fails.</b> Guessing is hopeless: there are <code>n</code> possible signatures and exactly one works. The only known shortcut is factoring <code>n</code>, which is easy here and infeasible at real sizes. RSA keys are 2048–4096 bits, about 617–1234 decimal digits, and no known method factors them in any reasonable time.</p>
   <p><b>Where this shows up.</b> Software updates and app stores check the vendor's signature. HTTPS certificates are a chain of signatures: a certificate authority signs "this public key belongs to example.com", and your browser ships with the authorities' public keys. That's the missing piece from the <a href="../dh/">key exchange</a> explainer, and it's how you know you're not talking to Mallory.</p>
-  <p class="status">Toy version: textbook RSA with a truncated SHA-1 hash. Real systems use padding schemes (RSA-PSS), modern hashes, and increasingly elliptic-curve signatures (Ed25519, ECDSA), which are much smaller for the same security. Don't use this code for anything real.</p>
+  <p class="caveat">Toy version: textbook RSA with a truncated SHA-1 hash. Real systems use padding schemes (RSA-PSS), modern hashes, and increasingly elliptic-curve signatures (Ed25519, ECDSA), which are much smaller for the same security. Don't use this code for anything real.</p>
 </main>
 <script type="module">
 import { chrome, $, escapeHtml } from "../../shared/common.js";
@@ -116,7 +115,7 @@ function crack() {
     const d = modInv(K.e, (res.p - 1n) * (res.q - 1n));
     const evil = $("#evilMsg").textContent, forged = modPow(digest(evil, K.n), d, K.n);
     const digits = K.n.toString().length, perDigitRate = Number(res.tried) / Math.max(secs, 1e-3);
-    $("#crackOut").innerHTML = `<span class="bad">Found p = ${res.p}, q = ${res.q} in ${secs.toFixed(2)} s, so d = ${d}.</span><br>Forged signature for her message: ${forged}. Bob would accept it: ${verify(evil, forged, K) ? "<b>yes</b>" : "no"}.<br><span class="status">Trial division up to √n would take ~10^${Math.round(308 - Math.log10(perDigitRate))} s for a 2048-bit key at this speed. Smarter algorithms do far better, and they still don't come close.</span>`;
+    $("#crackOut").innerHTML = `<span class="bad">Found p = ${res.p}, q = ${res.q} in ${secs.toFixed(2)} s, so d = ${d}.</span><br>Forged signature for her message: ${forged}. Bob would accept it: ${verify(evil, forged, K) ? "<b>yes</b>" : "no"}.<br><span class="status">A 2048-bit key by trial division: ~10^${Math.round(308 - Math.log10(perDigitRate))} s</span>`;
   };
   tick();
 }

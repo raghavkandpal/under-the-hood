@@ -52,7 +52,7 @@
   <p><b>Parsing</b> checks the tokens follow the grammar and builds a tree. This is where <code>1 + 2 * 3</code> becomes "add 1 to (2 × 3)". The grammar has one rule per precedence level, so multiplication sits deeper than addition. It's a <i>recursive-descent</i> parser, the same technique used by many real compilers, including GCC's and Clang's C/C++ front ends.</p>
   <p><b>Code generation</b> walks the tree and emits instructions for a stack machine: push the operands, then apply the operator. The order of the tree becomes the order of the code. Python, the JVM and WebAssembly all compile to stack-based bytecode like this.</p>
   <p><b>Optimisation</b> rewrites the program to do less work without changing the result. Tick "constant folding": any sub-expression with no variables, like <code>2 - 1</code>, is computed once at compile time. Real compilers run dozens of such passes.</p>
-  <p class="status">Grammar: assignments, + − × ÷ %, right-associative ^, unary minus and parentheses. Real compilers add type checking, many more optimisations, and register allocation when targeting real CPUs.</p>
+  <p class="caveat">Grammar: assignments, + − × ÷ %, right-associative ^, unary minus and parentheses. Real compilers add type checking, many more optimisations, and register allocation when targeting real CPUs.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";

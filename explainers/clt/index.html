@@ -44,14 +44,13 @@
   <div class="two">
     <div class="panel">
       <h3>The population</h3>
-      <p class="status" style="margin:0">Everyone you could ask. You never get to see this in real life.</p>
       <svg class="chart" id="pop" viewBox="0 0 400 170"></svg>
       <h3 style="margin-top:8px">Your latest sample</h3>
       <svg class="chart" id="last" viewBox="0 0 400 60"></svg>
     </div>
     <div class="panel">
       <h3>Averages of every sample so far</h3>
-      <p class="status" style="margin:0">Each sample adds one to the bar where its mean falls. <span style="color:var(--green)">Green</span> = the bell curve the CLT predicts.</p>
+      <ul class="legend" style="margin:0"><li><i style="--c:var(--green)"></i>CLT prediction</li></ul>
       <svg class="chart" id="means" viewBox="0 0 400 230"></svg>
       <div class="stats" id="stats"></div>
     </div>
@@ -69,7 +68,7 @@
   <p><b>The spread shrinks with √n.</b> The standard error is σ/√n. Quadrupling the sample halves the uncertainty, and that diminishing return is why polls stop at around 1,000 people. Notice that the population size never appears in the formula.</p>
   <p><b>"95% confident" is a claim about the method, not about one interval.</b> About 1 in 20 intervals misses (red), and you can't tell which. Any one interval either contains the truth or doesn't.</p>
   <div class="note">Try it: pick <b>Rare event</b> with n = 5. The sample means look nothing like a bell, and interval coverage drops well below 95%. The CLT is a statement about <i>large</i> n, and skewed or rare-event data needs a bigger n before it kicks in. Push n to 100 and watch it recover.</div>
-  <p class="status">Intervals use the t distribution (mean ± t<sub>0.975, n−1</sub> · s/√n). With n = 1 there's no spread to estimate, so no interval is drawn.</p>
+  <p class="caveat">Intervals use the t distribution (mean ± t<sub>0.975, n−1</sub> · s/√n). With n = 1 there's no spread to estimate, so no interval is drawn.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile } from "../../shared/common.js";

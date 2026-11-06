@@ -66,7 +66,7 @@
   <p><b>γ is patience.</b> In "Near vs far reward", a +5 prize sits 3 steps away and a +20 prize 11 steps away. Press "Show the optimal answer": at γ = 0.6 future rewards fade so fast that the near prize really is best, and at γ = 0.95 the far one is.</p>
   <p><b>The exploration trap.</b> Now train at γ = 0.95. The learner almost always settles for the <i>near</i> prize anyway. It found +5 early, its random moves rarely carry it 11 steps the other way, and so it never learns the far prize exists. Tick <b>Optimistic start</b> and train again. Every untried move now looks promising until proven otherwise, so the agent systematically checks the whole map and finds the better goal. Deciding how much to explore is one of the hard, open problems in RL.</p>
   <p><b>Slipperiness.</b> When moves sometimes slide sideways, the <i>optimal</i> plan on the cliff map changes. It's worth a longer path away from the edge to avoid sliding in. "Show the optimal answer" uses <b>value iteration</b>, which can plan exactly because it's given the rules. Q-learning has to discover them by trial and error.</p>
-  <p class="status">Tabular Q-learning (Watkins, 1989) with ε-greedy exploration. Deep RL replaces the table with a neural network so it can handle huge state spaces like game screens.</p>
+  <p class="caveat">Tabular Q-learning (Watkins, 1989) with ε-greedy exploration. Deep RL replaces the table with a neural network so it can handle huge state spaces like game screens.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, sleep, statTile, isDark, onThemeChange } from "../../shared/common.js";
