@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Decision Trees</title>
 <link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
 <style>
   .two { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: start; }
   @media (max-width: 820px) { .two { grid-template-columns: minmax(0, 1fr); } }
@@ -66,7 +67,7 @@
   <p class="status">This is CART with Gini impurity, as used by scikit-learn's <code>DecisionTreeClassifier</code>, without pruning.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { chrome, $, svgEl, statTile, isDark, onThemeChange } from "../../shared/common.js";
 import { DATASETS, makeDataset } from "../../shared/datasets.js";
 import { build, accuracy, nodes } from "./dtree.js";
 chrome();
@@ -91,7 +92,7 @@ function rebuild() {
   drawMap(); drawTree();
 }
 function drawMap() {
-  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = isDark();
   const pos = dark ? [251, 146, 60] : [234, 120, 40], neg = dark ? [96, 140, 255] : [50, 100, 220];
   ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim(); ctx.fillRect(0, 0, W, W);
   (function paint(n, x0, x1, y0, y1) {
@@ -151,6 +152,7 @@ $("#tree").addEventListener("mouseleave", () => { hl = null; drawMap(); drawTree
 $("#data").onchange = regen; $("#noise").oninput = regen;
 $("#depth").oninput = () => { rebuild(); depthChart(); }; $("#leaf").oninput = () => { rebuild(); depthChart(); };
 regen();
+onThemeChange(drawMap); // the toggle or system theme changed: redraw in the new colours
 </script>
 </body>
 </html>

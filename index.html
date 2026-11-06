@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How It Works</title>
 <link rel="stylesheet" href="./shared/style.css">
+<script src="./shared/theme.js"></script>
 <style>
   .finder { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 8px; }
   .finder input { font-size: 16px; padding: 10px 14px; width: 100%; }
@@ -41,7 +42,7 @@
   <p id="empty" hidden>Nothing matches yet.</p>
 </main>
 <script type="module">
-  import { chrome, escapeHtml, readSet, nextStep } from "./shared/common.js";
+  import { chrome, escapeHtml, readSet, nextStep, onThemeChange } from "./shared/common.js";
   import { CATALOG, AREAS, LEVELS, PATHS, byId, hrefOf, search, topicOf } from "./catalog.js";
   chrome();
 
@@ -178,6 +179,7 @@
   }
   document.querySelectorAll("[data-view]").forEach(b => (b.onclick = () => setView(b.dataset.view)));
   chips(); setView(view);
+  onThemeChange(() => { if (view === "map") drawMap(); }); // map colours come from the theme
   // anchors like #topic-memory or #path-llms point at content drawn above, so scroll to them by hand
   if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
 </script>

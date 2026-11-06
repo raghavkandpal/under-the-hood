@@ -41,6 +41,7 @@ writeFileSync(files.page, `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
 <link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
 <style>
   /* Page-specific styles only. Shared: .row .tabs .stats .stat .panel .controls .status .scroll-x (shared/style.css) */
 </style>
