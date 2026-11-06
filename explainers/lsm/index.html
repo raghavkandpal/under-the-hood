@@ -45,7 +45,7 @@
   </div>
 
   <div class="panel"><b>In memory</b><div class="lane" id="memlane" style="margin-top:6px"></div>
-    <b style="display:block;margin-top:14px">On disk</b> <span class="status">(sorted, immutable tables, newest on the left)</span><div class="lane" id="disk" style="margin-top:6px"></div></div>
+    <b style="display:block;margin-top:14px">On disk</b> <span class="status">newest left</span><div class="lane" id="disk" style="margin-top:6px"></div></div>
 
   <h2>How it works</h2>
   <p><b>Writes are cheap.</b> A write goes into an in-memory sorted <b>memtable</b> (plus an append-only log for crash safety). When the memtable fills, it's written to disk in one sequential burst as a sorted, never-modified file, an <b>SSTable</b>. Sequential writes are what disks and SSDs do fastest.</p>

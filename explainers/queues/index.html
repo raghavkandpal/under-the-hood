@@ -25,8 +25,8 @@
 
   <div class="panel">
     <div class="grid">
-      <label>Arrivals per minute (λ) <b id="vl"></b><input type="range" id="lambda" min="0.1" max="5.9" step="0.05" value="0.8"></label>
-      <label>Each server handles per minute (μ) <b id="vm"></b><input type="range" id="mu" min="0.5" max="3" step="0.1" value="1"></label>
+      <label>Arrivals/min λ <b id="vl"></b><input type="range" id="lambda" min="0.1" max="5.9" step="0.05" value="0.8"></label>
+      <label>Served/min per server μ <b id="vm"></b><input type="range" id="mu" min="0.5" max="3" step="0.1" value="1"></label>
       <label>Servers <b id="vc"></b><input type="range" id="c" min="1" max="6" value="1"></label>
     </div>
     <div class="controls" style="margin:12px 0 0">
@@ -39,14 +39,13 @@
 
   <div class="two">
     <div class="panel">
-      <b>People in the system over time</b> <span class="status">(simulated)</span>
+      <b>People in the system over time</b>
       <svg class="chart" id="trace" viewBox="0 0 400 180" preserveAspectRatio="none"></svg>
-      <p class="status">Even with steady average rates, randomness alone produces long jams.</p>
     </div>
     <div class="panel">
       <b>Average time in system vs. how busy the servers are</b>
       <svg class="chart" id="curve" viewBox="0 0 400 180" preserveAspectRatio="none"></svg>
-      <p class="status">Line = theory for this setup, dot = this simulation. Notice the cliff near 100%.</p>
+      <ul class="legend"><li>line: theory</li><li>dot: simulation</li></ul>
     </div>
   </div>
 

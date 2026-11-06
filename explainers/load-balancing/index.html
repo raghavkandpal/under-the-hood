@@ -30,7 +30,7 @@
 
   <div class="panel">
     <div class="grid">
-      <label>Busyness (utilisation) <b id="vload"></b><input type="range" id="load" min="0.3" max="0.97" step="0.01" value="0.85"></label>
+      <label>Utilisation <b id="vload"></b><input type="range" id="load" min="0.3" max="0.97" step="0.01" value="0.85"></label>
       <label>Servers <b id="vsrv"></b><input type="range" id="srv" min="2" max="20" value="8"></label>
       <label>Slow servers (40% speed) <b id="vslow"></b><input type="range" id="slow" min="0" max="4" value="0"></label>
     </div>
@@ -39,12 +39,12 @@
 
   <div class="panel">
     <div class="res" id="res"></div>
-    <p class="status" style="margin:6px 0 0"><span style="color:var(--blue)">■</span> median response time · <span style="color:var(--red)">■</span> 99th percentile, the slowest 1 in 100 requests. Units are average request lengths.</p>
+    <ul class="legend" style="margin:6px 0 0"><li><i style="--c:var(--blue)"></i>median</li><li><i style="--c:var(--red)"></i>99th percentile</li><li>in average request lengths</li></ul>
   </div>
 
   <div class="panel">
     <div class="tabs" id="tabs"></div>
-    <p class="status" style="margin:6px 0 2px">Requests waiting at each server over time (rows = servers, darker = longer queue):</p>
+    <ul class="legend" style="margin:6px 0 2px"><li>row: one server's queue over time</li><li>darker: longer</li></ul>
     <div class="heat" id="heat"></div>
   </div>
 
@@ -71,7 +71,7 @@ function run() {
   $("#res").innerHTML = `<span class="h">strategy</span><span></span><span class="h" style="text-align:right">median</span><span class="h" style="text-align:right">p99</span>` + Object.entries(STRATEGIES).map(([k, s]) => {
     const r = results[k];
     return `<span class="${r.p99 === best ? "best" : ""}">${s.label}${r.p99 === best ? " ★" : ""}</span><div class="track"><div class="p50" style="width:${r.p50 / mx * 100}%"></div><div class="p99" style="width:${r.p99 / mx * 100}%"></div></div><span class="num">${r.p50.toFixed(1)}</span><span class="num">${r.p99.toFixed(1)}</span>`;
-  }).join("") + (effective >= 1 ? `<span class="status" style="grid-column:1/-1;color:var(--red)">With the slow servers, total capacity is below the incoming load, so queues grow without limit whatever the strategy.</span>` : "");
+  }).join("") + (effective >= 1 ? `<span class="status" style="grid-column:1/-1;color:var(--red)">Capacity is below the load: queues grow without limit.</span>` : "");
   heat();
 }
 function heat() {

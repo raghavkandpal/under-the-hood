@@ -28,16 +28,16 @@
     <div class="tabs" id="q"></div>
     <p id="qtext" style="margin:8px 0 0;font-family:var(--mono);font-size:13px"></p>
     <div class="key" id="key"></div>
-    <div class="lay"><b>Row store <small>(Postgres, MySQL): each order's fields side by side</small></b><div class="strip" id="row"></div></div>
-    <div class="lay"><b>Column store <small>(Parquet, ClickHouse, BigQuery): each column's values side by side</small></b><div class="strip" id="col"></div></div>
-    <p class="status" style="margin:4px 0 0">8 orders × 8 columns as they sit on disk, in order. Highlighted cells are what the query has to read. Disks read in blocks, so scattered cells cost far more than adjacent ones.</p>
+    <div class="lay"><b>Row store</b><div class="strip" id="row"></div></div>
+    <div class="lay"><b>Column store</b><div class="strip" id="col"></div></div>
+    <ul class="legend" style="margin:4px 0 0"><li>8 orders × 8 columns, in disk order</li><li><i style="--c:var(--accent)"></i>read by the query</li></ul>
     <div class="stats" id="stats"></div>
   </div>
 
   <div class="panel scroll-x"><b>Why columns compress so well</b> <span class="status">(5,000 sample orders)</span><table class="data" id="comp" style="margin-top:6px"></table></div>
 
   <h2>How it works</h2>
-  <p><b>Same table, different order on disk.</b> A row store writes each record's fields together. That's perfect for “fetch order #42” or “insert a new order”: one place on disk. A column store writes all the dates together, then all the countries, and so on. A query that needs 3 of 8 columns skips the rest entirely, and the skipped columns here include a wide free-text field.</p>
+  <p><b>Same table, different order on disk.</b> A row store (Postgres, MySQL) writes each record's fields together. That's perfect for “fetch order #42” or “insert a new order”: one place on disk. A column store (Parquet, ClickHouse, BigQuery) writes all the dates together, then all the countries, and so on. A query that needs 3 of 8 columns skips the rest entirely, and the skipped columns here include a wide free-text field.</p>
   <p><b>Compression loves sameness.</b> A column holds one type of data, often repetitive. Dates sorted by time become long runs (“2026-03-14 × 912”), which <i>run-length encoding</i> stores as one value and a count. Six countries become a <i>dictionary</i> of six strings plus a 1-byte code per row. A mostly-empty notes column almost vanishes. Rows mix types, so they compress far worse.</p>
   <p><b>Fast CPUs on top.</b> Looping over one tight array of prices suits CPU caches and SIMD instructions that process 8 or 16 values at once. Engines often compute directly on compressed data.</p>
   <p><b>The trade-off.</b> Single-row reads and writes are clumsy in a column store: inserting one order touches 8 separate places. So companies keep transactions in a row store (OLTP) and copy data periodically into a column store for analytics (OLAP). Some modern databases keep both layouts.</p>

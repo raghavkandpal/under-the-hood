@@ -30,12 +30,12 @@
   <div class="panel">
     <div class="procs" id="procs"></div>
     <div class="controls" style="margin:10px 0 0"><button id="story" class="primary">▶ Load an example</button><button id="clear">Clear</button>
-      <div class="tabs" id="show"><span class="status" style="align-self:center">Label events with:</span><button data-s="vc" aria-pressed="true">vector clock</button><button data-s="lc">Lamport clock</button></div></div>
+      <div class="tabs" id="show"><span class="status" style="align-self:center">Label:</span><button data-s="vc" aria-pressed="true">vector clock</button><button data-s="lc">Lamport clock</button></div></div>
   </div>
 
   <div class="panel">
     <div class="scroll-x"><svg id="st" role="img" aria-label="Space-time diagram"></svg></div>
-    <p class="status">Each row is a server, with time flowing right. Arrows are messages. <b>Click two events</b> to compare them. After one click, indigo marks everything that could have influenced it, and blue everything it could have influenced.</p>
+    <ul class="legend"><li>click two events to compare</li><li><i style="--c:var(--accent-soft)"></i>could have influenced it</li><li><i style="--c:var(--blue-soft)"></i>it could influence</li></ul>
     <p class="verdict" id="verdict"></p>
     <p class="status" id="why"></p>
   </div>

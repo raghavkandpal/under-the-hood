@@ -74,7 +74,7 @@
   </div>
 
   <h2>The logs</h2>
-  <p class="status">Each server's copy of the history. Colour = the term an entry was written in. <b>Bold, solid border</b> = committed (safe forever). Dashed = written but not yet confirmed by a majority.</p>
+  <ul class="legend"><li>colour: term</li><li><i style="border:2px solid var(--text)"></i>committed</li><li><i style="border:1.5px dashed var(--muted)"></i>not yet on a majority</li></ul>
   <div class="panel scroll-x"><table class="logs" id="logs"></table></div>
 
   <h2>The rules that make it work</h2>
