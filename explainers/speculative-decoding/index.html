@@ -41,9 +41,9 @@
     <div class="stats" id="stats" style="--stat-min:140px"></div>
   </div>
 
-  <div class="panel"><b>Speed-up by number of guesses</b> <span class="status">(for the current draft quality and cost)</span><svg class="chart" id="curve" viewBox="0 0 560 200" role="img" aria-label="Speed-up versus k"></svg></div>
+  <div class="panel"><b>Speed-up by number of guesses</b><svg class="chart" id="curve" viewBox="0 0 560 200" role="img" aria-label="Speed-up versus k"></svg></div>
 
-  <div class="panel"><b>Is the output really unchanged?</b> <span class="status">The word after “cat”, sampled 20,000 times with speculative decoding, against the big model's own probabilities.</span>
+  <div class="panel"><b>Is the output really unchanged?</b> <span class="status">20,000 samples of the word after “cat”</span>
     <svg class="chart" id="exact" viewBox="0 0 560 170" role="img" aria-label="Sampled vs true distribution"></svg></div>
 
   <h2>How it works</h2>
@@ -75,7 +75,7 @@ function show() {
     $("#roundv").innerHTML = last.proposed.map(d => { const cls = stopped ? "skip" : d.accepted ? "ok" : "no"; if (!d.accepted) stopped = true;
       return `<div class="tok ${cls}">${d.tok}<small>${cls === "skip" ? "never checked" : `p ${d.p.toFixed(2)} · q ${d.q.toFixed(2)}`}</small></div>`; }).join("") +
       `<div class="tok fix">${last.fixed.tok}<small>${last.fixed.from === "bonus" ? "bonus from the same pass" : "big model's pick"}</small></div>`;
-  } else $("#roundv").innerHTML = `<span class="status">Press “Next round”: the draft guesses ${k} words, then the big model checks them in one pass.</span>`;
+  } else $("#roundv").innerHTML = `<span class="status">The draft guesses ${k} words; the big model checks them in one pass.</span>`;
   $("#text").innerHTML = toks.map((t, i) => `<span class="${src[i]}">${t}</span>`).join(" ");
   const n = toks.length - 1;
   $("#stats").innerHTML = [[n, "words generated"], [rounds, "big-model passes"], [rounds ? (n / cost).toFixed(2) + "×" : "–", "speed-up so far"], [expectedSpeedup(avgAccept(q), k, c).toFixed(2) + "×", "expected speed-up"]].map(statTile).join("");

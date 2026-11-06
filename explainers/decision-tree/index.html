@@ -46,7 +46,7 @@
   <div class="two">
     <div class="panel">
       <canvas id="map" width="420" height="420" aria-label="Decision regions"></canvas>
-      <p class="status">Each rectangle is one leaf. Hover a node in the tree to see its region.</p>
+      <p class="status">One rectangle per leaf. Hover a node for its region.</p>
     </div>
     <div class="panel">
       <div class="scroll-x"><svg id="tree" role="img" aria-label="Decision tree"></svg></div>
@@ -54,7 +54,7 @@
   </div>
 
   <div class="panel">
-    <b>Accuracy by depth</b> <span class="status"><span style="color:var(--blue)">━</span> training · <span style="color:var(--green)">━</span> unseen test data</span>
+    <b>Accuracy by depth</b> <ul class="legend" style="margin:4px 0 0"><li><i style="--c:var(--blue)"></i>training</li><li><i style="--c:var(--green)"></i>test</li></ul>
     <svg id="depth" viewBox="0 0 600 120" preserveAspectRatio="none"></svg>
   </div>
 

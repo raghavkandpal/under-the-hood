@@ -31,13 +31,12 @@
       <button data-d="blobs">Blobs</button><button data-d="noisy">Noisy</button><button data-d="rings">Rings</button><button id="clear">Clear</button>
     </div>
     <canvas id="cv" style="margin-top:8px" aria-label="Plot of labelled points and decision regions"></canvas>
-    <p class="status" id="hover" style="margin:4px 0 0">Hover (or tap) anywhere to see which neighbours vote.</p>
+    <p class="status" id="hover" style="margin:4px 0 0">Hover or tap to see the voters</p>
     <div class="stats" id="stats"></div>
   </div>
 
   <div class="panel">
-    <b>The curse of dimensionality</b>
-    <p class="status" style="margin:2px 0 6px">200 random points in a cube. How close is the nearest one to a random query, compared with the farthest?</p>
+    <b>Nearest ÷ farthest distance, 200 random points</b>
     <svg id="curse" viewBox="0 0 520 170" role="img" aria-label="Nearest over farthest distance ratio as dimensions grow"></svg>
   </div>
 

@@ -26,10 +26,9 @@
   <div class="panel">
     <div class="controls" style="margin:0">
       <label class="inline">Kernel <select id="kern"></select></label>
-      <label class="inline">or your own image <input type="file" id="file" accept="image/*"></label>
+      <label class="inline">or your own image, kept in this tab <input type="file" id="file" accept="image/*"></label>
       <button id="regen">Reset test image</button>
     </div>
-    <p class="status" style="margin:6px 0 0">Your image stays in this browser tab. It's never uploaded anywhere.</p>
   </div>
 
   <div class="two">
@@ -39,7 +38,7 @@
 
   <div class="panel">
     <div class="row">
-      <div><b>Kernel</b> <span class="status">(edit any number)</span><div class="kgrid" id="kgrid" style="margin-top:6px"></div></div>
+      <div><b>Kernel</b><div class="kgrid" id="kgrid" style="margin-top:6px"></div></div>
       <div style="flex:1;min-width:240px"><b>At the pixel under your cursor</b><div class="math" id="math" style="margin-top:6px"></div><div class="eq" id="eq"></div></div>
     </div>
   </div>

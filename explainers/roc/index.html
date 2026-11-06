@@ -31,13 +31,13 @@
   <div class="panel">
     <div class="grid">
       <label>Threshold <b id="vt"></b><input type="range" id="t" min="-3" max="5" step="0.02" value="1"></label>
-      <label>How well the model separates the classes <b id="vsep"></b><input type="range" id="sep" min="0" max="4" step="0.05" value="1.5"></label>
-      <label>Share of real positives (prevalence) <b id="vprev"></b><input type="range" id="prev" min="0.01" max="0.5" step="0.01" value="0.3"></label>
+      <label>Separation <b id="vsep"></b><input type="range" id="sep" min="0" max="4" step="0.05" value="1.5"></label>
+      <label>Prevalence <b id="vprev"></b><input type="range" id="prev" min="0.01" max="0.5" step="0.01" value="0.3"></label>
     </div>
   </div>
 
   <div class="panel">
-    <b>Scores the model gives</b> <span class="status"><span style="color:var(--red)">■</span> real positives (e.g. fraud) · <span style="color:var(--blue)">■</span> real negatives · dashed line = threshold, flagged if to the right</span>
+    <b>Scores the model gives</b> <ul class="legend" style="margin:4px 0 0"><li><i style="--c:var(--red)"></i>real positives</li><li><i style="--c:var(--blue)"></i>real negatives</li><li>dashed: threshold, flag right of it</li></ul>
     <svg class="chart" id="hist" viewBox="0 0 700 150" preserveAspectRatio="none"></svg>
   </div>
 
@@ -48,7 +48,7 @@
       <div class="stats" id="stats"></div>
     </div>
     <div class="panel"><b>ROC curve</b> <span class="status" id="auc"></span><svg class="chart" id="rocc" viewBox="0 0 220 220"></svg><p class="status">Catch rate vs. false-alarm rate at every threshold. The dot is yours. The diagonal is guessing.</p></div>
-    <div class="panel"><b>Precision–recall curve</b><svg class="chart" id="prc" viewBox="0 0 220 220"></svg><p class="status">Of what you flag, how much is real, vs. how much of the real stuff you catch. The dashed line is the prevalence.</p></div>
+    <div class="panel"><b>Precision–recall curve</b><svg class="chart" id="prc" viewBox="0 0 220 220"></svg><ul class="legend"><li>dashed: prevalence</li></ul></div>
   </div>
 
   <h2>The vocabulary</h2>
