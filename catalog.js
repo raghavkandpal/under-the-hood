@@ -252,6 +252,8 @@ export const CATALOG = [
     blurb: "Find everything near you without checking everything: a quadtree splits space where it's crowded. Drag a search box.", prereqs: ["big-o"] },
   { id: "bootstrap", title: "Bootstrap confidence intervals", area: "statistics", topic: "experiments-and-inference", level: "core", tags: ["bootstrap", "confidence interval", "resampling", "uncertainty", "statistics", "median"],
     blurb: "Error bars for any statistic with no formulas: resample your own data thousands of times. And when that lies.", prereqs: ["clt"] },
+  { id: "zero-knowledge", title: "Zero-knowledge proofs", area: "security", topic: "building-blocks", level: "deep", tags: ["zero knowledge", "zk proof", "commitment", "graph colouring", "privacy", "zk-snark"],
+    blurb: "Prove you know a secret while revealing nothing about it: sealed commitments, random challenges, and a bluffer who can't last.", prereqs: ["hash-functions", "signatures"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
