@@ -254,6 +254,8 @@ export const CATALOG = [
     blurb: "Error bars for any statistic with no formulas: resample your own data thousands of times. And when that lies.", prereqs: ["clt"] },
   { id: "zero-knowledge", title: "Zero-knowledge proofs", area: "security", topic: "building-blocks", level: "deep", tags: ["zero knowledge", "zk proof", "commitment", "graph colouring", "privacy", "zk-snark"],
     blurb: "Prove you know a secret while revealing nothing about it: sealed commitments, random challenges, and a bluffer who can't last.", prereqs: ["hash-functions", "signatures"] },
+  { id: "dependency-resolution", title: "Dependency resolution", area: "tools", topic: "building-and-shipping", level: "core", tags: ["npm", "pip", "cargo", "semver", "lockfile", "package manager", "backtracking"],
+    blurb: "What npm install actually solves: version ranges, a diamond conflict, backtracking, duplicates, and why lockfiles exist.", prereqs: ["build-systems"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);

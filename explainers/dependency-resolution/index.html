@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dependency Resolution</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<style>
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 10px; align-items: start; }
+  @media (max-width: 680px) { .two { grid-template-columns: minmax(0, 1fr); } }
+  pre.pkg { font-family: var(--mono); font-size: 13px; background: #1e1e1e; color: #d4d4d4; padding: 8px 12px; border-radius: 8px; margin: 6px 0 0; white-space: pre-wrap; }
+  table.data td, table.data th { font-family: var(--mono); font-size: 12.5px; padding: 3px 8px; }
+  table.data tr.picked td { background: var(--green-soft); font-weight: 700; }
+  .log { font-family: var(--mono); font-size: 12.5px; display: grid; gap: 2px; max-height: 280px; overflow-y: auto; margin-top: 6px; }
+  .log div { padding: 1px 6px; border-radius: 4px; }
+  .log .try { color: var(--text); } .log .fail { background: var(--red-soft); color: var(--red); } .log .back { color: var(--accent); }
+  .tree { font-family: var(--mono); font-size: 13px; margin-top: 6px; }
+  .tree .dup { color: var(--red); font-weight: 700; }
+  .verdict { padding: 8px 12px; border-radius: 10px; margin-top: 10px; font-weight: 600; }
+  .verdict.good { background: var(--green-soft); color: var(--green); } .verdict.bad { background: var(--red-soft); color: var(--red); } .verdict.warn { background: var(--accent-soft); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Dependency resolution</h1>
+  <p class="lede">Your app needs a web framework and a logger. They each need an HTTP library, but different versions of it. Every <code>npm install</code>, <code>pip install</code> and <code>cargo build</code> starts by solving this puzzle: pick one version of every package so that everyone's requirements hold at once.</p>
+
+  <div class="panel">
+    <div class="row">
+      <span>Your app depends on:</span>
+      <label class="inline"><input type="checkbox" data-dep="web" checked> web ^2.0.0</label>
+      <label class="inline"><input type="checkbox" data-dep="log" checked> log ^1.0.0</label>
+      <label class="inline"><input type="checkbox" data-dep="auth"> auth ^1.0.0</label>
+    </div>
+    <div class="row" style="margin-top:6px"><div class="tabs" id="strat"></div></div>
+    <div class="two">
+      <div><b>The registry</b> <span class="status">(green: chosen)</span><div class="scroll-x"><table class="data" id="reg" style="margin-top:6px"></table></div></div>
+      <div><b id="outTitle"></b><div id="out"></div></div>
+    </div>
+    <div id="verdict"></div>
+  </div>
+
+  <div class="panel">
+    <b>Lockfiles</b>
+    <div class="row" style="margin-top:6px"><button id="save" class="primary">Save a lockfile now</button><button id="release">Publish http 2.5.0 (with a bug)</button><label class="inline"><input type="checkbox" id="uselock" checked> install from the lockfile</label></div>
+    <pre class="pkg" id="lockview"></pre>
+    <div id="lockverdict"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Version ranges.</b> Packages don't usually ask for one exact version. <code>^2.1.0</code> means “2.1.0 or anything newer before 3.0.0”, trusting that a change in the first number is a breaking one (semantic versioning). <code>~1.2.0</code> allows only patches, 1.2.x. Ranges give the resolver room to find versions everyone accepts.</p>
+  <p><b>Backtracking.</b> The resolver tries the newest version of each package, adds that version's own requirements, and moves on. When two requirements can't both be met, it undoes its most recent choice and tries the next version down, exactly like a <a href="../sat-sudoku/">Sudoku solver</a>. Here web 2.1 needs http 3, but every logger needs http 2, so it settles on web 2.0. In general this is NP-complete, which is why some installs take surprisingly long and why modern resolvers (pip, Cargo, Poetry, uv) use SAT-solver techniques.</p>
+  <p><b>Sometimes there's no answer.</b> Add <code>auth</code>, which also needs http 3, and no single version of http satisfies everyone. A good resolver explains exactly which requirements clash. <b>npm</b> sidesteps the problem by nesting: each package gets its own copy of the version it wants. That never fails, but it can install the same library twice. That's usually fine, though it bloats the install, and it breaks when the two copies need to share state or types.</p>
+  <p><b>Lockfiles.</b> Ranges mean the same <code>package.json</code> can install different versions next week, if a new release appears. A lockfile (<code>package-lock.json</code>, <code>Cargo.lock</code>, <code>poetry.lock</code>) records the exact versions that were resolved, so every machine and every deploy gets the same set until you deliberately update. Publish the buggy release and compare.</p>
+  <p class="status">The package names and versions here are invented. Real resolvers also handle optional and platform-specific dependencies, pre-releases, and peer dependencies. Related: <a href="../build-systems/">build systems</a> and <a href="../containers/">containers</a>, the next steps in shipping code.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml, tabs } from "../../shared/common.js";
+import { resolve, nested, REGISTRY, withRelease, cmp } from "./dependency-resolution.js";
+chrome();
+
+let strat = "single", lock = null, released = false;
+tabs($("#strat"), { single: "One version each (Cargo, pip, Go)", nested: "Nested copies (npm)" }, strat, k => { strat = k; render(); });
+const root = () => Object.fromEntries([...document.querySelectorAll("[data-dep]")].filter(c => c.checked).map(c => [c.dataset.dep, "^" + (c.dataset.dep === "web" ? "2.0.0" : "1.0.0")]));
+const registry = () => (released ? withRelease(REGISTRY, "http", "2.5.0") : REGISTRY);
+function regTable(reg, picked = {}) {
+  $("#reg").innerHTML = `<tr><th>package</th><th>version</th><th>needs</th></tr>` + Object.entries(reg).flatMap(([p, vs]) => Object.keys(vs).sort(cmp).reverse().map(v =>
+    `<tr class="${picked[p] === v || (Array.isArray(picked[p]) && picked[p].includes(v)) ? "picked" : ""}"><td>${p}</td><td>${v}${p === "http" && v === "2.5.0" ? " 🐞" : ""}</td><td>${Object.entries(vs[v]).map(([d, r]) => `${d} ${r}`).join(", ") || "–"}</td></tr>`)).join("");
+}
+function render() {
+  const reg = registry(), deps = root();
+  if (strat === "single") {
+    const r = resolve(deps, reg);
+    regTable(reg, r.chosen || {});
+    $("#outTitle").textContent = `Resolver log: ${r.tries} tries, ${r.backtracks} backtracks`;
+    $("#out").innerHTML = `<div class="log">${r.log.map(l => `<div class="${l.t}" style="padding-left:${6 + 14 * (l.depth || 0)}px">${escapeHtml(l.text)}</div>`).join("") || `<div class="status">Nothing to install.</div>`}</div>`;
+    $("#verdict").innerHTML = r.ok ? `<div class="verdict good">Solved: ${Object.entries(r.chosen).map(([p, v]) => `${p} ${v}`).join(", ")}.${r.backtracks ? " Not every package got its newest version, because the newest combination clashed." : ""}</div>`
+      : `<div class="verdict bad">No solution: ${escapeHtml(r.conflict)}. You'd have to drop a dependency, wait for an update, or allow duplicates.</div>`;
+  } else {
+    const n = nested(deps, reg), picked = {}; n.tree.forEach(t => (picked[t.pkg] ||= []).push(t.v));
+    regTable(reg, picked);
+    $("#outTitle").textContent = "node_modules";
+    const dupPkgs = new Set(n.duplicates.map(d => d.split(":")[0]));
+    $("#out").innerHTML = `<div class="tree">${n.tree.map(t => `<div style="padding-left:${t.depth * 18}px">${t.depth ? "└─ " : ""}<span class="${dupPkgs.has(t.pkg) ? "dup" : ""}">${t.pkg}@${t.v}</span></div>`).join("")}</div>`;
+    $("#verdict").innerHTML = n.duplicates.length ? `<div class="verdict warn">Installed, but with two copies: ${n.duplicates.join("; ")}. Fine for independent helpers; trouble if the two must share objects or state.</div>` : `<div class="verdict good">Installed with no duplicates.</div>`;
+  }
+  lockPanel();
+}
+function lockPanel() {
+  const deps = root(), now = resolve(deps, registry(), { lock: $("#uselock").checked ? lock : null });
+  $("#lockview").textContent = lock ? `# lockfile\n${Object.entries(lock).map(([p, v]) => `${p} = "${v}"`).join("\n")}` : "# no lockfile saved yet";
+  $("#release").textContent = released ? "Un-publish http 2.5.0" : "Publish http 2.5.0 (with a bug)";
+  if (!now.ok) { $("#lockverdict").innerHTML = `<div class="verdict bad">Nothing resolves with these dependencies.</div>`; return; }
+  const http = now.chosen.http;
+  $("#lockverdict").innerHTML = http === "2.5.0" ? `<div class="verdict bad">This install picked up http 2.5.0 🐞, the buggy release, with no change to your code. ${lock ? "Tick “install from the lockfile” to stay on the tested versions." : "Save a lockfile first, then publish."}</div>`
+    : `<div class="verdict good">Installs http ${http ?? "(not needed)"}${released && lock && $("#uselock").checked ? ", as locked, ignoring the new 2.5.0 until you choose to update." : "."}</div>`;
+}
+document.querySelectorAll("[data-dep]").forEach(c => (c.onchange = render));
+$("#save").onclick = () => { const r = resolve(root(), registry()); lock = r.ok ? r.chosen : null; lockPanel(); };
+$("#release").onclick = () => { released = !released; render(); };
+$("#uselock").onchange = lockPanel;
+render();
+</script>
+</body>
+</html>
