@@ -164,11 +164,11 @@ table.data th { color: var(--muted); font-weight: 600; }
 svg text { font-family: var(--sans); }
 
 /* ---------- .cards: explainer cards (entryCards() in common.js) ---------- */
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin-top: 12px; }
-.card { display: block; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); text-decoration: none; transition: border-color .15s; }
-.card:hover { border-color: var(--control-border); }
-.card h3 { margin: 0 0 4px; font-size: 15px; }
-.card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
+.card { display: block; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); text-decoration: none; transition: border-color .15s, box-shadow .15s; }
+.card:hover { border-color: var(--control-border); box-shadow: 0 2px 8px rgb(0 0 0 / .06); }
+.card h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; line-height: 1.35; color: var(--text); letter-spacing: -0.005em; }
+.card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
 .card.read h3::after { content: " ✓"; color: var(--green); font-size: 12px; }
 
 /* ---------- .list: dense rows of links, title then one muted line (Further reading) ---------- */
