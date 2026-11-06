@@ -267,13 +267,13 @@ export const hrefOf = c => `explainers/${c.id}/`;
 /** Learning paths: hand-picked reading orders that cross areas. Each step's prerequisites come earlier in the path. */
 export const PATHS = [
   { id: "internet", title: "How the internet works", blurb: "From typing a URL to a secure, cached page.",
-    steps: ["dns", "tcp", "routing", "hash-functions", "dh", "signatures", "tls", "http-caching", "load-balancing"] },
+    steps: ["dns", "tcp", "routing", "hash-functions", "dh", "signatures", "tls", "http-caching", "cdn", "load-balancing"] },
   { id: "databases", title: "Databases from the disk up", blurb: "How a database stores, finds and protects your rows.",
     steps: ["btree", "hashtable", "bloom", "lsm", "race-conditions", "isolation", "write-ahead-log", "file-systems", "sql-joins", "query-planner", "columnar"] },
   { id: "llms", title: "How LLMs work", blurb: "From gradient descent to chatbots that cite your documents.",
     steps: ["gradient-descent", "neural-net", "huffman", "tokenization", "embeddings", "attention", "sampling", "kv-cache", "quantization", "speculative-decoding", "knn", "rag"] },
   { id: "security", title: "Security essentials", blurb: "The crypto and protocols behind every login and padlock.",
-    steps: ["hash-functions", "password-hashing", "totp", "cipher-modes", "dh", "signatures", "tls", "oauth", "sql-injection"] },
+    steps: ["hash-functions", "password-hashing", "totp", "cipher-modes", "dh", "signatures", "tls", "oauth", "sql-injection", "zero-knowledge"] },
   { id: "distributed", title: "Distributed systems 101", blurb: "Keeping many machines fast, available and in agreement.",
     steps: ["queues", "load-balancing", "rate-limiting", "retries", "hashtable", "consistent-hashing", "quorum", "gossip", "tcp", "raft", "crdt", "vector-clocks", "clock-sync"] },
   { id: "classic-ml", title: "Machine learning without the hype", blurb: "The core ideas behind every model, no neural networks required.",
@@ -285,7 +285,7 @@ export const PATHS = [
   { id: "media", title: "Compression & media", blurb: "How files shrink and survive: from ZIP to JPEG to QR codes.",
     steps: ["huffman", "lz77", "fourier", "convolution", "jpeg", "error-correction"] },
   { id: "toolbox", title: "A developer's toolbox", blurb: "What really happens when you run everyday commands.",
-    steps: ["pipes", "text-buffers", "diff", "hashtable", "git", "build-systems", "containers"] },
+    steps: ["pipes", "text-buffers", "diff", "hashtable", "git", "build-systems", "dependency-resolution", "containers"] },
   { id: "machine", title: "What your code really runs on", blurb: "From bits to CPU caches, memory and threads.",
     steps: ["twos-complement", "floating-point", "unicode", "compiler", "register-allocation", "cpu-cache", "virtual-memory", "gc", "memory-allocator", "scheduling", "race-conditions", "event-loop"] },
 ];

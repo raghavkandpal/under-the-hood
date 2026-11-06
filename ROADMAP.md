@@ -1,6 +1,6 @@
 # Roadmap
 
-Plan for the next explainers, plus the working notes a new session needs. 99 explainers exist today, in 9 areas, 27 topics and 11 learning paths.
+Plan for the next explainers, plus the working notes a new session needs. 102 explainers exist today, in 9 areas, 27 topics and 11 learning paths, each with free further reading.
 
 ## Where the gaps are
 
@@ -69,9 +69,9 @@ Each spec gives the hook, what the reader does, the logic to build and test in t
 - **layers.js:** layer hashes chained from parent plus instruction plus input files, `rebuild(steps, changedFiles)`, and image size with layer sharing between two images.
 - **Tests:** changing a file only rebuilds layers from its first `COPY` down. Identical prefixes share layers. Moving dependency install before `COPY . .` makes source edits cheap.
 
-## Batch 2 (in progress)
+## Batch 2 ✅ done
 
-Done on `explainers/batch-1`: rag, speculative-decoding, clock-sync, file-systems, quadtree, bootstrap. **Remaining: `zero-knowledge`, `dependency-resolution`.**
+All eight shipped (zero-knowledge and dependency-resolution last). Also added: `cdn` (networking gap). Next from the gap table: `multiple-testing` (statistics deep dive: p-hacking, Bonferroni, false discovery rate), a databases intro, and more networking.
 
 | id | Title | Area / level | Core idea to make interactive |
 |---|---|---|---|
@@ -93,7 +93,7 @@ Done on `explainers/batch-1`: rag, speculative-decoding, clock-sync, file-system
 2. Write the logic module and its tests first. Make the tests pin down *facts the page will claim*. Every number in the page's prose must come from the code or a test.
 3. Build the page with shared pieces: `.row`, `.tabs` + `tabs()`, `.stats` + `statTile`, `.panel`, `.status`, `.scroll-x` (see README).
 4. Verify in the browser: drive the controls with `javascript_tool`, read values, take a screenshot, check the console for errors. Bust caches after editing shared files: `await Promise.all(["shared/common.js","shared/style.css","catalog.js"].map(u => fetch(u, {cache:"reload"})))`.
-5. Fill the catalog entry: tags, a one-line blurb, prereqs.
+5. Fill the catalog entry: tags, a one-line blurb, prereqs. Add 2+ trusted free sources to `sources.js` (one primary: standard, paper, docs or free book) and run `npm run check-sources`.
 6. Commit per explainer.
 
 **Lessons from earlier sessions:**

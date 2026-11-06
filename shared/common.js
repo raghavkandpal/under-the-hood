@@ -1,5 +1,6 @@
 // Shared header/footer + tiny helpers for every explainer page.
 import { CATALOG, AREAS, byId, hrefOf, unlocks, areaOf, topicOf, pathById, pathsWith } from "../catalog.js";
+import { SOURCES, KINDS } from "../sources.js";
 
 // ---- reading progress: which explainers this browser has opened (a per-viewer convenience; never required)
 const READ_KEY = "uth.read";
@@ -54,6 +55,16 @@ export function chrome() {
       note.className = "status pathsof";
       note.innerHTML = `Part of the learning path${pathsWith(page.id).length > 1 ? "s" : ""}: ${pathsWith(page.id).map(p => `<a href="${stepLink(p, page.id)}">${p.title}</a>`).join(", ")}`;
       (main.querySelector("p.lede") || main.querySelector("h1")).after(note);
+    }
+    // ---- further reading: trusted, free sources (sources.js)
+    const reading = SOURCES[page.id] || [];
+    if (reading.length) {
+      const sec = document.createElement("section");
+      sec.className = "reading";
+      sec.innerHTML = `<h2>Further reading</h2><ul>${reading.map(([title, url, kind, by]) =>
+        `<li><a href="${url}" target="_blank" rel="noopener">${escapeHtml(title)}</a><span class="src"><span class="kind kind-${kind}">${KINDS[kind]}</span>${escapeHtml(by)}</span></li>`).join("")}</ul>
+        <p class="status">All free to read. Standards and papers are the primary sources; the rest explain the same ideas another way.</p>`;
+      main.append(sec);
     }
     // ---- keep exploring: prerequisites, what builds on this, then the rest of its topic
     const rel = [...page.prereqs.map(byId).filter(Boolean).map(c => ["Builds on", c]), ...unlocks(page.id).map(c => ["Next", c])];
