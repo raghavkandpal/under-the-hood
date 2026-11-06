@@ -127,7 +127,7 @@ function drawTree() {
   for (const n of all) {
     const g = svgEl("g", { class: `nd ${n.left ? "split" : n.label > 0 ? "pos" : "neg"}${hl && hl.id === n.id ? " hl" : ""}`, transform: `translate(${n._x},${n._y})`, "data-id": n.id });
     g.append(svgEl("rect", { x: -NW / 2, y: -NH / 2, width: NW, height: NH, rx: 6 }));
-    g.append(svgEl("text", { y: -4 }, n.left ? `x${n.f === 0 ? "₁" : "₂"} ≤ ${n.t.toFixed(2)}` : n.label > 0 ? "→ orange" : "→ blue"));
+    g.append(svgEl("text", { y: -4 }, n.left ? `x${n.f === 0 ? "₁" : "₂"} ≤ ${n.t.toFixed(2)}` : n.label > 0 ? "→ indigo" : "→ blue"));
     g.append(svgEl("text", { y: 10 }, `${n.n} pts · g ${n.impurity.toFixed(2)}`));
     svg.append(g);
   }

@@ -40,7 +40,7 @@
   <p class="lede">A neural network is a big formula with adjustable numbers in it. Training means nudging those numbers to make the error smaller. <b>Backpropagation</b> is how it figures out which way to nudge every one of them at once, using the chain rule from calculus.</p>
 
   <h2>1. One neuron, by hand</h2>
-  <p>This neuron computes <code>a = σ(w₁x₁ + w₂x₂ + b)</code> and is scored by <code>L = (a − y)²</code>. Orange boxes are the parameters it can learn. Run the forward pass, then walk the gradient backwards one node at a time.</p>
+  <p>This neuron computes <code>a = σ(w₁x₁ + w₂x₂ + b)</code> and is scored by <code>L = (a − y)²</code>. Indigo boxes are the parameters it can learn. Run the forward pass, then walk the gradient backwards one node at a time.</p>
   <div class="panel">
     <div class="controls">
       <button id="fwd">Forward pass</button>
@@ -57,7 +57,7 @@
   <p>Press <b>Apply update</b> a few times. Each parameter moves a little against its gradient, and the loss drops. That's one step of gradient descent, and training is millions of these.</p>
 
   <h2>2. A real (small) network</h2>
-  <p>Stack neurons in layers and the network can bend its decision boundary into almost any shape. Pick a dataset and watch it learn. Orange and blue are the two classes, and the shading is what the network currently predicts everywhere.</p>
+  <p>Stack neurons in layers and the network can bend its decision boundary into almost any shape. Pick a dataset and watch it learn. Indigo and blue are the two classes, and the shading is what the network currently predicts everywhere.</p>
   <div class="play">
     <div class="panel">
       <canvas id="boundary" width="320" height="320" aria-label="Decision boundary"></canvas>
