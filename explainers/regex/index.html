@@ -50,7 +50,7 @@
     <p class="status" id="explain"></p>
     <div class="scroll-x"><svg id="nfa" role="img" aria-label="State machine"></svg></div>
     <p class="verdict" id="verdict"></p>
-    <p class="status">Circles are states. Solid arrows consume a character, dashed ε-arrows are free jumps. Indigo = every state the machine could be in right now. Blue ring = start, green ring = accept.</p>
+    <ul class="legend"><li>solid: reads a character</li><li>dashed ε: free jump</li><li><i style="--c:var(--accent)"></i>possible now</li><li><i style="border:2px solid var(--blue);border-radius:50%"></i>start</li><li><i style="border:2px solid var(--green);border-radius:50%"></i>accept</li></ul>
   </div>
 
   <h2>Catastrophic backtracking</h2>
@@ -58,7 +58,7 @@
   <div class="panel">
     <label class="inline">Length of “aaaa…” input <input type="range" id="n" min="4" max="28" value="16"> <b id="vn"></b></label>
     <svg class="chart" id="race" viewBox="0 0 600 160" preserveAspectRatio="none"></svg>
-    <p class="status" style="margin:0"><span style="color:var(--red)">━</span> backtracking steps (log scale) · <span style="color:var(--green)">━</span> state-set NFA work</p>
+    <ul class="legend" style="margin:0"><li><i style="--c:var(--red)"></i>backtracking steps</li><li><i style="--c:var(--green)"></i>NFA state sets</li><li>log scale</li></ul>
     <p id="raceNote"></p>
   </div>
 

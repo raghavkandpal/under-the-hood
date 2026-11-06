@@ -40,7 +40,7 @@
       <button id="fill" class="primary">▶ Fill the table</button><button id="worst">Find where greedy loses</button>
     </div>
     <div class="table" id="tbl"></div>
-    <p class="status" style="margin:4px 0 0">Each cell: amount (small), fewest coins to make it (bold), and the last coin used. Hover a cell to see which smaller answers it was built from.</p>
+    <ul class="legend" style="margin:4px 0 0"><li>small: amount</li><li>bold: fewest coins</li><li>+c: last coin</li><li>hover a cell for its inputs</li></ul>
     <div class="cmp">
       <div><b>Greedy</b> <span id="gn"></span><div class="coins" id="gc"></div></div>
       <div><b>Dynamic programming</b> <span id="dn"></span><div class="coins" id="dc"></div></div>
