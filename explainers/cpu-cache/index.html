@@ -51,9 +51,9 @@
 
   <div class="two">
     <div class="panel">
-      <b>A 16×16 matrix of ints in memory</b> <span class="status">(stored row by row; the orange underline marks the line just fetched)</span>
+      <b>16×16 ints, stored row by row</b>
       <div class="mat" id="mat" style="margin-top:8px"></div>
-      <p class="status"><span style="color:var(--green)">■</span> hit: already in cache · <span style="color:var(--red)">■</span> miss: had to go to main memory</p>
+      <ul class="legend"><li><i style="--c:var(--green)"></i>hit</li><li><i style="--c:var(--red)"></i>miss</li><li><i style="height:3px;--c:var(--accent)"></i>line just fetched</li></ul>
     </div>
     <div class="panel">
       <b>What's in the cache right now</b>

@@ -56,9 +56,9 @@
   </div>
 
   <div class="three">
-    <div class="panel box"><h3>TLB <small>(tiny cache of recent translations)</small></h3><div class="rows" id="tlbView"></div></div>
-    <div class="panel box"><h3>Page table <small>(virtual page → frame)</small></h3><div class="rows" id="ptView"></div></div>
-    <div class="panel box"><h3>Physical memory <small>(frames)</small></h3><div class="rows" id="memView"></div></div>
+    <div class="panel box"><h3>TLB</h3><div class="rows" id="tlbView"></div></div>
+    <div class="panel box"><h3>Page table</h3><div class="rows" id="ptView"></div></div>
+    <div class="panel box"><h3>Physical memory</h3><div class="rows" id="memView"></div></div>
   </div>
 
   <div class="panel"><b>Access log</b><div class="log" id="log"></div></div>
@@ -102,7 +102,7 @@ function render() {
     $("#explain").innerHTML = last.tlbHit ? `Virtual ${hex(last.vaddr)}: the TLB already knew page ${last.vpn} lives in frame ${last.frame}. Fastest path.` :
       last.fault ? `Virtual ${hex(last.vaddr)}: page ${last.vpn} wasn't in memory. <b>Page fault</b>: the OS loaded it from disk into frame ${last.frame}` + (last.evicted != null ? `, evicting page ${last.evicted} (${vm.policy === "lru" ? "least recently used" : "loaded earliest"}).` : " (a free frame was available).") :
       `Virtual ${hex(last.vaddr)}: TLB miss, but the page table says page ${last.vpn} is in frame ${last.frame}. Cached in the TLB for next time.`;
-  } else { $("#addrView").innerHTML = `<span class="status">An address = page number (high bits) + offset (low 8 bits).</span>`; $("#explain").textContent = "Memory starts empty, so every page lives on disk."; }
+  } else { $("#addrView").innerHTML = `<span class="status">address = page number + 8-bit offset</span>`; $("#explain").textContent = "Memory starts empty, so every page lives on disk."; }
   $("#tlbView").innerHTML = vm.tlb.slice().reverse().map(v => `<div class="${last && v === last.vpn ? (last.tlbHit ? "hit" : "new") : ""}"><span>page ${v}</span><span>→ frame ${vm.pt.get(v)}</span></div>`).join("") || `<div class="disk">empty</div>`;
   const seen = [...new Set([...vm.pt.keys(), ...(last?.evicted != null ? [last.evicted] : [])])].sort((a, b) => a - b);
   $("#ptView").innerHTML = seen.map(v => { const f = vm.pt.get(v); const cls = last && v === last.evicted ? "gone" : last && v === last.vpn ? (last.fault ? "new" : "hit") : ""; return `<div class="${cls}"><span>page ${v}</span><span>${f != null ? "→ frame " + f : "on disk"}</span></div>`; }).join("") || `<div class="disk">nothing loaded</div>`;

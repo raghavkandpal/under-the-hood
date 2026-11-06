@@ -37,14 +37,14 @@
   </div>
 
   <div class="panel">
-    <b>Character by character</b> <span class="status">(each box is one user-perceived character; inside are its code points and UTF-8 bytes, prefix bits in orange)</span>
+    <b>One box per visible character</b>
+    <ul class="legend" style="margin:4px 0 0"><li><i style="--c:var(--accent)"></i>UTF-8 prefix bits</li></ul>
     <div class="clusters" id="clusters"></div>
   </div>
 
   <h2>The UTF-8 recipe</h2>
   <div class="panel scroll-x">
     <table class="tmpl" id="tmpl"></table>
-    <p class="status">The orange prefix bits say how long a sequence is. Every continuation byte starts with <span class="mono">10</span>, so a reader dropped into the middle of a stream can always find the next character.</p>
   </div>
 
   <h2>Break it</h2>

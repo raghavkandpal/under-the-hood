@@ -29,13 +29,13 @@
   <p class="lede">Your laptop runs hundreds of programs on a handful of cores. The operating system's scheduler keeps choosing who runs next, and different choices make the same work feel fast or sluggish. Edit the jobs and compare four classic strategies on one core.</p>
 
   <div class="panel">
-    <div class="controls" style="margin:0 0 10px"><span class="status">Presets:</span><button data-p="convoy">Convoy (one big job first)</button><button data-p="mixed">Mixed</button><button data-p="equal">All equal</button>
+    <div class="controls" style="margin:0 0 10px"><span class="status">Presets:</span><button data-p="convoy">Convoy</button><button data-p="mixed">Mixed</button><button data-p="equal">All equal</button>
       <label class="inline">Round-robin time slice <input type="range" id="q" min="1" max="8" value="2"> <b id="vq"></b></label></div>
     <div class="jobs" id="jobs"></div>
   </div>
 
   <div class="panel" id="lanes"></div>
-  <p class="status">wait = time spent ready but not running · response = time until first run · ★ = lowest average wait</p>
+  <ul class="legend"><li>wait: ready, not running</li><li>response: until first run</li><li>★ lowest average wait</li></ul>
 
   <h2>Four strategies</h2>
   <p><b>First come, first served</b> is simple and fair in one sense, but a long job at the front makes every short job behind it wait. That's the <b>convoy effect</b>, like being stuck behind a full trolley at a checkout.</p>
@@ -58,7 +58,7 @@ const PRESETS = {
 let jobs;
 function load(k) { jobs = PRESETS[k].map(([name, arrive, burst]) => ({ name, arrive, burst })); form(); render(); }
 function form() {
-  $("#jobs").innerHTML = `<span></span><b class="status">arrives at</b><b class="status">needs (time units)</b><span></span>` + jobs.map((j, i) => `<span><i class="sw" style="background:${COL[i % 6]}"></i> ${escapeHtml(j.name)}</span><input data-i="${i}" data-k="arrive" type="number" min="0" max="30" value="${j.arrive}" aria-label="${escapeHtml(j.name)} arrival"><input data-i="${i}" data-k="burst" type="number" min="1" max="20" value="${j.burst}" aria-label="${escapeHtml(j.name)} burst"><button data-del="${i}" aria-label="remove ${escapeHtml(j.name)}">×</button>`).join("") + `<span></span><button id="add" style="grid-column:span 3">+ add job</button>`;
+  $("#jobs").innerHTML = `<span></span><b class="status">arrives at</b><b class="status">needs</b><span></span>` + jobs.map((j, i) => `<span><i class="sw" style="background:${COL[i % 6]}"></i> ${escapeHtml(j.name)}</span><input data-i="${i}" data-k="arrive" type="number" min="0" max="30" value="${j.arrive}" aria-label="${escapeHtml(j.name)} arrival"><input data-i="${i}" data-k="burst" type="number" min="1" max="20" value="${j.burst}" aria-label="${escapeHtml(j.name)} burst"><button data-del="${i}" aria-label="remove ${escapeHtml(j.name)}">×</button>`).join("") + `<span></span><button id="add" style="grid-column:span 3">+ add job</button>`;
 }
 function render() {
   const q = +$("#q").value; $("#vq").textContent = q;

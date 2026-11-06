@@ -30,12 +30,12 @@
       <button id="rand">10 random operations</button><button id="frag">Make Swiss cheese</button><button id="reset">Reset</button>
     </div>
     <div class="heap" id="heap"></div>
-    <p class="status" style="margin:4px 0 0">128 bytes of heap. Coloured blocks are in use (click one to free it). Striped gaps are free.</p>
+    <p class="status" style="margin:4px 0 0">Click a block to free it</p>
     <p class="msg" id="msg"></p>
     <div class="stats" id="stats"></div>
   </div>
 
-  <div class="panel scroll-x"><b>Same random workload, each strategy</b> <span class="status">(400 operations on a 256-byte heap, averaged over 20 runs)</span><table class="data" id="cmp" style="margin-top:6px"></table></div>
+  <div class="panel scroll-x"><b>Same random workload, each strategy</b> <span class="status">400 ops, 256-byte heap, 20 runs</span><table class="data" id="cmp" style="margin-top:6px"></table></div>
 
   <h2>How it works</h2>
   <p><b>The free list.</b> The allocator tracks which ranges are free. <code>malloc(n)</code> finds a free block at least n bytes long, carves off what's needed (<i>splitting</i>), and returns its address. <code>free</code> marks it free again. Merging it with free neighbours (<i>coalescing</i>) stops the heap shattering into ever-smaller pieces. Untick it to see what happens without.</p>

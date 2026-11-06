@@ -30,7 +30,7 @@
   <p class="lede">Inside a CPU there are no minus signs, only bits. So how are negative numbers stored, and why does adding 1 to the biggest number suddenly give the most negative one? The answer is an elegant trick that lets the same adder circuit handle positive and negative numbers alike.</p>
 
   <div class="panel">
-    <p class="status" style="margin-top:0"><b>Click bits to flip them.</b> The leftmost bit (double border) is the sign bit.</p>
+    <p class="status" style="margin-top:0">Click a bit to flip it</p>
     <div class="reg" id="ra"></div>
     <div class="reg" id="rb"></div>
     <div class="controls" style="margin:6px 0"><div class="tabs" id="ops"></div><button id="neg">a = −a</button><button id="inc">a = a + 1</button></div>
@@ -40,7 +40,7 @@
     <p id="explain" style="margin:10px 0 0"></p>
   </div>
 
-  <div class="panel"><b>The 8-bit number wheel</b> <span class="status">(the same 256 bit patterns, read two ways)</span><svg class="wheel" id="wheel" viewBox="-170 -170 340 340" style="width:100%;max-width:340px;height:auto"></svg></div>
+  <div class="panel"><b>The 8-bit number wheel</b><svg class="wheel" id="wheel" viewBox="-170 -170 340 340" style="width:100%;max-width:340px;height:auto"></svg></div>
 
   <h2>How it works</h2>
   <p><b>The top bit counts as negative.</b> In 8 bits, the leftmost bit is worth −128 instead of +128, and the rest are worth 64, 32 … 1 as usual. So <code>11111111</code> is −128 + 127 = <b>−1</b>, and <code>10000000</code> is −128. The range is −128 to 127.</p>

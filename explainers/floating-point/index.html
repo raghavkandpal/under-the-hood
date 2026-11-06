@@ -38,7 +38,7 @@
     <div class="bits" id="bits"></div>
     <div class="legend"><span><i style="background:var(--red-soft)"></i>sign</span><span><i style="background:var(--blue-soft)"></i>exponent</span><span><i style="background:var(--green-soft)"></i>fraction (mantissa)</span></div>
     <p class="formula" id="formula"></p>
-    <p class="status" style="margin:8px 0 2px">The exact value actually stored:</p>
+    <p class="status" style="margin:8px 0 2px">Exact stored value</p>
     <div class="exact" id="exact"></div>
     <div class="scroll-x" style="margin-top:10px"><table class="data" id="nb"></table></div>
   </div>
@@ -49,7 +49,7 @@
   <h2>The gaps double at every power of two</h2>
   <div class="panel">
     <svg id="line" viewBox="0 0 700 90" preserveAspectRatio="none"></svg>
-    <p class="status">Every tick is a number a toy float with 3 fraction bits can represent, between ⅛ and 16. A real double has 52 fraction bits, so 2⁵² numbers in every doubling, but the pattern is the same: dense near zero, sparse far away.</p>
+    <p class="status">Ticks: every value a float with 3 fraction bits can store, ⅛ to 16</p>
   </div>
 
   <h2>How it works</h2>
@@ -76,7 +76,7 @@ function render() {
     `(−1)<sup>${d.sign}</sup> × ${fracVal}${d.frac.replace(/0+$/, "") || "0"}<sub>2</sub> × 2<sup>${d.e}${d.kind === "subnormal" ? "+1" : ""} − ${d.bias} = ${d.unbiased}</sup>${d.kind === "subnormal" ? " <span class='status'>(subnormal: no hidden leading 1)</span>" : ""}`
     : d.kind === "zero" ? `exponent and fraction all zero: <b>${d.sign === "1" ? "−0" : "+0"}</b>` : d.kind === "infinity" ? `exponent all ones, fraction zero: <b>${d.sign === "1" ? "−" : "+"}∞</b>` : `exponent all ones, fraction non-zero: <b>NaN</b>`;
   const ex = exactDecimal(v), typed = $("#num").value.trim(), m = typed.match(/^-?\d*\.?\d*$/) ? ex.indexOf(typed) === 0 ? typed.length : 0 : 0;
-  $("#exact").innerHTML = Number.isFinite(v) ? (m ? escapeHtml(ex.slice(0, m)) + `<span class="dig">${escapeHtml(ex.slice(m))}</span>` : escapeHtml(ex)) + (m && ex.length > m ? `<br><span class="status">red = the error introduced by storing it</span>` : ex === typed ? `<br><span class="status" style="color:var(--green)">stored exactly ✓</span>` : "") : escapeHtml(show(v));
+  $("#exact").innerHTML = Number.isFinite(v) ? (m ? escapeHtml(ex.slice(0, m)) + `<span class="dig">${escapeHtml(ex.slice(m))}</span>` : escapeHtml(ex)) + (m && ex.length > m ? `<br><span class="status">red: rounding error</span>` : ex === typed ? `<br><span class="status" style="color:var(--green)">stored exactly ✓</span>` : "") : escapeHtml(show(v));
   if (Number.isFinite(v) && prec === 64) {
     const up = nextUp(v), down = -nextUp(-v);
     $("#nb").innerHTML = `<tr><th>previous double</th><td>${show(down)}</td></tr><tr><th>this double</th><td><b>${show(v)}</b></td></tr><tr><th>next double</th><td>${show(up)}</td></tr><tr><th>gap to next</th><td>${(up - v).toExponential(3)}</td></tr>`;
