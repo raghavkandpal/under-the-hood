@@ -35,13 +35,13 @@
   </div>
 
   <div class="two">
-    <div class="panel"><canvas id="plot" width="560" height="560"></canvas><p class="phase" id="phase"></p></div>
+    <div class="panel"><canvas id="plot" width="560" height="560" role="img" aria-label="Scatter plot of points coloured by cluster, with the cluster centres"></canvas><p class="phase" id="phase"></p></div>
     <div class="panel">
       <div class="stats" id="stats"></div>
       <b style="display:block;margin-top:14px">Total distance² to centres (inertia)</b>
-      <svg class="chart" id="hist" viewBox="0 0 300 110"></svg>
+      <svg class="chart" id="hist" viewBox="0 0 300 110" role="img" aria-label="Total distance squared to centres over iterations"></svg>
       <b style="display:block;margin-top:14px">The elbow: best inertia for each k</b>
-      <svg class="chart" id="elbow" viewBox="0 0 300 130"></svg>
+      <svg class="chart" id="elbow" viewBox="0 0 300 130" role="img" aria-label="Best inertia for each k"></svg>
       
     </div>
   </div>

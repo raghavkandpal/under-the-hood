@@ -30,8 +30,8 @@
   </div>
 
   <div class="two">
-    <div class="panel"><b>Original</b> <span class="status">(hover to pick a tile)</span><canvas class="img" id="orig"></canvas></div>
-    <div class="panel"><b>After JPEG</b><canvas class="img" id="comp"></canvas></div>
+    <div class="panel"><b>Original</b> <span class="status">(hover to pick a tile)</span><canvas class="img" id="orig" role="img" aria-label="Original image"></canvas></div>
+    <div class="panel"><b>After JPEG</b><canvas class="img" id="comp" role="img" aria-label="Image after JPEG compression"></canvas></div>
   </div>
 
   <div class="panel">
@@ -44,7 +44,7 @@
     <p class="status" id="tileNote" role="status"></p>
   </div>
 
-  <div class="panel"><b>The 64 patterns every tile is built from</b><canvas id="basis" width="64" height="64"></canvas></div>
+  <div class="panel"><b>The 64 patterns every tile is built from</b><canvas id="basis" width="64" height="64" role="img" aria-label="The 64 cosine patterns every 8×8 tile is built from"></canvas></div>
 
   <h2>How it works</h2>
   <p><b>1. Tiles of waves.</b> Each 8×8 tile goes through the <b>discrete cosine transform</b>, a cousin of the <a href="../fourier/">Fourier transform</a>. Instead of 64 brightness values you get 64 coefficients, one per pattern. For smooth photos most of the energy lands in the few top-left (low-frequency) coefficients.</p>

@@ -44,14 +44,14 @@
   <div class="two">
     <div class="panel">
       <h3>The population</h3>
-      <svg class="chart" id="pop" viewBox="0 0 400 170"></svg>
+      <svg class="chart" id="pop" viewBox="0 0 400 170" role="img" aria-label="Histogram of the population"></svg>
       <h3 style="margin-top:8px">Your latest sample</h3>
-      <svg class="chart" id="last" viewBox="0 0 400 60"></svg>
+      <svg class="chart" id="last" viewBox="0 0 400 60" role="img" aria-label="Histogram of the latest sample"></svg>
     </div>
     <div class="panel">
       <h3>Averages of every sample so far</h3>
       <ul class="legend" style="margin:0"><li><i style="--c:var(--green)"></i>CLT prediction</li></ul>
-      <svg class="chart" id="means" viewBox="0 0 400 230"></svg>
+      <svg class="chart" id="means" viewBox="0 0 400 230" role="img" aria-label="Histogram of every sample mean so far, with the bell curve the CLT predicts"></svg>
       <div class="stats" id="stats"></div>
     </div>
   </div>
@@ -59,7 +59,7 @@
   <h2>Confidence intervals, honestly</h2>
   <p>Each sample also gives a <b>95% confidence interval</b>: its mean ± about 2 standard errors. Here are the most recent 40. The dashed line is the true mean, which in real life you don't know.</p>
   <div class="panel">
-    <svg class="chart" id="cis" viewBox="0 0 800 260"></svg>
+    <svg class="chart" id="cis" viewBox="0 0 800 260" role="img" aria-label="95% confidence intervals of the last 40 samples against the true mean"></svg>
     <p id="coverage" style="margin:6px 0 0"></p>
   </div>
 

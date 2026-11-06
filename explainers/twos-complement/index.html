@@ -40,7 +40,7 @@
     <p id="explain" style="margin:10px 0 0"></p>
   </div>
 
-  <div class="panel"><b>The 8-bit number wheel</b><svg class="wheel" id="wheel" viewBox="-170 -170 340 340" style="width:100%;max-width:340px;height:auto"></svg></div>
+  <div class="panel"><b>The 8-bit number wheel</b><svg class="wheel" id="wheel" viewBox="-170 -170 340 340" style="width:100%;max-width:340px;height:auto" role="img" aria-label="The 8-bit patterns arranged in a circle, with the numbers they stand for"></svg></div>
 
   <h2>How it works</h2>
   <p><b>The top bit counts as negative.</b> In 8 bits, the leftmost bit is worth −128 instead of +128, and the rest are worth 64, 32 … 1 as usual. So <code>11111111</code> is −128 + 127 = <b>−1</b>, and <code>10000000</code> is −128. The range is −128 to 127.</p>

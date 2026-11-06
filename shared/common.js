@@ -99,6 +99,29 @@ export function chrome() {
   // the path's big "Next" link goes last, after everything else on the page
   if (endLink) main.append(endLink);
   if (main) sidebar(page, main, header);
+  // figures are drawn by the page's own script, so measure their labels once everything has run
+  if (main) addEventListener("load", () => requestAnimationFrame(() => textFloor(main)), { once: true });
+}
+
+// ---- SVG text floor: a figure scales with its viewBox, so on a phone its labels can shrink to a few pixels.
+// Each figure gets --min-w, the width at which its smallest label renders at about 11px (at most 760px).
+// Under 600px wide, style.css holds the figure at that width and it scrolls sideways in a .scroll-x box.
+const PHONE = "(max-width: 600px)";
+function textFloor(main) {
+  for (const svg of main.querySelectorAll("svg[viewBox]")) {
+    if (svg.parentElement.closest("svg")) continue;
+    const vb = svg.viewBox.baseVal, texts = [...svg.querySelectorAll("text")].filter(t => t.textContent.trim());
+    if (!vb.width || !texts.length) continue;
+    const font = Math.min(...texts.map(t => parseFloat(getComputedStyle(t).fontSize)).filter(f => f > 0));
+    const need = Math.min(760, Math.ceil(11 * vb.width / font));
+    if (!(need > 330)) continue; // fits a phone already
+    svg.style.setProperty("--min-w", `${need}px`);
+    // wrap only on phones, so wide-screen layouts never change
+    if (matchMedia(PHONE).matches && !svg.closest(".scroll-x")) {
+      const box = document.createElement("div"); box.className = "scroll-x fig-scroll";
+      svg.replaceWith(box); box.append(svg);
+    }
+  }
 }
 
 // ---- sidebar: where am I, what's next, what's on this page. A sticky column on wide screens, a drawer on narrow ones.

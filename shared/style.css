@@ -263,6 +263,8 @@ section.reading, section.related { margin-top: 56px; }
   /* bigger touch targets on phones */
   button, select { min-height: 40px; }
   header.site .crumb { display: none; } /* the sidebar drawer shows where you are */
+  /* SVG figures keep their labels at about 11px and scroll sideways instead (textFloor() in common.js) */
+  svg[style*="--min-w"] { min-width: var(--min-w); }
 }
 
 /* ---------- Reduced motion: no transitions or animations ---------- */
