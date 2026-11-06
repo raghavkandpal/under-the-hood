@@ -6,95 +6,77 @@
 <title>How It Works</title>
 <link rel="stylesheet" href="./shared/style.css">
 <script src="./shared/theme.js"></script>
+<meta name="description" content="Hands-on explainers for the machinery under computing, from networks to neural networks. Each one is a live simulation you can change, step through and break.">
 <style>
-  .finder { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 8px; }
-  .finder input { font-size: 16px; padding: 10px 14px; width: 100%; }
-  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
-  .chip { font-size: 13px; padding: 4px 12px; border-radius: 999px; }
-  .chip[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
-  .area h2 { display: flex; align-items: baseline; gap: 8px; }
-  .area h2 small { color: var(--muted); font-weight: 400; font-size: 14px; }
-  .card .meta { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
-  .card .meta .tag { margin: 0; min-width: 0; }
-  .lvl { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; white-space: nowrap; flex-shrink: 0; line-height: 1.6; }
-  .card .tags { margin-top: 10px; display: flex; gap: 4px; flex-wrap: wrap; }
-  .card .tags span { font-size: 11px; color: var(--muted); background: var(--surface-2); border-radius: 4px; padding: 1px 6px; }
-  .card .pre { margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .finder { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }
+  .finder input { flex: 1 1 240px; font-size: 16px; padding: 9px 14px; }
+  .finder select { flex: 1 1 140px; max-width: 260px; }
+  .area h3 { margin: 24px 0 0; font-size: 14px; color: var(--muted); font-weight: 500; }
+  .area h3 + .cards { margin-top: 8px; }
   #empty { color: var(--muted); }
 </style>
 </head>
 <body>
 <main>
   <h1>How it works</h1>
-  <p class="lede">Hands-on explainers for the machinery under computing, from networks to neural networks. Each one is a live simulation you can poke at. Change the inputs, step through it, and break it on purpose.</p>
   <div class="finder">
-    <input id="q" type="search" placeholder="Search: “hashing”, “consensus”, “gradient”…" aria-label="Search explainers" autocomplete="off">
-    <div class="chips" id="chips"></div>
+    <input id="q" type="search" aria-label="Search explainers" autocomplete="off">
+    <select id="area" aria-label="Area"></select>
+    <div class="seg" role="group" aria-label="View"><button data-view="list" aria-pressed="true">Cards</button><button data-view="map" aria-pressed="false">Map</button></div>
   </div>
-  <div class="chips" style="margin:4px 0 8px"><span class="status" style="margin-right:4px">View:</span><button class="chip" data-view="cards" aria-pressed="true">Cards</button><button class="chip" data-view="map" aria-pressed="false">Concept map</button></div>
-  <section id="paths" hidden><h2>Learning paths</h2><p class="status" style="margin:0">Hand-picked reading orders. Each one starts from the basics and links every step to the next.</p><div class="pathcards" id="pathcards"></div></section>
+  <section id="paths" hidden><h2>Learning paths</h2><div class="pathcards" id="pathcards"></div></section>
   <div id="list"></div>
   <div id="mapWrap" class="panel" hidden>
-    <p class="status" style="margin:0 0 6px">Arrows point from an explainer to the ones that build on it. Left to right is roughly the order to read them. Hover over or tab to an explainer to highlight its connections; click to open it.</p>
-    <p class="status" id="mapNote" style="margin:0 0 6px;min-height:0"></p>
     <div class="scroll-x"><svg id="map" role="group" aria-label="Concept map of explainers and their prerequisites"></svg></div>
   </div>
-  <p id="empty" hidden>Nothing matches yet.</p>
+  <p id="empty" hidden>Nothing matches.</p>
 </main>
 <script type="module">
-  import { chrome, escapeHtml, readSet, nextStep, onThemeChange } from "./shared/common.js";
-  import { CATALOG, AREAS, LEVELS, PATHS, byId, hrefOf, search, topicOf } from "./catalog.js";
+  import { chrome, escapeHtml, readSet, entryCards, onThemeChange } from "./shared/common.js";
+  import { CATALOG, AREAS, PATHS, byId, hrefOf, search } from "./catalog.js";
   chrome();
 
   const params = new URLSearchParams(location.search);
   let area = params.get("area") || "all";
   const q = document.getElementById("q");
   q.value = params.get("q") || "";
+  q.placeholder = `Search ${CATALOG.length} explainers`;
 
   const present = AREAS.filter(a => CATALOG.some(c => c.area === a.id));
-  function chips() {
-    document.getElementById("chips").innerHTML = [["all", "All"], ...present.map(a => [a.id, a.title])]
-      .map(([id, t]) => `<button class="chip" data-area="${id}" aria-pressed="${id === area}">${escapeHtml(t)}</button>`).join("");
-  }
+  const areaSel = document.getElementById("area");
+  areaSel.innerHTML = [["all", "All areas"], ...present.map(a => [a.id, a.title])].map(([id, t]) => `<option value="${id}">${escapeHtml(t)}</option>`).join("");
+  areaSel.value = present.some(a => a.id === area) ? area : (area = "all");
   const read = readSet();
-  const card = (c, showTopic = false) => `
-    <a class="card" href="${hrefOf(c)}">
-      <div class="meta"><span class="tag">${escapeHtml(showTopic ? `${AREAS.find(a => a.id === c.area).title} › ${topicOf(c).title}` : LEVELS[c.level])}</span>${read.has(c.id) ? `<span class="lvl done" title="You've opened this one">✓ read</span>` : showTopic ? `<span class="lvl">${LEVELS[c.level]}</span>` : ""}</div>
-      <h3>${escapeHtml(c.title)}</h3>
-      <p>${escapeHtml(c.blurb)}</p>
-      ${c.prereqs.length ? `<div class="pre">Builds on: ${c.prereqs.map(id => escapeHtml(byId(id)?.title ?? id)).join(", ")}</div>` : ""}
-      <div class="tags">${c.tags.slice(0, 4).map(t => `<span>${escapeHtml(t)}</span>`).join("")}</div>
-    </a>`;
   const order = { intro: 0, core: 1, deep: 2 };
   function render() {
     const items = search(q.value, CATALOG.filter(c => area === "all" || c.area === area));
     const list = document.getElementById("list");
     if (q.value.trim()) {
-      list.innerHTML = `<div class="cards">${items.map(c => card(c, true)).join("")}</div>`;
+      list.innerHTML = entryCards(items, hrefOf);
     } else {
       list.innerHTML = present.filter(a => area === "all" || a.id === area).map(a => {
         const cs = items.filter(c => c.area === a.id);
         if (!cs.length) return "";
         const topics = a.topics.map(t => { const ts = cs.filter(c => c.topic === t.id).sort((x, y) => order[x.level] - order[y.level]);
-          return ts.length ? `<h3 class="topic" id="topic-${t.id}">${escapeHtml(t.title)}</h3><div class="cards">${ts.map(c => card(c)).join("")}</div>` : ""; }).join("");
-        return `<section class="area" id="area-${a.id}"><h2>${escapeHtml(a.title)} <small>${cs.length}</small></h2>${topics}</section>`;
+          return ts.length ? `<h3 id="topic-${t.id}">${escapeHtml(t.title)}</h3>${entryCards(ts, hrefOf)}` : ""; }).join("");
+        return `<section class="area" id="area-${a.id}"><h2>${escapeHtml(a.title)}</h2>${topics}</section>`;
       }).join("");
     }
-    // learning paths: on the unfiltered cards view only
-    const showPaths = view === "cards" && !q.value.trim() && area === "all";
+    // learning paths: on the unfiltered list only
+    const showPaths = view === "list" && !q.value.trim() && area === "all";
     document.getElementById("paths").hidden = !showPaths;
     if (showPaths) document.getElementById("pathcards").innerHTML = PATHS.map(p => {
-      const done = p.steps.filter(id => read.has(id)).length, next = byId(nextStep(p, read));
+      const done = p.steps.filter(id => read.has(id)).length;
       return `<a class="pathcard" id="path-${p.id}" href="path/?id=${p.id}"><h3>${escapeHtml(p.title)}</h3><p>${escapeHtml(p.blurb)}</p>
-        <div class="prog"><i style="width:${done / p.steps.length * 100}%"></i></div><small>${done ? `${done} of ${p.steps.length} read · continue: ${escapeHtml(next.title)}` : `${p.steps.length} steps · start: ${escapeHtml(next.title)}`}</small></a>`;
+        <span class="prog"><i style="--p:${done / p.steps.length * 100}%"></i>${done}/${p.steps.length}</span></a>`;
     }).join("");
     document.getElementById("empty").hidden = items.length > 0;
     const u = new URLSearchParams(); if (q.value.trim()) u.set("q", q.value.trim()); if (area !== "all") u.set("area", area); if (view === "map") u.set("view", "map");
     history.replaceState(null, "", (u.toString() ? "?" + u : location.pathname) + location.hash);
     if (view === "map") drawMap();
   }
-  let view = params.get("view") === "map" ? "map" : "cards";
-  document.getElementById("chips").onclick = e => { const b = e.target.closest("[data-area]"); if (!b) return; area = b.dataset.area; chips(); render(); };
+  let view = params.get("view") === "map" ? "map" : "list";
+  areaSel.onchange = () => { area = areaSel.value; render(); };
   q.addEventListener("input", render);
   addEventListener("keydown", e => { if (e.key === "/" && document.activeElement !== q) { e.preventDefault(); q.focus(); } });
   // ---- concept map ----
@@ -102,7 +84,7 @@
   const depth = new Map(), D = id => { if (depth.has(id)) return depth.get(id); const c = byId(id); const d = c.prereqs.length ? 1 + Math.max(...c.prereqs.map(D)) : 0; depth.set(id, d); return d; };
   CATALOG.forEach(c => D(c.id));
   function drawMap(hl = null) {
-    const svg = document.getElementById("map"); svg.replaceChildren();
+    const svg = document.getElementById("map"); svg.replaceChildren(el("desc", {}, "Arrows point from an explainer to the ones that build on it; left to right is roughly reading order. Dashed boxes are prerequisites of the search matches. Hover over or tab to an explainer to highlight its connections."));
     const NW = 150, NH = 30, COLW = 240, ROWH = 40, BANDPAD = 14, LABELW = 200;
     // Search and category filters: draw only the matches, plus (faded) the prerequisites they build on.
     const filtering = area !== "all" || q.value.trim() !== "";
@@ -146,7 +128,6 @@
       svg.append(g); mapNodes.set(c.id, { g, rect });
     }
     paintMap(null);
-    document.getElementById("mapNote").textContent = match && match.size ? `Showing ${match.size} matching explainer${match.size === 1 ? "" : "s"}${context.size ? `, plus ${context.size} they build on (dashed)` : ""}.` : "";
   }
   // Highlighting only restyles the nodes and edges drawn above, so focus and in-progress clicks survive it.
   let mapEdges = [], mapNodes = new Map(), mapContext = new Set(), mapHl = null;
@@ -178,7 +159,7 @@
     render();
   }
   document.querySelectorAll("[data-view]").forEach(b => (b.onclick = () => setView(b.dataset.view)));
-  chips(); setView(view);
+  setView(view);
   onThemeChange(() => { if (view === "map") drawMap(); }); // map colours come from the theme
   // anchors like #topic-memory or #path-llms point at content drawn above, so scroll to them by hand
   if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
