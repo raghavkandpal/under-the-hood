@@ -36,8 +36,8 @@
   <div class="panel">
     <div class="row"><div class="tabs" id="order"></div></div>
     <div class="two">
-      <div><b>Dockerfile</b> <span class="status" id="btime"></span><div class="df" id="df" style="margin-top:6px"></div>
-        <div class="row" style="margin-top:8px"><button id="build" class="primary">🐳 docker build</button><span class="status" id="hist" style="min-height:0"></span></div></div>
+      <div><b>Dockerfile</b> <span class="status" id="btime" role="status"></span><div class="df" id="df" style="margin-top:6px"></div>
+        <div class="row" style="margin-top:8px"><button id="build" class="primary">🐳 docker build</button><span class="status" id="hist" style="min-height:0" role="status"></span></div></div>
       <div><b>Your project</b><div class="files" id="files" style="margin-top:6px"></div></div>
     </div>
   </div>
@@ -50,7 +50,7 @@
         <label class="inline">memory limit <input type="range" id="limit" min="128" max="1024" step="64" value="512"> <b id="lv"></b></label>
         <button id="load" style="margin-top:6px">Send a traffic spike</button>
         <svg id="mem" viewBox="0 0 300 140" role="img" aria-label="Container memory use over time"></svg>
-        <p class="status" id="oom" style="margin:2px 0 0"></p>
+        <p class="status" id="oom" style="margin:2px 0 0" role="status"></p>
       </div>
     </div>
   </div>

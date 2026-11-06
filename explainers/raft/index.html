@@ -70,7 +70,7 @@
       </div>
       <div class="nodebtns" id="nodebtns"></div>
     </div>
-    <div class="panel"><b>What's happening</b><div id="events"></div></div>
+    <div class="panel"><b>What's happening</b><div id="events" role="log" aria-label="Cluster events"></div></div>
   </div>
 
   <h2>The logs</h2>
@@ -90,7 +90,7 @@ import { chrome, $, svgEl, escapeHtml, isDark, onThemeChange } from "../../share
 import { Raft } from "./raft.js";
 chrome();
 
-let r, playing = true, speed = 1, last = performance.now(), cmdN = 0, seed = 11;
+let r, playing = true, speed = 1, last = performance.now(), cmdN = 0, seed = 11, lastEvent;
 const N = 5, CX = 250, CY = 210, RAD = 150, NR = 38;
 const pos = i => { const a = -Math.PI / 2 + i * 2 * Math.PI / N; return { x: CX + RAD * Math.cos(a), y: CY + RAD * Math.sin(a) }; };
 const termColor = t => `hsl(${(t * 67) % 360} 70% ${isDark() ? "30%" : "84%"})`;
@@ -138,7 +138,12 @@ function draw() {
   $("#nodebtns").innerHTML = r.nodes.map(n => `<div><button data-act="crash" data-id="${n.id}">${n.up ? "Crash" : "Restart"} S${n.id + 1}</button><button data-act="cut" data-id="${n.id}">${n.group ? "Reconnect" : "Isolate"}</button></div>`).join("");
   // events
   const ev = $("#events"), atBottom = ev.scrollTop + ev.clientHeight >= ev.scrollHeight - 10;
-  ev.innerHTML = r.events.slice(-80).map(e => `<div class="ev ${e.kind}"><span class="t">${(e.t / 1000).toFixed(1)}s S${e.node + 1}</span>${escapeHtml(e.text)}</div>`).join("");
+  // append only events not shown yet, so the live log announces each one once
+  const from = r.events.lastIndexOf(lastEvent) + 1;
+  if (from === 0) ev.replaceChildren();
+  for (const e of r.events.slice(Math.max(from, r.events.length - 80))) ev.insertAdjacentHTML("beforeend", `<div class="ev ${e.kind}"><span class="t">${(e.t / 1000).toFixed(1)}s S${e.node + 1}</span>${escapeHtml(e.text)}</div>`);
+  while (ev.childElementCount > 80) ev.firstElementChild.remove();
+  lastEvent = r.events.at(-1);
   if (atBottom) ev.scrollTop = 1e9;
 }
 
