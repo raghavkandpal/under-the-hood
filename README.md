@@ -97,6 +97,7 @@ Allowed:
 - Live readouts in `.status` that a script writes: step counters, results, errors. They start empty.
 - A `.legend` for colours and line styles, one or two words per entry.
 - One `.caveat` per page, at most about two sentences.
+- A `.note` in the prose with a "Try it" experiment (a guided thing to do, not instructions for a control).
 - Text only screen readers need goes in `aria-label`, `<title>`/`<desc>` in SVG, or `.sr-only`.
 
 Not allowed:
