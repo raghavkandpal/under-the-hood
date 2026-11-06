@@ -12,10 +12,10 @@ test("the system-dark and chosen-dark token blocks stay identical", () => {
 });
 
 test("every page applies the saved theme in <head>, before it paints", () => {
-  const pages = ["index.html", ...readdirSync(new URL("explainers/", root)).map(d => `explainers/${d}/index.html`).filter(p => existsSync(new URL(p, root)))];
+  const pages = ["index.html", "path/index.html", ...readdirSync(new URL("explainers/", root)).map(d => `explainers/${d}/index.html`).filter(p => existsSync(new URL(p, root)))];
   for (const p of pages) {
     const head = readFileSync(new URL(p, root), "utf8").split("</head>")[0];
-    assert.match(head, /<script src="(\.\/|\.\.\/\.\.\/)shared\/theme\.js"><\/script>/, `${p} is missing shared/theme.js in <head>`);
+    assert.match(head, /<script src="(\.\/|\.\.\/|\.\.\/\.\.\/)shared\/theme\.js"><\/script>/, `${p} is missing shared/theme.js in <head>`);
   }
 });
 

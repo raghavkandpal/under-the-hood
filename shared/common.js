@@ -1,5 +1,5 @@
 // Shared header/footer + tiny helpers for every explainer page.
-import { CATALOG, AREAS, byId, hrefOf, unlocks, areaOf, topicOf, pathById, pathsWith } from "../catalog.js";
+import { CATALOG, AREAS, PATHS, byId, hrefOf, unlocks, areaOf, topicOf, pathById, pathsWith } from "../catalog.js";
 import { SOURCES, KINDS } from "../sources.js";
 
 // ---- reading progress: which explainers this browser has opened (a per-viewer convenience; never required)
@@ -13,6 +13,8 @@ export const nextStep = (path, read = readSet()) => path.steps.find(id => !read.
 export const ROOT = new URL("../", import.meta.url);
 /** Absolute link to an explainer (or the home page with no argument). */
 export const linkTo = c => new URL(c ? hrefOf(c) : "./", ROOT).href;
+/** Link to a learning path's introduction page (or the list of all paths). */
+export const pathLink = p => new URL(p ? `path/?id=${p.id}` : "path/", ROOT).href;
 
 // ---- theme: "auto" follows the system; "light" or "dark" is the reader's choice (applied early by shared/theme.js)
 const THEME_KEY = "uth.theme", systemDark = matchMedia("(prefers-color-scheme: dark)");
@@ -27,7 +29,7 @@ export function setTheme(pref) {
   dispatchEvent(new Event("themechange"));
 }
 systemDark.addEventListener("change", () => { if (themePref() === "auto") dispatchEvent(new Event("themechange")); });
-const THEME_LABEL = { auto: "◐ Auto", light: "☀ Light", dark: "☾ Dark" }, THEME_NEXT = { auto: "light", light: "dark", dark: "auto" };
+// Two states for the reader: light or dark. Until they choose, the page follows the system ("auto" internally).
 
 export function chrome() {
   // pages live at explainers/<id>/ (or explainers/<id>/index.html)
@@ -41,13 +43,16 @@ export function chrome() {
     <nav aria-label="Site">
       ${page ? `<span class="crumb" aria-label="Breadcrumb"><a href="${linkTo()}?area=${area.id}">${area.title}</a> › <a href="${linkTo()}?area=${area.id}#topic-${topic.id}">${topic.title}</a></span>` : ""}
       <a class="all" href="${linkTo()}"${page ? "" : ' aria-current="page"'}>All explainers (${CATALOG.length})</a>
+      <button type="button" class="browse" aria-controls="sidenav" aria-expanded="false">☰ Browse</button>
       <button type="button" class="theme-toggle"></button>
     </nav>
   </div>`;
   document.body.prepend(header);
   const toggle = header.querySelector(".theme-toggle");
-  const label = () => { const p = themePref(); toggle.textContent = THEME_LABEL[p]; toggle.setAttribute("aria-label", `Colour theme: ${p === "auto" ? "following your system" : p}. Switch to ${THEME_NEXT[p] === "auto" ? "following your system" : THEME_NEXT[p]}.`); };
-  toggle.onclick = () => { setTheme(THEME_NEXT[themePref()]); label(); };
+  // the button names the theme it switches to
+  const label = () => { const next = isDark() ? "light" : "dark"; toggle.textContent = next === "dark" ? "☾ Dark" : "☀ Light"; toggle.setAttribute("aria-label", `Switch to ${next} theme`); };
+  toggle.onclick = () => setTheme(isDark() ? "light" : "dark");
+  onThemeChange(label); // also relabel if the system theme changes before the reader has chosen
   label();
 
   const main = document.querySelector("main");
@@ -62,14 +67,14 @@ export function chrome() {
       const i = onPath.steps.indexOf(page.id), prev = onPath.steps[i - 1], next = onPath.steps[i + 1];
       const bar = document.createElement("nav");
       bar.className = "pathbar"; bar.setAttribute("aria-label", "Learning path");
-      bar.innerHTML = `<a class="pathname" href="${linkTo()}#path-${onPath.id}">${onPath.title}</a><span class="pathpos">Part ${i + 1} of ${onPath.steps.length}</span>
+      bar.innerHTML = `<a class="pathname" href="${pathLink(onPath)}">${onPath.title}</a><span class="pathpos">Part ${i + 1} of ${onPath.steps.length}</span>
         <span class="pathdots">${onPath.steps.map((id, j) => { const state = j === i ? "here" : readSet().has(id) ? "read" : ""; const label = `Part ${j + 1}: ${byId(id).title}${state === "here" ? " (you are here)" : state === "read" ? " (read)" : ""}`;
           return `<a href="${stepLink(onPath, id)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="${state}"${state === "here" ? ' aria-current="step"' : ""}></a>`; }).join("")}</span>
-        <span class="pathlinks">${prev ? `<a href="${stepLink(onPath, prev)}">← ${byId(prev).title}</a>` : ""}${next ? `<a href="${stepLink(onPath, next)}">Next: ${byId(next).title} →</a>` : `<a href="${linkTo()}#path-${onPath.id}">Path complete ✓</a>`}</span>`;
+        <span class="pathlinks">${prev ? `<a href="${stepLink(onPath, prev)}">← ${byId(prev).title}</a>` : ""}${next ? `<a href="${stepLink(onPath, next)}">Next: ${byId(next).title} →</a>` : `<a href="${pathLink(onPath)}">Path complete ✓</a>`}</span>`;
       (main.querySelector("p.lede") || main.querySelector("h1")).after(bar);
       const end = document.createElement("a");
       end.className = "pathnext";
-      end.href = next ? stepLink(onPath, next) : `${linkTo()}#path-${onPath.id}`;
+      end.href = next ? stepLink(onPath, next) : pathLink(onPath);
       end.innerHTML = next ? `<small>${onPath.title} · Part ${i + 2} of ${onPath.steps.length}</small>Next: ${byId(next).title} →` : `<small>${onPath.title}</small>You've reached the end of this path ✓`;
       endLink = end;
     } else if (pathsWith(page.id).length) {
@@ -106,6 +111,66 @@ export function chrome() {
   footer.className = "site";
   footer.textContent = "Interactive explainers · everything runs in your browser";
   document.body.append(footer);
+  if (main) sidebar(page, main, header);
+}
+
+// ---- sidebar: where am I, what's next, what's on this page. A sticky column on wide screens, a drawer on narrow ones.
+const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+function sidebar(page, main, header) {
+  const params = new URLSearchParams(location.search), onPathPage = /\/path\/(index\.html)?$/.test(location.pathname);
+  const path = pathById(onPathPage ? params.get("id") : params.get("path")), read = readSet();
+  const here = page?.id;
+  const link = (href, text, current, extra = "", kind = "page") => `<li${extra}><a href="${href}"${current ? ` aria-current="${kind}"` : ""}>${escapeHtml(text)}</a></li>`;
+  const parts = [];
+  if (path && (onPathPage || path.steps.includes(here))) {
+    parts.push(`<section><h2><a href="${pathLink(path)}">${escapeHtml(path.title)}</a></h2><ol class="side-steps">${path.steps.map(id => {
+      const c = byId(id); return link(`${linkTo(c)}?path=${path.id}`, c.title, id === here, read.has(id) ? ' class="read"' : "", "step"); }).join("")}</ol></section>`);
+  }
+  if (page) {
+    const area = areaOf(page);
+    parts.push(`<section><h2><a href="${linkTo()}?area=${area.id}">${escapeHtml(area.title)}</a></h2>${area.topics.map(t => {
+      const items = CATALOG.filter(c => c.area === area.id && c.topic === t.id);
+      return `<h3>${escapeHtml(t.title)}</h3><ul>${items.map(c => link(linkTo(c), c.title, c.id === here, read.has(c.id) ? ' class="read"' : "")).join("")}</ul>`; }).join("")}</section>`);
+  } else {
+    parts.push(`<section><h2>Areas</h2><ul>${AREAS.map(a => link(`${linkTo()}?area=${a.id}`, a.title, false)).join("")}</ul></section>`);
+  }
+  // on this page: the h2 sections, given ids if they lack them
+  const heads = [...main.querySelectorAll("h2")].filter(h => !h.closest("nav, aside") && h.textContent.trim());
+  const used = new Set();
+  for (const h of heads) { if (!h.id) { let id = slug(h.textContent) || "section", k = id, n = 2; while (used.has(k) || document.getElementById(k)) k = `${id}-${n++}`; h.id = k; } used.add(h.id); }
+  if (heads.length > 1) parts.push(`<section><h2>On this page</h2><ul class="toc">${heads.map(h => `<li><a href="#${h.id}">${escapeHtml(h.textContent.trim())}</a></li>`).join("")}</ul></section>`);
+  parts.push(`<section><h2><a href="${pathLink()}">Learning paths</a></h2><ul>${PATHS.map(p => link(pathLink(p), p.title, p === path && onPathPage)).join("")}</ul></section>`);
+
+  const aside = document.createElement("aside");
+  aside.id = "sidenav"; aside.className = "sidenav"; aside.setAttribute("aria-label", "Browse explainers");
+  aside.innerHTML = `<button type="button" class="side-close" aria-label="Close navigation">✕</button>${parts.join("")}`;
+  const backdrop = document.createElement("div"); backdrop.className = "side-backdrop";
+  header.after(aside, backdrop);
+  document.body.classList.add("with-side");
+  // bring the current entry into view inside the sidebar only (scrollIntoView would also scroll the page)
+  const cur = aside.querySelector("[aria-current]");
+  if (cur) requestAnimationFrame(() => { aside.scrollTop = Math.max(0, cur.offsetTop - aside.clientHeight / 3); });
+
+  // narrow screens: the sidebar is a drawer behind the Browse button
+  const btn = header.querySelector(".browse"), others = () => [...document.body.children].filter(el => el !== aside && el !== backdrop);
+  const setOpen = open => {
+    document.body.classList.toggle("side-open", open); btn.setAttribute("aria-expanded", String(open));
+    others().forEach(el => (open ? el.setAttribute("inert", "") : el.removeAttribute("inert")));
+    if (open) (aside.querySelector("[aria-current]") || aside.querySelector("a")).focus(); else btn.focus();
+  };
+  btn.onclick = () => setOpen(true);
+  aside.querySelector(".side-close").onclick = () => setOpen(false);
+  backdrop.onclick = () => setOpen(false);
+  addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("side-open")) setOpen(false); });
+  aside.addEventListener("click", e => { if (e.target.closest("a") && document.body.classList.contains("side-open")) setOpen(false); });
+  matchMedia("(min-width: 1180px)").addEventListener("change", e => { if (e.matches && document.body.classList.contains("side-open")) setOpen(false); });
+
+  // highlight the section being read
+  const toc = new Map([...aside.querySelectorAll(".toc a")].map(a => [a.getAttribute("href").slice(1), a]));
+  if (toc.size && "IntersectionObserver" in window) {
+    const io = new IntersectionObserver(entries => entries.forEach(en => { if (en.isIntersecting) { toc.forEach(a => a.classList.remove("on")); toc.get(en.target.id)?.classList.add("on"); } }), { rootMargin: "0px 0px -70% 0px" });
+    heads.forEach(h => io.observe(h));
+  }
 }
 
 export const $ = (sel, root = document) => root.querySelector(sel);

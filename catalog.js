@@ -264,35 +264,71 @@ export const byId = id => CATALOG.find(c => c.id === id);
 /** Path of an explainer relative to the site root. Pages link with linkTo() from shared/common.js, which resolves it. */
 export const hrefOf = c => `explainers/${c.id}/`;
 
-/** Learning paths: hand-picked reading orders that cross areas. Each step's prerequisites come earlier in the path. */
+/** Learning paths: hand-picked reading orders that cross areas. Each step's prerequisites come earlier in the path.
+ *  intro, audience and outcomes are shown on the path's own page (path/?id=…). */
 export const PATHS = [
   { id: "internet", title: "How the internet works", blurb: "From typing a URL to a secure, cached page.",
-    steps: ["dns", "tcp", "routing", "hash-functions", "dh", "signatures", "tls", "http-caching", "cdn", "load-balancing"] },
+    steps: ["dns", "tcp", "routing", "hash-functions", "dh", "signatures", "tls", "http-caching", "cdn", "load-balancing"],
+    intro: "Typing a web address sets off a chain of systems most people never see. This path follows one page load from start to finish: finding the server, getting data across an unreliable network, proving you're talking to the right site, and serving the result fast to people around the world.",
+    audience: "Developers who use the web every day and want to know what happens between pressing Enter and seeing the page.",
+    outcomes: ["Trace a page load from DNS lookup to a cached response", "Explain how TCP turns lossy packets into a reliable stream", "Say what TLS actually proves, and how", "Explain why CDNs and load balancers make sites fast and resilient"] },
   { id: "databases", title: "Databases from the disk up", blurb: "How a database stores, finds and protects your rows.",
-    steps: ["btree", "hashtable", "bloom", "lsm", "race-conditions", "isolation", "write-ahead-log", "file-systems", "sql-joins", "query-planner", "columnar"] },
+    steps: ["btree", "hashtable", "bloom", "lsm", "race-conditions", "isolation", "write-ahead-log", "file-systems", "sql-joins", "query-planner", "columnar"],
+    intro: "A database's job is to store your data, find it quickly, and never lose or corrupt it, even when the power fails mid-write. This path builds a database from the disk up: the data structures it stores rows in, how it stays correct under concurrent use and crashes, and how it decides to answer a query.",
+    audience: "Anyone who writes SQL and wants to know why some queries are instant and others crawl.",
+    outcomes: ["Compare B-trees and LSM trees and when each wins", "Explain isolation levels and the anomalies they prevent", "Describe how a write-ahead log survives a crash", "Read a query plan and spot a bad estimate"] },
   { id: "llms", title: "How LLMs work", blurb: "From gradient descent to chatbots that cite your documents.",
-    steps: ["gradient-descent", "neural-net", "huffman", "tokenization", "embeddings", "attention", "sampling", "kv-cache", "quantization", "speculative-decoding", "knn", "rag"] },
+    steps: ["gradient-descent", "neural-net", "huffman", "tokenization", "embeddings", "attention", "sampling", "kv-cache", "quantization", "speculative-decoding", "knn", "rag"],
+    intro: "Large language models look like magic, but they're built from a handful of ideas you can watch work. This path goes from how a network learns, through how text becomes numbers and how attention mixes context, to the engineering that makes models fast and cheap enough to serve and lets them answer from your own documents.",
+    audience: "Developers and curious readers who use chatbots and want a real mental model of what's inside.",
+    outcomes: ["Explain gradient descent and backpropagation in plain terms", "Describe tokens, embeddings and attention, and how they fit together", "Say how a model picks each next word, and what temperature changes", "Explain the KV cache, quantization, speculative decoding and RAG"] },
   { id: "security", title: "Security essentials", blurb: "The crypto and protocols behind every login and padlock.",
-    steps: ["hash-functions", "password-hashing", "totp", "cipher-modes", "dh", "signatures", "tls", "oauth", "sql-injection", "zero-knowledge"] },
+    steps: ["hash-functions", "password-hashing", "totp", "cipher-modes", "dh", "signatures", "tls", "oauth", "sql-injection", "zero-knowledge"],
+    intro: "Every login, padlock and password reset rests on a few cryptographic building blocks and the protocols built from them. This path starts with hashes and keys, builds up to TLS and OAuth, and ends with the attacks that break real systems when those pieces are misused.",
+    audience: "Developers who handle logins, secrets or user data, and anyone who wants to know what the padlock means.",
+    outcomes: ["Explain hashing, encryption and signatures, and which to use when", "Describe how TLS and “Sign in with…” keep credentials safe", "Store passwords properly and add a second factor", "Spot SQL injection and the misuse of cipher modes"] },
   { id: "distributed", title: "Distributed systems 101", blurb: "Keeping many machines fast, available and in agreement.",
-    steps: ["queues", "load-balancing", "rate-limiting", "retries", "hashtable", "consistent-hashing", "quorum", "gossip", "tcp", "raft", "crdt", "vector-clocks", "clock-sync"] },
+    steps: ["queues", "load-balancing", "rate-limiting", "retries", "hashtable", "consistent-hashing", "quorum", "gossip", "tcp", "raft", "crdt", "vector-clocks", "clock-sync"],
+    intro: "Once a system runs on more than one machine, messages get lost, clocks disagree and servers fail at the worst moment. This path covers how real systems stay fast under load and keep their data in agreement: queues and back-off, spreading data across servers, consensus, and making sense of time.",
+    audience: "Backend engineers who are starting to design or operate services that run on many machines.",
+    outcomes: ["Reason about queues, load and retry storms", "Explain consistent hashing, quorums and gossip", "Describe how Raft keeps replicas in agreement", "Explain why clocks can't be trusted, and what systems use instead"] },
   { id: "classic-ml", title: "Machine learning without the hype", blurb: "The core ideas behind every model, no neural networks required.",
-    steps: ["bayes", "knn", "overfitting", "decision-tree", "roc", "kmeans", "embeddings", "pca", "gradient-descent", "recommender"] },
+    steps: ["bayes", "knn", "overfitting", "decision-tree", "roc", "kmeans", "embeddings", "pca", "gradient-descent", "recommender"],
+    intro: "Before neural networks took over the headlines, a few simple ideas did most of machine learning's work, and they still underpin everything. This path covers learning from examples, why models overfit, how to measure whether a classifier is any good, and how to find structure in unlabelled data.",
+    audience: "Developers and analysts who want solid foundations before (or instead of) deep learning.",
+    outcomes: ["Explain overfitting and how to detect it", "Compare nearest neighbours and decision trees", "Choose a decision threshold with ROC curves", "Use clustering, PCA and embeddings to find structure"] },
   { id: "stats", title: "Statistics for engineers", blurb: "Enough statistics to run an experiment and not fool yourself.",
-    steps: ["monte-carlo", "clt", "bootstrap", "abtest", "simpson", "bayes", "roc"] },
+    steps: ["monte-carlo", "clt", "bootstrap", "abtest", "simpson", "bayes", "roc"],
+    intro: "Most bad decisions from data come from a few classic mistakes: trusting a noisy number, peeking at an experiment, or comparing groups that aren't alike. This path builds the intuition to avoid them, mostly through simulation rather than formulas.",
+    audience: "Engineers and product people who run experiments or read dashboards and want to trust the conclusions.",
+    outcomes: ["Explain why averages become predictable and how wide an error bar is", "Put an error bar on almost any number with the bootstrap", "Run an A/B test without fooling yourself", "Recognise Simpson's paradox and reason with Bayes"] },
   { id: "algorithms", title: "The algorithms toolkit", blurb: "The handful of ideas behind most fast code.",
-    steps: ["big-o", "sorting", "hashtable", "heap", "skip-list", "autocomplete", "union-find", "quadtree", "dynamic-programming", "pathfinding", "sat-sudoku"] },
+    steps: ["big-o", "sorting", "hashtable", "heap", "skip-list", "autocomplete", "union-find", "quadtree", "dynamic-programming", "pathfinding", "sat-sudoku"],
+    intro: "A handful of algorithms and data structures account for most fast code. This path starts with how to compare algorithms at all, then works through the structures that make lookups, ordering and grouping cheap, and ends with search and constraint solving for harder problems.",
+    audience: "Programmers preparing for interviews, or anyone who wants to know why some code scales and some doesn't.",
+    outcomes: ["Estimate how code scales with Big-O", "Pick the right structure: hash table, heap, trie, skip list or union-find", "Solve problems with dynamic programming", "Explain how pathfinding and constraint solvers search efficiently"] },
   { id: "media", title: "Compression & media", blurb: "How files shrink and survive: from ZIP to JPEG to QR codes.",
-    steps: ["huffman", "lz77", "fourier", "convolution", "jpeg", "error-correction"] },
+    steps: ["huffman", "lz77", "fourier", "convolution", "jpeg", "error-correction"],
+    intro: "Files shrink, images stay recognisable and data survives scratches and noise because of a few elegant ideas. This path goes from lossless compression (ZIP) to the frequency tricks behind JPEG, and finishes with the codes that let QR codes and storage devices correct their own errors.",
+    audience: "Anyone curious about what ZIP, JPEG and QR codes are actually doing.",
+    outcomes: ["Explain how Huffman and LZ77 compress without losing anything", "Describe images and signals as sums of frequencies", "Explain what JPEG throws away and why you rarely notice", "Explain how error-correcting codes fix corrupted bits"] },
   { id: "toolbox", title: "A developer's toolbox", blurb: "What really happens when you run everyday commands.",
-    steps: ["pipes", "text-buffers", "diff", "hashtable", "git", "build-systems", "dependency-resolution", "containers"] },
+    steps: ["pipes", "text-buffers", "diff", "hashtable", "git", "build-systems", "dependency-resolution", "containers"],
+    intro: "The commands developers run every day hide some clever engineering. This path opens up the shell, text editors, diff and git, then the build tools, package managers and containers that get code from your laptop into production.",
+    audience: "Developers who use these tools daily and want to understand, and debug, what they do.",
+    outcomes: ["Explain how pipes stream data between programs", "Describe how git stores history and how diff finds changes", "Explain incremental builds and dependency resolution", "Say what a container really is, and why layer order matters"] },
   { id: "machine", title: "What your code really runs on", blurb: "From bits to CPU caches, memory and threads.",
-    steps: ["twos-complement", "floating-point", "unicode", "compiler", "register-allocation", "cpu-cache", "virtual-memory", "gc", "memory-allocator", "scheduling", "race-conditions", "event-loop"] },
+    steps: ["twos-complement", "floating-point", "unicode", "compiler", "register-allocation", "cpu-cache", "virtual-memory", "gc", "memory-allocator", "scheduling", "race-conditions", "event-loop"],
+    intro: "Your code runs on hardware with surprising habits: numbers that don't add up, memory that's fast or slow depending on where you look, and threads that interfere with each other. This path goes from how numbers and text are stored, through compilers and memory, to how the operating system and runtimes juggle work.",
+    audience: "Programmers who want to understand performance and the bugs that come from how machines actually work.",
+    outcomes: ["Explain integer overflow, floating-point error and UTF-8", "Describe what a compiler does with your code", "Explain caches, virtual memory and garbage collection", "Reason about scheduling, race conditions and the event loop"] },
 ];
 
 export const areaOf = c => AREAS.find(a => a.id === c.area);
 export const topicOf = c => areaOf(c)?.topics.find(t => t.id === c.topic);
 export const pathById = id => PATHS.find(p => p.id === id);
+/** Rough reading time: about 12 minutes per explainer. */
+export const pathMinutes = p => p.steps.length * 12;
 /** The learning paths an explainer appears in. */
 export const pathsWith = id => PATHS.filter(p => p.steps.includes(id));
 
