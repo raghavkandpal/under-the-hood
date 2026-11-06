@@ -5,7 +5,7 @@ distributed systems, data science and machine learning. Static site, no build st
 
 ## Run
 
-    npm start        # serves on http://localhost:8765 (ES modules need http, not file://)
+    npm start        # serves on http://localhost:8765 with caching off, so a reload shows your edits
     npm test         # all tests: simulation logic, catalog and links (Node 22+)
 
 ## Layout
