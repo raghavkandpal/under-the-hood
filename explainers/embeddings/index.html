@@ -79,7 +79,7 @@ import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";
 import { WORDS, DIMS, CATEGORY, cosine, nearest, analogy, pca2, subV, addV } from "./embed.js";
 chrome();
 
-const COLORS = { people: "#e0453a", animals: "#17a35a", food: "#e08a00", places: "#2f6fe4", vehicles: "#8b5cf6" };
+const COLORS = { people: "var(--s1)", animals: "var(--s3)", food: "var(--s4)", places: "var(--s2)", vehicles: "var(--s5)" };
 const vocab = Object.keys(WORDS).sort();
 $("#vocab").innerHTML = vocab.map(w => `<option value="${w}">`).join("");
 for (const id of ["a", "b", "c"]) $("#" + id).innerHTML = vocab.map(w => `<option>${w}</option>`).join("");

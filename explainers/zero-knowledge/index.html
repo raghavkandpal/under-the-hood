@@ -51,7 +51,7 @@ import { chrome, $, svgEl, statTile } from "../../shared/common.js";
 import { GRAPH, round, cheatColouring, badEdges, survive } from "./zero-knowledge.js";
 chrome();
 
-const COLS = ["#e0524d", "#3b82f6", "#22a06b"], NAMES = ["red", "blue", "green"];
+const COLS = ["var(--s1)", "var(--s2)", "var(--s3)"], NAMES = ["red", "blue", "green"];
 const POS = Array.from({ length: GRAPH.nodes }, (_, i) => [160 + 120 * Math.cos(-Math.PI / 2 + i * 2 * Math.PI / GRAPH.nodes), 150 + 120 * Math.sin(-Math.PI / 2 + i * 2 * Math.PI / GRAPH.nodes)]);
 let rnd, rounds, caught, last, log;
 const colouring = () => ($("#cheat").checked ? cheatColouring(GRAPH) : GRAPH.secret);
@@ -71,7 +71,7 @@ function draw() {
     const [x, y] = POS[i], open = last?.opened.find(o => o.node === i);
     const fill = open ? COLS[open.colour] : peek ? COLS[col[i]] : "var(--surface-2)";
     svg.append(svgEl("circle", { cx: x, cy: y, r: 19, fill, stroke: open ? "var(--text)" : "var(--muted)", "stroke-width": open ? 3 : 1.5, opacity: peek && !open ? 0.55 : 1 }));
-    svg.append(svgEl("text", { x, y: y + 4, class: "n", style: open || peek ? "fill:#fff" : "" }, open ? "" : peek ? "" : "🔒"));
+    svg.append(svgEl("text", { x, y: y + 4, class: "n", style: open || peek ? "fill:var(--on-fill)" : "" }, open ? "" : peek ? "" : "🔒"));
     if (last) svg.append(svgEl("text", { x, y: y + 31 }, last.commitments[i].slice(0, 6) + "…"));
   }
   $("#log").innerHTML = log.length ? log.slice(0, 60).map((r, k) => `<div class="${r.ok ? "" : "bad"}">#${rounds - k} edge ${r.edge[0]}–${r.edge[1]}: <span class="sw" style="background:${COLS[r.opened[0].colour]}"></span><span class="sw" style="background:${COLS[r.opened[1].colour]}"></span> ${r.ok ? "different ✓" : "SAME ✗ caught"}</div>`).join("") : `<span class="status">Nothing yet.</span>`;

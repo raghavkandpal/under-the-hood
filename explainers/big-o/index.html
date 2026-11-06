@@ -45,7 +45,7 @@ import { chrome, $, svgEl } from "../../shared/common.js";
 import { steps, duration, ALGOS } from "./complexity.js";
 chrome();
 
-const COL = { index: "#19a979", binary: "#4f7cff", linear: "#8a6cd8", merge: "#c9a227", pairs: "#e8743b", subsets: "#d64545" };
+const COL = { index: "var(--s3)", binary: "var(--s2)", linear: "var(--s5)", merge: "var(--s6)", pairs: "var(--s4)", subsets: "var(--s1)" };
 function est(n) {
   if (n <= 20000) return { ...steps(n), measured: true };
   return { index: 1, binary: Math.floor(Math.log2(n)) + 1, linear: n, merge: Math.round(n / 2 * Math.log2(n)) /* reversed input: each merge compares only the left half */, pairs: n * (n - 1) / 2, subsets: 2 ** n, measured: false };

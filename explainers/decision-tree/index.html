@@ -67,7 +67,7 @@
   <p class="caveat">This is CART with Gini impurity, as used by scikit-learn's <code>DecisionTreeClassifier</code>, without pruning.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, statTile, isDark, onThemeChange } from "../../shared/common.js";
+import { chrome, $, svgEl, statTile, isDark, onThemeChange, cssVar } from "../../shared/common.js";
 import { DATASETS, makeDataset } from "../../shared/datasets.js";
 import { build, accuracy, nodes } from "./dtree.js";
 chrome();
@@ -94,7 +94,7 @@ function rebuild() {
 function drawMap() {
   const dark = isDark();
   const pos = dark ? [251, 146, 60] : [234, 120, 40], neg = dark ? [96, 140, 255] : [50, 100, 220];
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim(); ctx.fillRect(0, 0, W, W);
+  ctx.fillStyle = cssVar("--surface"); ctx.fillRect(0, 0, W, W);
   (function paint(n, x0, x1, y0, y1) {
     if (n.left) {
       if (n.f === 0) { paint(n.left, x0, Math.min(x1, n.t), y0, y1); paint(n.right, Math.max(x0, n.t), x1, y0, y1); }
@@ -107,9 +107,9 @@ function drawMap() {
     ctx.fillRect(PX(x0), PY(y1), PX(x1) - PX(x0), PY(y0) - PY(y1));
     ctx.strokeStyle = dark ? "rgba(255,255,255,.25)" : "rgba(0,0,0,.18)"; ctx.lineWidth = 1;
     ctx.strokeRect(PX(x0), PY(y1), PX(x1) - PX(x0), PY(y0) - PY(y1));
-    if (hl && hl.leafIds.has(n.id)) { ctx.strokeStyle = dark ? "#fff" : "#000"; ctx.lineWidth = 3; ctx.strokeRect(PX(x0) + 1.5, PY(y1) + 1.5, PX(x1) - PX(x0) - 3, PY(y0) - PY(y1) - 3); }
+    if (hl && hl.leafIds.has(n.id)) { ctx.strokeStyle = cssVar("--text"); ctx.lineWidth = 3; ctx.strokeRect(PX(x0) + 1.5, PY(y1) + 1.5, PX(x1) - PX(x0) - 3, PY(y0) - PY(y1) - 3); }
   })(tree, -SPAN, SPAN, -SPAN, SPAN);
-  for (const p of train) { ctx.beginPath(); ctx.arc(PX(p.x[0]), PY(p.x[1]), 3.3, 0, 7); ctx.fillStyle = `rgb(${p.y > 0 ? pos : neg})`; ctx.fill(); ctx.strokeStyle = dark ? "#000" : "#fff"; ctx.lineWidth = 0.8; ctx.stroke(); }
+  for (const p of train) { ctx.beginPath(); ctx.arc(PX(p.x[0]), PY(p.x[1]), 3.3, 0, 7); ctx.fillStyle = `rgb(${p.y > 0 ? pos : neg})`; ctx.fill(); ctx.strokeStyle = cssVar("--surface"); ctx.lineWidth = 0.8; ctx.stroke(); }
 }
 function drawTree() {
   const svg = $("#tree"); svg.replaceChildren();

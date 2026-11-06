@@ -15,7 +15,7 @@ const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; ch
 createServer(async (req, res) => {
   const path = decodeURIComponent(new URL(req.url, "http://x").pathname);
   let file = normalize(join(ROOT, path));
-  if (!file.startsWith(ROOT) || file.split(sep).some(p => p.startsWith(".") && p !== ".")) { res.writeHead(403).end("forbidden"); return; } // stay inside the repo, no dotfiles
+  if (!file.startsWith(ROOT) || file.slice(ROOT.length).split(sep).some(p => p.startsWith(".") && p !== ".")) { res.writeHead(403).end("forbidden"); return; } // stay inside the repo, no dotfiles
   try {
     const s = await stat(file);
     if (s.isDirectory()) {

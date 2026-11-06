@@ -81,7 +81,7 @@
   <p class="caveat">Part 1's gradients come from a small autograd engine in <code>lib/autograd.js</code>, written for this site and checked against numerical derivatives. Part 2 trains with a hand-written backprop over plain arrays. It's the same maths, tested to give identical updates, but around 100× faster, much as real frameworks compute whole layers at once instead of one number at a time.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, escapeHtml, statTile, isDark, onThemeChange } from "../../shared/common.js";
+import { chrome, $, svgEl, escapeHtml, statTile, isDark, onThemeChange, cssVar } from "../../shared/common.js";
 import { V, MLP, trainStepFast as trainStep } from "../../shared/autograd.js";
 import { DATASETS, makeDataset } from "../../shared/datasets.js";
 chrome();
@@ -184,7 +184,7 @@ function drawBoundary() {
   for (const p of data) {
     bx.beginPath(); bx.arc(toPx(p.x[0]), BW - toPx(p.x[1]), 3.6, 0, 7);
     bx.fillStyle = p.y > 0 ? `rgb(${pos})` : `rgb(${neg})`; bx.fill();
-    bx.strokeStyle = dark ? "#000" : "#fff"; bx.lineWidth = 1; bx.stroke();
+    bx.strokeStyle = cssVar("--surface"); bx.lineWidth = 1; bx.stroke();
   }
 }
 function drawNet() {

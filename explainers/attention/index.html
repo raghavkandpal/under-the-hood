@@ -86,16 +86,16 @@
   <p class="caveat">Toy version: an 8-feature hand-made vocabulary plus position, single-layer heads, and values equal to the input embedding (real models also project values and mix heads with an output matrix). Unknown words get a generic "other" feature, shown with a dashed border.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, escapeHtml, keyboardDraggable, isDark, onThemeChange } from "../../shared/common.js";
+import { chrome, $, svgEl, escapeHtml, keyboardDraggable, isDark, onThemeChange, cssVar } from "../../shared/common.js";
 import { softmax, dot, tokenize, known, runHead, HEADS, FEATURES } from "./attention.js";
 chrome();
 
 // ---------------- Part 1 ----------------
 const keys = [
-  { name: "k1", p: [140, -60], color: "#e0453a" },
-  { name: "k2", p: [-40, -150], color: "#f2b705" },
-  { name: "k3", p: [-150, 70], color: "#2f6fe4" },
-  { name: "k4", p: [60, 140], color: "#17a35a" },
+  { name: "k1", p: [140, -60], s: "--s1", get color() { return cssVar(this.s); } },
+  { name: "k2", p: [-40, -150], s: "--s4", get color() { return cssVar(this.s); } },
+  { name: "k3", p: [-150, 70], s: "--s2", get color() { return cssVar(this.s); } },
+  { name: "k4", p: [60, 140], s: "--s3", get color() { return cssVar(this.s); } },
 ];
 let q = [120, -100], drag = null;
 const temp = () => 10 ** +$("#temp").value;
@@ -164,8 +164,8 @@ function draw2() {
   $("#heat").innerHTML = `<tr><th></th>${tokens.map(t => `<th class="col">${escapeHtml(t)}</th>`).join("")}</tr>` +
     res.weights.map((row, i) => `<tr class="${i === sel ? "sel" : ""}"><th style="text-align:right">${escapeHtml(tokens[i])}</th>${row.map((v, j) => {
       const a = Math.round(v * 100);
-      const bg = Number.isFinite(res.scores[i][j]) ? `rgba(${dark ? "251,146,60" : "194,65,12"},${(0.06 + v * 0.94).toFixed(2)})` : "transparent";
-      return `<td data-i="${i}" style="background:${bg};color:${v > 0.5 ? "#fff" : "inherit"}" title="${escapeHtml(tokens[i])} → ${escapeHtml(tokens[j])}: ${a}%">${a >= 5 ? a : ""}</td>`;
+      const bg = Number.isFinite(res.scores[i][j]) ? `color-mix(in srgb, var(--s4) ${Math.round(6 + v * 94)}%, transparent)` : "transparent";
+      return `<td data-i="${i}" style="background:${bg};color:${v > (dark ? 0.55 : 0.85) ? "var(--on-fill)" : "inherit"}" title="${escapeHtml(tokens[i])} → ${escapeHtml(tokens[j])}: ${a}%">${a >= 5 ? a : ""}</td>`;
     }).join("")}</tr>`).join("");
 }
 function drawArcs() {

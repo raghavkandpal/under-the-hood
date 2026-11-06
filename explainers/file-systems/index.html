@@ -8,7 +8,7 @@
 <script src="../../shared/theme.js"></script>
 <style>
   .disk { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; margin-top: 6px; }
-  .blk { aspect-ratio: 2 / 1; border-radius: 4px; font-family: var(--mono); font-size: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; overflow: hidden; }
+  .blk { aspect-ratio: 2 / 1; border-radius: 4px; font-family: var(--mono); font-size: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--on-fill); overflow: hidden; }
   .blk small { font-size: 8.5px; opacity: .85; }
   .blk.free { background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 4px, var(--surface) 4px, var(--surface) 8px); color: var(--muted); }
   .blk.leak { background: var(--red) !important; }
@@ -65,12 +65,12 @@
   <p class="caveat">Real file systems use larger blocks (usually 4 KB), journal only metadata by default, and newer ones like ZFS and Btrfs avoid overwriting anything in place (copy-on-write). Related: <a href="../btree/">B-trees</a>, used for large directories.</p>
 </main>
 <script type="module">
-import { chrome, $, escapeHtml } from "../../shared/common.js";
+import { chrome, $, escapeHtml, series } from "../../shared/common.js";
 import { mkfs, run, read, resolve, plan, recover, fsck, BLOCK } from "./file-systems.js";
 chrome();
 $("#bs").textContent = BLOCK;
 
-const COL = ino => `hsl(${(ino * 67) % 360} 55% 45%)`;
+const COL = ino => series(ino);
 let fs;
 function start() { fs = mkfs(32); for (const [p, d] of [["/notes.txt", "buy milk and eggs"], ["/todo.txt", "ship it"]]) fs = run(fs, { kind: "create", path: p, data: d }).fs; msg("A fresh disk with two files."); }
 const msg = (t, bad = false) => ($("#msg").innerHTML = `<span style="color:${bad ? "var(--red)" : "inherit"}">${t}</span>`);

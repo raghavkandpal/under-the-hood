@@ -170,6 +170,10 @@ export function svgEl(tag, attrs = {}, text) {
   if (text != null) el.textContent = text;
   return el;
 }
+/** The current value of a colour token from style.css, e.g. cssVar("--s1"). Canvas code reads tokens here and redraws in onThemeChange(). */
+export const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+/** Series colour i (0-based, wraps after 8) as a CSS value for HTML and SVG styles; use cssVar(`--s${i % 8 + 1}`) on a canvas. */
+export const series = i => `var(--s${i % 8 + 1})`;
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
 export const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 

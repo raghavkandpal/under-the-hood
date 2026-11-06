@@ -37,7 +37,7 @@
   <div class="two">
     <div class="panel">
       <canvas id="world" width="640" height="320" aria-label="Grid world"></canvas>
-      <ul class="legend"><li>colour: best Q-value</li><li>arrow: chosen move</li><li><i style="--c:#17a35a"></i>goal</li><li><i style="--c:#e0453a"></i>pit</li><li><i style="--c:#111;border:1px solid var(--muted)"></i>wall</li></ul>
+      <ul class="legend"><li>colour: best Q-value</li><li>arrow: chosen move</li><li><i style="--c:var(--s3)"></i>goal</li><li><i style="--c:var(--s1)"></i>pit</li><li><i style="--c:var(--muted)"></i>wall</li></ul>
       <div class="controls" style="margin:6px 0 0">
         <button id="ep" class="primary">▶ Watch 1 episode</button>
         <button id="ep100">⏩ Train 100 episodes</button>
@@ -69,7 +69,7 @@
   <p class="caveat">Tabular Q-learning (Watkins, 1989) with ε-greedy exploration. Deep RL replaces the table with a neural network so it can handle huge state spaces like game screens.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, sleep, statTile, isDark, onThemeChange } from "../../shared/common.js";
+import { chrome, $, svgEl, sleep, statTile, isDark, onThemeChange, cssVar } from "../../shared/common.js";
 import { Grid, QLearner, valueIteration, ACTIONS } from "./rl.js";
 chrome();
 
@@ -99,32 +99,32 @@ function labels() { $("#va").textContent = $("#alpha").value; $("#vg").textConte
 
 function draw(agentAt = null) {
   const W = grid.w, H = grid.h, CS = Math.floor(cv.width / W); cv.height = H * CS;
-  const dark = isDark();
+  const dark = isDark(), C = { wall: cssVar("--muted"), pit: cssVar("--s1"), goal: cssVar("--s3"), small: cssVar("--s8"), agent: cssVar("--s4"), text: cssVar("--text"), onFill: cssVar("--on-fill"), surface: cssVar("--surface") };
   const vi = showVI ? valueIteration(grid, +$("#gamma").value) : null;
   const vals = Array.from({ length: grid.n }, (_, s) => vi ? vi.V[s] : Math.max(...agent.Q[s]));
   const live = vals.filter((_, s) => !grid.terminal(s) && grid.at(s) !== "#");
   const lo = Math.min(0, ...live), hi = Math.max(1e-6, ...live);
   for (let s = 0; s < grid.n; s++) {
     const x = (s % W) * CS, y = Math.floor(s / W) * CS, c = grid.at(s);
-    if (c === "#") ctx.fillStyle = dark ? "#000" : "#1f2937";
-    else if (c === "X") ctx.fillStyle = "#e0453a";
-    else if (c === "G") ctx.fillStyle = grid.small.has(s) ? "#8fd19e" : "#17a35a";
-    else { const v = vals[s], t = v >= 0 ? v / hi : -v / (lo || -1); ctx.fillStyle = v >= 0 ? `rgba(23,163,90,${0.08 + t * 0.55})` : `rgba(224,69,58,${0.08 + t * 0.45})`; ctx.fillRect(x, y, CS, CS); ctx.fillStyle = "transparent"; }
-    if (ctx.fillStyle !== "rgba(0, 0, 0, 0)") ctx.fillRect(x, y, CS, CS);
+    if (c === "#") ctx.fillStyle = C.wall;
+    else if (c === "X") ctx.fillStyle = C.pit;
+    else if (c === "G") ctx.fillStyle = grid.small.has(s) ? C.small : C.goal;
+    else { const v = vals[s], t = v >= 0 ? v / hi : -v / (lo || -1); ctx.fillStyle = v >= 0 ? C.goal : C.pit; ctx.globalAlpha = v >= 0 ? 0.08 + t * 0.55 : 0.08 + t * 0.45; }
+    ctx.fillRect(x, y, CS, CS); ctx.globalAlpha = 1;
     ctx.strokeStyle = dark ? "rgba(255,255,255,.12)" : "rgba(0,0,0,.1)"; ctx.strokeRect(x, y, CS, CS);
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--text").trim(); ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    if (c === "G") { ctx.font = `bold ${CS * 0.32}px sans-serif`; ctx.fillStyle = "#fff"; ctx.fillText(grid.small.has(s) ? "+5" : "+20", x + CS / 2, y + CS / 2); }
-    else if (c === "X") { ctx.font = `bold ${CS * 0.3}px sans-serif`; ctx.fillStyle = "#fff"; ctx.fillText("−20", x + CS / 2, y + CS / 2); }
+    ctx.fillStyle = C.text; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    if (c === "G") { ctx.font = `bold ${CS * 0.32}px sans-serif`; ctx.fillStyle = C.onFill; ctx.fillText(grid.small.has(s) ? "+5" : "+20", x + CS / 2, y + CS / 2); }
+    else if (c === "X") { ctx.font = `bold ${CS * 0.3}px sans-serif`; ctx.fillStyle = C.onFill; ctx.fillText("−20", x + CS / 2, y + CS / 2); }
     else if (c !== "#") {
       const q = vi ? null : agent.Q[s], visited = vi || q.some(v => v !== 0);
       if (visited) { const a = vi ? vi.policy[s] : q.indexOf(Math.max(...q)); const [dx, dy] = ACTIONS[a]; const cx = x + CS / 2, cy = y + CS / 2, L = CS * 0.28;
-        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--text").trim(); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - dx * L, cy - dy * L); ctx.lineTo(cx + dx * L, cy + dy * L); ctx.stroke();
+        ctx.strokeStyle = C.text; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx - dx * L, cy - dy * L); ctx.lineTo(cx + dx * L, cy + dy * L); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(cx + dx * L, cy + dy * L); ctx.lineTo(cx + dx * L * 0.4 - dy * L * 0.5, cy + dy * L * 0.4 + dx * L * 0.5); ctx.lineTo(cx + dx * L * 0.4 + dy * L * 0.5, cy + dy * L * 0.4 - dx * L * 0.5); ctx.closePath(); ctx.fill(); }
       if (s === grid.start) { ctx.font = `bold ${CS * 0.22}px sans-serif`; ctx.fillText("START", x + CS / 2, y + CS * 0.18); }
     }
   }
-  if (trail.length > 1) { ctx.strokeStyle = "rgba(224,138,0,.8)"; ctx.lineWidth = 3; ctx.beginPath(); trail.forEach((s, i) => { const x = (s % W + 0.5) * CS, y = (Math.floor(s / W) + 0.5) * CS; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); }
-  if (agentAt != null) { ctx.fillStyle = "#e08a00"; ctx.beginPath(); ctx.arc((agentAt % W + 0.5) * CS, (Math.floor(agentAt / W) + 0.5) * CS, CS * 0.22, 0, 7); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke(); }
+  if (trail.length > 1) { ctx.strokeStyle = C.agent; ctx.globalAlpha = 0.8; ctx.lineWidth = 3; ctx.beginPath(); trail.forEach((s, i) => { const x = (s % W + 0.5) * CS, y = (Math.floor(s / W) + 0.5) * CS; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); ctx.globalAlpha = 1; }
+  if (agentAt != null) { ctx.fillStyle = C.agent; ctx.beginPath(); ctx.arc((agentAt % W + 0.5) * CS, (Math.floor(agentAt / W) + 0.5) * CS, CS * 0.22, 0, 7); ctx.fill(); ctx.strokeStyle = C.surface; ctx.lineWidth = 2; ctx.stroke(); }
   stats();
 }
 function stats() {

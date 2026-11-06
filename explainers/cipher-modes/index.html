@@ -62,7 +62,7 @@
   <p class="caveat">Modern practice is <b>authenticated encryption</b>: AES-GCM or ChaCha20-Poly1305 combine CTR-style encryption with a tag that detects any tampering, as used in <a href="../tls/">TLS</a>. The cipher here is a toy 16-bit Feistel network so that one pixel pair is one block. Don't use it for anything.</p>
 </main>
 <script type="module">
-import { chrome, $ } from "../../shared/common.js";
+import { chrome, $, cssVar, onThemeChange } from "../../shared/common.js";
 import { ecbEncrypt, ecbDecrypt, cbcEncrypt, cbcDecrypt, ctr, xor, flipBit, repeatedBlocks } from "./cipher-modes.js";
 chrome();
 
@@ -90,7 +90,7 @@ function draw(id, bytes, plain = false, mark = -1) {
     img.data.set([r, g, b, 255], i * 4);
   }
   ctx.putImageData(img, 0, 0);
-  if (mark >= 0) { ctx.strokeStyle = "#e11"; ctx.lineWidth = 1; ctx.strokeRect((mark % W) - 1.5, Math.floor(mark / W) - 1.5, 4, 4); }
+  if (mark >= 0) { ctx.strokeStyle = cssVar("--red"); ctx.lineWidth = 1; ctx.strokeRect((mark % W) - 1.5, Math.floor(mark / W) - 1.5, 4, 4); }
 }
 const LOCK = picture("lock"), SMILE = picture("smile");
 let key, enc = {};
@@ -102,7 +102,9 @@ function render() {
   tamper(-1); nonce();
 }
 const differs = (a, b) => a.reduce((n, v, i) => n + (v !== b[i]), 0);
+let lastTamper = -1;
 function tamper(i) {
+  lastTamper = i;
   const dec = { ecb: (b) => ecbDecrypt(b, key), cbc: (b) => cbcDecrypt(b, key, 0x5a5a), ctr: (b) => ctr(b, key, 0x1234) };
   for (const m of ["ecb", "cbc", "ctr"]) {
     const out = dec[m](i >= 0 ? flipBit(enc[m], i, 0) : enc[m]), n = differs(out, LOCK);
@@ -122,6 +124,7 @@ for (const m of ["ecb", "cbc", "ctr"]) $("#c-" + m).addEventListener("click", e 
   tamper(y * W + x);
 });
 $("#key").oninput = render;
+onThemeChange(() => tamper(lastTamper)); // the damage marker uses --red
 $("#newkey").onclick = () => { $("#key").value = 1 + Math.floor(Math.random() * 999998); render(); };
 $("#reuse").onchange = nonce;
 render();

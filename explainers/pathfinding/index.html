@@ -59,7 +59,7 @@ $("#algo").innerHTML = Object.entries(ALGOS).map(([k, a]) => `<option value="${k
 
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 function draw(res = null, upto = Infinity) {
-  const C = { open: css("--surface"), wall: css("--text"), mud: "#8b6b3e", seen: css("--blue-soft"), front: css("--accent-soft"), path: css("--accent"), grid: css("--border") };
+  const C = { open: css("--surface"), wall: css("--text"), mud: css("--mud"), seen: css("--blue-soft"), front: css("--accent-soft"), path: css("--accent"), grid: css("--border") };
   ctx.fillStyle = C.open; ctx.fillRect(0, 0, cv.width, cv.height);
   const seen = new Uint8Array(W * H);
   if (res) res.order.slice(0, upto).forEach(i => seen[i] = 1);
@@ -79,7 +79,7 @@ function draw(res = null, upto = Infinity) {
     ctx.stroke();
   }
   if (res && upto < res.order.length) { const c = res.order[upto - 1]; if (c != null) { ctx.fillStyle = C.path; ctx.fillRect((c % W) * CS + 3, ((c / W) | 0) * CS + 3, CS - 6, CS - 6); } }
-  for (const [c, col] of [[start, "#17a35a"], [goal, "#e0453a"]]) { ctx.fillStyle = col; ctx.fillRect((c % W) * CS + 1, ((c / W) | 0) * CS + 1, CS - 2, CS - 2); }
+  for (const [c, col] of [[start, css("--s3")], [goal, css("--s1")]]) { ctx.fillStyle = col; ctx.fillRect((c % W) * CS + 1, ((c / W) | 0) * CS + 1, CS - 2, CS - 2); }
   if (document.activeElement === cv) { ctx.strokeStyle = C.path; ctx.lineWidth = 3; ctx.strokeRect((kc % W) * CS + 1.5, ((kc / W) | 0) * CS + 1.5, CS - 3, CS - 3); }
 }
 

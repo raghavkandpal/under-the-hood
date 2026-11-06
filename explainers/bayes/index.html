@@ -9,9 +9,9 @@
 <style>
   .icons { display: grid; grid-template-columns: repeat(50, 1fr); gap: 2px; }
   .ic { aspect-ratio: 1; border-radius: 2px; background: var(--surface-2); transition: opacity .2s, background .2s; }
-  .ic.tp { background: #c0392b; }
-  .ic.fn { background: transparent; box-shadow: inset 0 0 0 1.5px #c0392b; }
-  .ic.fp { background: #e8a33d; }
+  .ic.tp { background: var(--s1); }
+  .ic.fn { background: transparent; box-shadow: inset 0 0 0 1.5px var(--s1); }
+  .ic.fp { background: var(--s4); }
   .ic.fade { opacity: .12; }
   .legend i { width: 12px; height: 12px; border-radius: 2px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 16px; }
@@ -44,9 +44,9 @@
     <b id="popTitle">1,000 people</b>
     <div class="icons" id="icons" style="margin-top:8px"></div>
     <div class="legend">
-      <span><i style="background:#c0392b"></i>real case, caught</span>
-      <span><i style="box-shadow:inset 0 0 0 1.5px #c0392b"></i>real case, missed</span>
-      <span><i style="background:#e8a33d"></i>false alarm</span>
+      <span><i style="background:var(--s1)"></i>real case, caught</span>
+      <span><i style="box-shadow:inset 0 0 0 1.5px var(--s1)"></i>real case, missed</span>
+      <span><i style="background:var(--s4)"></i>false alarm</span>
       <span><i style="background:var(--surface-2)"></i>correctly cleared</span>
     </div>
   </div>

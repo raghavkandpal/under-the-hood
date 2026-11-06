@@ -8,7 +8,7 @@
 <script src="../../shared/theme.js"></script>
 <style>
   .heap { display: flex; height: 54px; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--border); margin-top: 8px; }
-  .heap div { border-right: 1px solid var(--surface); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; color: #fff; overflow: hidden; cursor: pointer; min-width: 1px; }
+  .heap div { border-right: 1px solid var(--surface); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; color: var(--on-fill); overflow: hidden; cursor: pointer; min-width: 1px; }
   .heap div.free { background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 5px, var(--surface) 5px, var(--surface) 10px); color: var(--muted); cursor: default; }
   .row input[type=number] { width: 5em; font-family: var(--mono); }
   .msg { font-size: 15px; min-height: 1.6em; }
@@ -44,13 +44,13 @@
   <p class="caveat">Real allocators (glibc's ptmalloc, jemalloc, mimalloc) use size classes: separate pools for small sizes so most requests are instant, plus per-thread caches, and they ask the OS for more memory with mmap when needed. Block headers that store sizes are left out here.</p>
 </main>
 <script type="module">
-import { chrome, $, statTile } from "../../shared/common.js";
+import { chrome, $, statTile, series } from "../../shared/common.js";
 import { Heap, workload, STRATEGIES } from "./alloc.js";
 chrome();
 
 let strat = "first", h;
 $("#strat").innerHTML = Object.entries(STRATEGIES).map(([k, l]) => `<button data-s="${k}" aria-pressed="${k === strat}">${l}</button>`).join("");
-const COL = id => `hsl(${(id * 47) % 360} 55% 48%)`;
+const COL = id => series(id);
 function reset() { h = new Heap(128, strat, { coalesce: $("#co").checked }); $("#msg").textContent = "An empty heap: one free block of 128 bytes."; render(); }
 function render() {
   $("#heap").innerHTML = h.blocks.map(b => `<div class="${b.free ? "free" : ""}" style="flex:${b.size};${b.free ? "" : `background:${COL(b.id)}`}" ${b.free ? "" : `data-id="${b.id}"`} title="${b.free ? "free" : "block #" + b.id}: ${b.size} bytes at ${b.start}">${b.size >= 5 ? b.size : ""}</div>`).join("");
