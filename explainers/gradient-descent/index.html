@@ -57,12 +57,12 @@
   <p class="caveat">Gradients here are computed by the same small autograd engine that powers the neural network explainer. RMSProp and Adam use a learning rate scaled by 0.1 so all four share one slider.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, keyboardDraggable, isDark, onThemeChange } from "../../shared/common.js";
+import { chrome, $, svgEl, keyboardDraggable, isDark, onThemeChange, cssVar } from "../../shared/common.js";
 import { SURFACES, OPTIMIZERS, valueAt, run } from "./optim.js";
 import { mulberry } from "../../shared/random.js";
 chrome();
 
-const COLORS = { sgd: "#e0453a", momentum: "#2f6fe4", rmsprop: "#17a35a", adam: "#e08a00" };
+const TOKENS = { sgd: "--s1", momentum: "--s2", rmsprop: "--s3", adam: "--s4" }, COLORS = Object.fromEntries(Object.entries(TOKENS).map(([k, t]) => [k, `var(${t})`]));
 const enabled = { sgd: true, momentum: true, rmsprop: false, adam: true };
 let surf = "valley", start = SURFACES.valley.start.slice(), paths = {}, shown = 0, timer = null, heat = null;
 const STEPS = 250;
@@ -111,23 +111,23 @@ function compute() {
 
 function draw() {
   ctx.putImageData(heat, 0, 0);
-  const s = SURFACES[surf];
+  const s = SURFACES[surf], text = cssVar("--text"), halo = cssVar("--surface");
   const star = (x, y, fill) => { const [px, py] = toPx(x, y); ctx.fillStyle = fill; ctx.font = "22px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("★", px, py); };
-  star(...s.min, "#ffd400");
-  if (s.local) star(...s.local, "rgba(255,255,255,.7)");
+  star(...s.min, text);
+  if (s.local) { ctx.globalAlpha = 0.5; star(...s.local, text); ctx.globalAlpha = 1; }
   for (const [k, path] of Object.entries(paths)) {
-    ctx.strokeStyle = COLORS[k]; ctx.lineWidth = 2.5; ctx.beginPath();
+    ctx.strokeStyle = cssVar(TOKENS[k]); ctx.lineWidth = 2.5; ctx.beginPath();
     const n = Math.min(shown, path.length - 1);
     path.slice(0, n + 1).forEach(([x, y], i) => { const [px, py] = toPx(x, y); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
     ctx.stroke();
     const [x, y, f] = path[n];
     const [px, py] = toPx(x, y);
-    if (Number.isFinite(f) && px > -20 && px < W + 20 && py > -20 && py < H + 20) { ctx.fillStyle = COLORS[k]; ctx.beginPath(); ctx.arc(px, py, 6, 0, 7); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke(); }
+    if (Number.isFinite(f) && px > -20 && px < W + 20 && py > -20 && py < H + 20) { ctx.fillStyle = cssVar(TOKENS[k]); ctx.beginPath(); ctx.arc(px, py, 6, 0, 7); ctx.fill(); ctx.strokeStyle = halo; ctx.lineWidth = 1.5; ctx.stroke(); }
     $("#v-" + k).textContent = Number.isFinite(f) ? `loss ${f.toPrecision(3)}` : "diverged ↗";
   }
   for (const k of Object.keys(OPTIMIZERS)) if (!enabled[k]) $("#v-" + k).textContent = "";
   const [sx, sy] = toPx(...start);
-  ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, sy, 8, 0, 7); ctx.stroke();
+  ctx.strokeStyle = text; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx, sy, 8, 0, 7); ctx.stroke();
   chart();
 }
 

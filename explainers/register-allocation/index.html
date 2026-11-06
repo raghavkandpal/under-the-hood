@@ -17,10 +17,10 @@
   .seg.def { border-radius: 9px 3px 3px 9px; }
   .seg.spill { background: repeating-linear-gradient(45deg, var(--muted), var(--muted) 3px, transparent 3px, transparent 6px) !important; }
   .heads { display: grid; grid-template-columns: 22px 150px minmax(0, 1fr); font-family: var(--mono); font-size: 12px; font-weight: 700; margin-bottom: 2px; }
-  #graph text { font-family: var(--mono); font-size: 13px; text-anchor: middle; font-weight: 700; fill: #fff; pointer-events: none; }
+  #graph text { font-family: var(--mono); font-size: 13px; text-anchor: middle; font-weight: 700; fill: var(--on-fill); pointer-events: none; }
   .row { gap: 12px; }
   .regs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-  .regs span { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 6px; color: #fff; }
+  .regs span { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 6px; color: var(--on-fill); }
 </style>
 </head>
 <body>
@@ -57,7 +57,7 @@ import { interference, maxPressure, colour, ORDERS } from "./coloring.js";
 import { mulberry } from "../../shared/random.js";
 chrome();
 
-const PAL = ["#4f7cff", "#e8743b", "#19a979", "#c0457e", "#8a6cd8", "#c9a227"];
+const PAL = ["var(--s2)", "var(--s4)", "var(--s3)", "var(--s7)", "var(--s5)", "var(--s6)"];
 const EXAMPLE = [["a", ["p"]], ["b", ["q"]], ["c", ["a", "b"]], ["d", ["a"]], ["e", ["c", "d"]], ["f", ["b"]], ["g", ["e", "f"]], ["h", ["g", "a"]], ["ret", ["h", "c"]]];
 const OPS = { 1: " ", 2: " + " };
 let prog = EXAMPLE;

@@ -16,6 +16,13 @@
   --green-soft: #d7f2df;
   --red: #b91c1c;
   --red-soft: #fbdada;
+  /* Series colours for categories in charts (s1 red, s2 blue, s3 green, s4 orange, s5 violet, s6 teal, s7 pink, s8 lime).
+     Each is at least 4.5:1 on --surface and against --on-fill, so labels can sit on them. */
+  --s1: #dc2626; --s2: #2563eb; --s3: #15803d; --s4: #c2410c; --s5: #7c3aed; --s6: #0e7490; --s7: #be185d; --s8: #4d7c0f;
+  --on-fill: #ffffff;
+  --mud: #8b6b3e;
+  /* Terminal and code-output panels stay dark in both themes */
+  --term-bg: #1b1f27; --term-text: #d8dde6; --term-muted: #8b94a5; --term-ok: #7cc68a; --term-cmd: #a5b4fc; --term-err: #fca5a5;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
   color-scheme: light;
@@ -38,6 +45,10 @@
     --green-soft: #173523;
     --red: #f87171;
     --red-soft: #4a1d1d;
+    --s1: #f87171; --s2: #60a5fa; --s3: #4ade80; --s4: #fb923c; --s5: #a78bfa; --s6: #22d3ee; --s7: #f472b6; --s8: #a3e635;
+    --on-fill: #0f1218;
+    --mud: #b89668;
+    --term-bg: #0a0c10; --term-text: #d8dde6; --term-muted: #8b94a5; --term-ok: #7cc68a; --term-cmd: #a5b4fc; --term-err: #fca5a5;
     color-scheme: dark;
   }
 }
@@ -59,6 +70,10 @@
   --green-soft: #173523;
   --red: #f87171;
   --red-soft: #4a1d1d;
+  --s1: #f87171; --s2: #60a5fa; --s3: #4ade80; --s4: #fb923c; --s5: #a78bfa; --s6: #22d3ee; --s7: #f472b6; --s8: #a3e635;
+  --on-fill: #0f1218;
+  --mud: #b89668;
+  --term-bg: #0a0c10; --term-text: #d8dde6; --term-muted: #8b94a5; --term-ok: #7cc68a; --term-cmd: #a5b4fc; --term-err: #fca5a5;
   color-scheme: dark;
 }
 

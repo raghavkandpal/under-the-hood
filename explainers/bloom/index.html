@@ -9,7 +9,7 @@
 <style>
   .bits { display: grid; grid-template-columns: repeat(auto-fill, minmax(26px, 1fr)); gap: 3px; }
   .bit { aspect-ratio: 1; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--border); font-size: 9px; color: var(--muted); display: flex; align-items: flex-end; justify-content: center; font-family: var(--mono); transition: background .2s; }
-  .bit.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .bit.on { background: var(--blue); border-color: var(--blue); color: var(--on-fill); }
   .bit.hit { outline: 3px solid var(--green); outline-offset: -1px; }
   .bit.miss { outline: 3px solid var(--red); outline-offset: -1px; }
   .row input[type=text] { flex: 1 1 200px; font-family: var(--mono); }

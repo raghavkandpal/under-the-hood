@@ -51,7 +51,7 @@ import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";
 import { History, relation } from "./vclock.js";
 chrome();
 
-const NAMES = ["A", "B", "C"], COL = ["#e0453a", "#2f6fe4", "#17a35a"];
+const NAMES = ["A", "B", "C"], COL = ["var(--s1)", "var(--s2)", "var(--s3)"];
 let h, sel = [], show = "vc";
 $("#procs").innerHTML = NAMES.map((n, p) => `<div class="proc" style="border-left:4px solid ${COL[p]}"><b>Server ${n}</b><button data-a="local" data-p="${p}">event</button>${NAMES.map((m, q) => q === p ? "" : `<button data-a="send" data-p="${p}" data-q="${q}">send → ${m}</button>`).join("")}</div>`).join("");
 const fmt = e => show === "vc" ? `[${e.vc.join(",")}]` : `${e.lamport}`;

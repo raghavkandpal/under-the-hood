@@ -50,7 +50,7 @@
   <p class="caveat">Named after the Monte Carlo casino by Stanislaw Ulam and John von Neumann, who used it for neutron diffusion in the 1940s. Task durations here follow triangular distributions; 5,000 simulated projects per update.</p>
 </main>
 <script type="module">
-import { chrome, $, svgEl, statTile, onThemeChange } from "../../shared/common.js";
+import { chrome, $, svgEl, statTile, onThemeChange, cssVar } from "../../shared/common.js";
 import { darts, project } from "./montecarlo.js";
 chrome();
 
@@ -60,10 +60,11 @@ let lastThrow = null;
 function throwDarts(n, s = seed++) {
   lastThrow = [n, s];
   const d = darts(n, s);
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim(); ctx.fillRect(0, 0, 400, 400);
-  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--muted").trim(); ctx.lineWidth = 2; ctx.strokeRect(1, 1, 398, 398); ctx.beginPath(); ctx.arc(200, 200, 199, 0, 7); ctx.stroke();
+  ctx.fillStyle = cssVar("--surface"); ctx.fillRect(0, 0, 400, 400);
+  ctx.strokeStyle = cssVar("--muted"); ctx.lineWidth = 2; ctx.strokeRect(1, 1, 398, 398); ctx.beginPath(); ctx.arc(200, 200, 199, 0, 7); ctx.stroke();
   const r = n > 2000 ? 1.4 : n > 200 ? 2.5 : 4;
-  for (const [x, y, hit] of d.pts) { ctx.fillStyle = hit ? "#e0453a" : "#2f6fe4"; ctx.beginPath(); ctx.arc(200 + x * 199, 200 - y * 199, r, 0, 7); ctx.fill(); }
+  const hitC = cssVar("--s1"), missC = cssVar("--s2");
+  for (const [x, y, hit] of d.pts) { ctx.fillStyle = hit ? hitC : missC; ctx.beginPath(); ctx.arc(200 + x * 199, 200 - y * 199, r, 0, 7); ctx.fill(); }
   $("#est").textContent = "π ≈ " + d.estimate.toFixed(5);
   $("#estNote").textContent = `${n.toLocaleString()} darts · off by ${Math.abs(d.estimate - Math.PI).toFixed(5)}${n > 4000 ? " (only the first 4,000 are drawn)" : ""}`;
   const svg = $("#conv"); svg.replaceChildren();

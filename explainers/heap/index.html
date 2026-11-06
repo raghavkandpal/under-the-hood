@@ -15,7 +15,7 @@
   .arr span { min-width: 30px; text-align: center; font-family: var(--mono); font-size: 13px; padding: 4px 2px 2px; border-radius: 5px; background: var(--surface-2); position: relative; }
   .arr span small { display: block; font-size: 9px; color: var(--muted); }
   .arr span.hot { background: var(--accent); color: var(--on-accent); }
-  .arr span.hot small { color: #fff; }
+  .arr span.hot small { color: var(--on-accent); }
   .msg { min-height: 1.5em; margin: 8px 0 0; }
 </style>
 </head>
@@ -55,7 +55,7 @@ function draw() {
   view.forEach((_, i) => { if (i) { const [x1, y1] = pos((i - 1) >> 1), [x2, y2] = pos(i); svg.append(svgEl("line", { x1, y1, x2, y2, stroke: "var(--border)", "stroke-width": 2 })); } });
   view.forEach((v, i) => { const [x, y] = pos(i), on = hot.has(i);
     svg.append(svgEl("circle", { cx: x, cy: y, r: 17, fill: on ? "var(--accent)" : i === 0 ? "var(--green-soft)" : "var(--surface-2)", stroke: on ? "var(--accent)" : i === 0 ? "var(--green)" : "var(--border)", "stroke-width": 2 }));
-    svg.append(svgEl("text", { x, y: y + 5, style: on ? "fill:#fff" : "" }, v), svgEl("text", { x: x + 20, y: y - 12, class: "ix" }, i)); });
+    svg.append(svgEl("text", { x, y: y + 5, style: on ? "fill:var(--on-accent)" : "" }, v), svgEl("text", { x: x + 20, y: y - 12, class: "ix" }, i)); });
   $("#arr").innerHTML = view.map((v, i) => `<span class="${hot.has(i) ? "hot" : ""}">${v}<small>${i}</small></span>`).join("") || `<span class="status">empty</span>`;
   $("#stats").innerHTML = [[view.length, "items"], [view.length ? Math.floor(Math.log2(view.length)) + 1 : 0, "levels (height)"], [view.length ? view[0] : "–", "smallest (the root)"], [swaps, "swaps last operation"]]
     .map(statTile).join("");
