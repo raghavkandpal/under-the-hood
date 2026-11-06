@@ -32,17 +32,17 @@
   <div class="panel">
     <div class="controls tabs" style="margin:0"><span class="status">Web:</span><button data-p="web" aria-pressed="true">A small web</button><button data-p="farm">Link farm</button><button data-p="trap">A trap</button></div>
     <div class="controls" style="margin:10px 0 0">
-      <label class="inline">Damping (chance of clicking a link vs. jumping) <input type="range" id="d" min="0.5" max="0.99" step="0.01" value="0.85"> <b id="vd"></b></label>
+      <label class="inline">Damping <input type="range" id="d" min="0.5" max="0.99" step="0.01" value="0.85"> <b id="vd"></b></label>
       <button id="surf" class="primary">▶ Release a random surfer</button>
     </div>
   </div>
 
   <div class="two">
     <div class="panel"><svg id="web" viewBox="-230 -210 460 420" role="img" aria-label="Pages and links"></svg>
-      <p class="status">Bigger circle = higher rank. Click one page, then another, to add or remove a link between them.</p></div>
+      <p class="status">Click two pages to link or unlink them</p></div>
     <div class="panel"><b>Rank of each page</b>
       <div class="bars" id="bars" style="margin-top:8px"></div>
-      <p class="status"><span style="color:var(--blue)">■</span> PageRank (computed) · <span style="color:var(--accent)">■</span> share of the surfer's visits so far</p>
+      <ul class="legend"><li><i style="--c:var(--blue)"></i>PageRank</li><li><i style="--c:var(--accent)"></i>surfer's visits</li></ul>
       <p class="status" id="iters"></p></div>
   </div>
 

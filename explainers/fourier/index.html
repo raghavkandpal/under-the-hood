@@ -27,9 +27,9 @@
     <div class="controls" style="margin:10px 0 0"><label class="inline">Noise <input type="range" id="noise" min="0" max="1.5" step="0.05" value="0.3"> <b id="vnoise"></b></label></div>
   </div>
   <div class="panel">
-    <b>The signal</b> <span class="status">(what a microphone would record)</span>
+    <b>The signal</b>
     <svg class="chart" id="time" viewBox="0 0 700 150" preserveAspectRatio="none"></svg>
-    <b>Its spectrum</b> <span class="status">(how much of each frequency is in it; click to set the filter cut-off)</span>
+    <b>Its spectrum</b> <span class="status">click to set the cut-off</span>
     <svg class="chart" id="spec" viewBox="0 0 700 150" preserveAspectRatio="none" style="cursor:pointer"></svg>
     <div class="controls" style="margin:6px 0 0">
       <div class="tabs" id="ftype"><span class="status" style="align-self:center">Filter:</span><button data-f="none" aria-pressed="true">off</button><button data-f="low">low-pass (keep below)</button><button data-f="high">high-pass (keep above)</button></div>
@@ -42,7 +42,7 @@
   <div class="panel">
     <label class="inline">Number of harmonics <input type="range" id="harm" min="1" max="40" value="3"> <b id="vharm"></b></label>
     <svg class="chart" id="square" viewBox="0 0 700 160" preserveAspectRatio="none"></svg>
-    <p class="status">A square wave is the odd harmonics added together, sin(x) + sin(3x)/3 + sin(5x)/5 + … More terms make sharper corners, but a small overshoot at each jump never goes away (the <i>Gibbs phenomenon</i>).</p>
+    <p class="status">sin(x) + sin(3x)/3 + sin(5x)/5 + …</p>
   </div>
 
   <h2>What's going on</h2>

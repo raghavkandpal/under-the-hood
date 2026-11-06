@@ -28,15 +28,15 @@
       <label class="inline"><input type="checkbox" id="comp" checked> path compression</label>
       <button id="chain">Worst case: chain them in order</button><button id="rnd">10 random unions</button><button id="reset">Reset</button>
     </div>
-    <p class="status" style="margin:6px 0 0">Click two items to <b>union</b> them. Click one item twice to <b>find</b> its root (its set's representative).</p>
+    <p class="status" style="margin:6px 0 0">Click two items to union them, or one twice to find its root</p>
     <div class="scroll-x"><svg id="forest" role="img" aria-label="Union-find forest"></svg></div>
     <p class="msg" id="msg"></p>
     <div class="stats" id="stats"></div>
   </div>
 
   <h2>2. Using it: Kruskal's minimum spanning tree</h2>
+  <p>Connect every grid point as cheaply as possible: take edges cheapest-first, and skip any edge whose ends are already connected, because it would only make a loop. Union-find answers that question instantly.</p>
   <div class="panel">
-    <p class="status" style="margin-top:0">Connect every grid point as cheaply as possible. Take edges cheapest-first, and skip any edge whose ends are already connected (union-find answers that instantly), because it would only make a loop.</p>
     <div class="controls" style="margin:0"><button id="kgo" class="primary">▶ Run Kruskal</button><button id="knew">🎲 New weights</button><span class="status" id="knote"></span></div>
     <div class="scroll-x"><svg id="grid" role="img" aria-label="Grid graph and spanning tree"></svg></div>
   </div>
