@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAT and hole punching</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #net { width: 100%; max-width: 560px; height: auto; display: block; margin: 8px auto 0; }
+  #net text { font-size: 12px; fill: var(--text); }
+  #net text.addr { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); }
+  table.data td, table.data th { font-family: var(--mono); font-size: 13px; }
+  table.data th { font-family: var(--sans); }
+  ol.steps { margin: 10px 0 0; padding-left: 20px; font-size: 14px; }
+  ol.steps li { margin: 4px 0; } ol.steps li.bad { color: var(--red); } ol.steps li.ok { color: var(--green); }
+</style>
+</head>
+<body>
+<main>
+  <h1>NAT and hole punching</h1>
+  <p class="lede">Your laptop's address is probably 192.168.1.something, and so is nearly everyone else's. Your router shares one public address between every device at home by rewriting each packet on the way out, and remembering how to undo it on the way back.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="kind"></div><button id="reset">Reset</button></div>
+    <svg id="net" viewBox="0 0 400 195" role="img" aria-label="Two laptops behind a home router, and three hosts on the internet"></svg>
+    <div class="row">
+      <button data-send="a-web">A → web</button><button data-send="b-web">B → web</button><button data-send="a-game">A → game</button>
+      <button data-send="web-a">web replies to A</button><button data-send="stranger">stranger → router</button>
+    </div>
+    <p class="status" id="last"></p>
+    <div class="scroll-x"><table class="data" id="table"></table></div>
+  </div>
+
+  <div class="panel">
+    <div class="row"><b>Hole punch</b>
+      <label class="inline">A <span class="seg" id="ta"></span></label>
+      <label class="inline">B <span class="seg" id="tb"></span></label></div>
+    <ol class="steps" id="steps"></ol>
+    <p class="status" id="verdict"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Not enough addresses.</b> IPv4 has about 4.3 billion addresses, fewer than the devices that want one. So homes and offices use private ranges (192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12) that can be reused by every network, and the router gets one public address from the ISP. Private addresses never appear on the internet; the <a href="../routing/">routers</a> there wouldn't know where to send them.</p>
+  <p><b>Rewriting.</b> When laptop A sends a packet, the router replaces its source address and port with the public address and a port of its own choosing, and writes the pair into its translation table. When the reply arrives at that public port, the router looks it up, rewrites the destination back to A, and forwards it. Two laptops talking to the same server get different public ports, which is how replies reach the right one. A <a href="../tcp/">TCP</a> connection never notices.</p>
+  <p><b>A firewall for free.</b> A packet arriving at a port with no mapping has nowhere to go, so it's dropped. Most routers also drop packets from anyone the inside host hasn't contacted. That's why you can browse from home but can't easily run a server there: nobody outside can start a conversation.</p>
+  <div class="note"><b>Try it.</b> Send A to the web, then let a stranger knock. Then send A to the game server under each NAT type and compare the ports in the table.</div>
+  <p><b>Hole punching.</b> Video calls and games want two people behind two NATs to talk directly. Each side first contacts a rendezvous server, which sees their public address and port and tells the other side. Then both send to each other at the same moment. Each outgoing packet opens a mapping that expects the other side, so the other side's packet is let in. WebRTC does this with STUN servers.</p>
+  <p><b>When it fails.</b> A symmetric NAT gives every new destination a new port, so the address the rendezvous server saw is not the one used to reach the peer, and the other side's NAT rejects it. Calls then fall back to a relay (TURN) that forwards every packet, which costs the operator bandwidth and adds latency. IPv6 has enough addresses for every device, so it doesn't need NAT at all, though firewalls still block unsolicited traffic.</p>
+  <p class="caveat">Simplified: UDP only, mappings never expire, and every NAT filters by sender address and port. Many real NATs filter by address only or preserve the inside port, and carrier-grade NAT adds a second layer.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, tabs, escapeHtml } from "../../shared/common.js";
+import { makeNat, holePunch } from "./nat.js";
+chrome();
+
+const PUBLIC = "203.0.113.7", A = "192.168.1.10:51000", B = "192.168.1.11:51000";
+const WEB = "93.184.216.34:443", GAME = "198.51.100.9:3074", STRANGER = "192.0.2.66:4444";
+const NODES = { a: [40, 60, "Laptop A", A], b: [40, 150, "Laptop B", B], r: [200, 105, "Router", PUBLIC], web: [360, 45, "Web", WEB], game: [360, 105, "Game", GAME], stranger: [360, 165, "Stranger", STRANGER] };
+const KINDS = { independent: "Easy NAT", dependent: "Symmetric NAT" };
+let kind = "independent", nat, last;
+tabs($("#kind"), KINDS, kind, k => { kind = k; reset(); });
+
+function reset() { nat = makeNat(PUBLIC, kind); last = null; $("#last").textContent = ""; draw(); }
+const pubFor = (inside, remote) => (nat.table.find(e => e.inside === inside && (kind === "independent" || e.remote === remote)) ?? { pub: `${PUBLIC}:40000` }).pub;
+const SENDS = {
+  "a-web": () => ({ from: "a", to: "web", out: true, pkt: { src: A, dst: WEB } }),
+  "b-web": () => ({ from: "b", to: "web", out: true, pkt: { src: B, dst: WEB } }),
+  "a-game": () => ({ from: "a", to: "game", out: true, pkt: { src: A, dst: GAME } }),
+  "web-a": () => ({ from: "web", to: "a", pkt: { src: WEB, dst: pubFor(A, WEB) } }),
+  stranger: () => ({ from: "stranger", to: "a", pkt: { src: STRANGER, dst: pubFor(A, WEB) } }),
+};
+function send(k) {
+  const s = SENDS[k](), r = s.out ? nat.out(s.pkt) : nat.in(s.pkt), arrow = p => `${p.src} → ${p.dst}`;
+  last = { ...s, drop: r.drop, to: r.drop ? "r" : s.out ? s.to : Object.keys(NODES).find(n => NODES[n][3] === r.dst) };
+  $("#last").textContent = r.drop ? `${arrow(s.pkt)}: dropped, ${r.drop}` : s.out ? `inside ${arrow(s.pkt)}, outside ${arrow(r)}` : `outside ${arrow(s.pkt)}, inside ${arrow(r)}`;
+  draw();
+}
+function draw() {
+  const svg = $("#net"); svg.replaceChildren();
+  const hot = n => last && (last.from === n || last.to === n);
+  for (const n of ["a", "b", "web", "game", "stranger"]) {
+    const [x, y] = NODES[n], [rx, ry] = NODES.r, onPath = last && hot(n);
+    svg.append(svgEl("line", { x1: x, y1: y, x2: rx, y2: ry, stroke: onPath ? (last.drop ? "var(--red)" : "var(--accent)") : "var(--border)", "stroke-width": onPath ? 2.5 : 1.2 }));
+  }
+  svg.append(svgEl("line", { x1: 120, x2: 120, y1: 4, y2: 192, stroke: "var(--border)", "stroke-dasharray": "3 4" }), svgEl("line", { x1: 280, x2: 280, y1: 4, y2: 192, stroke: "var(--border)", "stroke-dasharray": "3 4" }));
+  for (const [n, [x, y, name, addr]] of Object.entries(NODES)) {
+    svg.append(svgEl("rect", { x: x - 30, y: y - 13, width: 60, height: 22, rx: 6, fill: "var(--surface)", stroke: hot(n) ? "var(--accent)" : "var(--control-border)" }),
+      svgEl("text", { x, y: y + 2, "text-anchor": "middle" }, name), svgEl("text", { x, y: y + 22, "text-anchor": "middle", class: "addr" }, addr.split(":")[0]));
+  }
+  if (last?.drop) svg.append(svgEl("text", { x: 200, y: 85, "text-anchor": "middle", style: "fill:var(--red);font-size:18px;font-weight:700" }, "✕"));
+  svg.append(svgEl("text", { x: 60, y: 14, "text-anchor": "middle", class: "addr" }, "home"), svgEl("text", { x: 340, y: 14, "text-anchor": "middle", class: "addr" }, "internet"));
+  const name = a => Object.values(NODES).find(n => n[3] === a)?.[2] ?? a;
+  $("#table").innerHTML = `<tr><th>Inside</th><th>Public</th><th>Lets in</th></tr>` + (nat.table.length ? nat.table.map(e =>
+    `<tr><td>${escapeHtml(name(e.inside))} ${e.inside.split(":")[1]}</td><td>${e.pub.split(":")[1]}</td><td>${[...e.allowed].map(name).map(escapeHtml).join(", ")}</td></tr>`).join("") : `<tr><td colspan="3">–</td></tr>`);
+}
+document.querySelectorAll("[data-send]").forEach(b => (b.onclick = () => send(b.dataset.send)));
+$("#reset").onclick = reset;
+
+const punch = { a: "independent", b: "independent" }, SHORT = { independent: "Easy", dependent: "Symmetric" };
+function runPunch() {
+  const r = holePunch(punch.a, punch.b);
+  $("#steps").innerHTML = r.steps.map(s => `<li class="${s.ok === undefined ? "" : s.ok ? "ok" : "bad"}">${escapeHtml(s.text)}</li>`).join("");
+  $("#verdict").textContent = r.direct ? "Direct connection." : "No direct path: fall back to a relay.";
+}
+tabs($("#ta"), SHORT, punch.a, k => { punch.a = k; runPunch(); });
+tabs($("#tb"), SHORT, punch.b, k => { punch.b = k; runPunch(); });
+reset(); runPunch();
+</script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Database normalisation</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  table.data { font-size: 13px; } table.data td, table.data th { padding: 4px 8px; white-space: nowrap; }
+  table.data td.hot { background: var(--accent-soft); } table.data td.bad { color: var(--red); font-weight: 600; }
+  .tables { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+  .tables > div { flex: 1 1 auto; min-width: 0; }
+  .tables b { font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Database normalisation</h1>
+  <p class="lede">A spreadsheet of orders copies the customer's email into every order they place. Change it in one place and the database now disagrees with itself. Normalisation stores each fact once, and links to it.</p>
+
+  <div class="panel">
+    <div class="row">
+      <button data-act="editEmail">Change Ada's email on order 1003</button>
+      <button data-act="deleteOrder">Delete order 1004</button>
+      <button data-act="addCustomer">Add customer Grace</button>
+      <button id="reset">Reset</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <b>One table</b>
+    <div class="scroll-x" id="wide"></div>
+    <div class="stats" id="wideStats"></div>
+    <p class="status" id="wideNote"></p>
+  </div>
+
+  <div class="panel">
+    <b>Three tables</b>
+    <div class="tables" id="norm"></div>
+    <div class="stats" id="normStats"></div>
+    <p class="status" id="normNote"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Redundancy.</b> The one-table design repeats Ada's email and city on all three of her orders, and the keyboard's price on all three keyboard orders. Every copy is a chance to disagree. Each of the three buttons shows a different way it goes wrong; they're called the update, deletion and insertion anomalies.</p>
+  <p><b>Update.</b> Ada changes her email on one order's form, so the app updates that row. Two rows still have the old one, and nothing says which is right. You could update every copy, but every piece of code that writes must remember to, forever.</p>
+  <p><b>Delete and insert.</b> Dara only ever placed order 1004. Delete the order and Dara's email and city vanish with it, because they only existed inside an order. The reverse is just as awkward: a new customer who hasn't bought anything has nowhere to go without a fake order.</p>
+  <p><b>The fix.</b> Give each kind of thing its own table: customers, products, orders. An order stores only what belongs to the order (its quantity) plus the <i>ids</i> of its customer and product, called foreign keys. Now each fact lives in exactly one row, so each of the three edits writes one row and can't contradict anything. The wide view is still there when you want it: a <a href="../sql-joins/">join</a> puts it back together, row for row.</p>
+  <p><b>The rule of thumb.</b> Each column should describe the key of its table, the whole key, and nothing but the key. Email depends on the customer, not the order, so it belongs in the customer table. That's third normal form, and it's where most designs stop.</p>
+  <p><b>When to bend it.</b> Joins cost time, so read-heavy systems (analytics, caches, search indexes) often copy data on purpose, which is called denormalisation. Some copies are correct, too: an order should keep the price paid on the day, not follow the product's current price. Copy deliberately, and keep one table as the source of truth.</p>
+  <p class="caveat">Simplified: tables live in memory with no constraints. A real database enforces foreign keys, so deleting a customer who still has orders is refused or cascades.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, escapeHtml } from "../../shared/common.js";
+import { initial, view, customers, ACTIONS, conflicts, cells, COLUMNS } from "./normalization.js";
+chrome();
+
+let dbs, hot;
+function reset() { document.querySelectorAll("[data-act]").forEach(b => (b.disabled = false)); dbs = { wide: initial("wide"), norm: initial("norm") }; hot = {}; $("#wideNote").textContent = $("#normNote").textContent = ""; render(); }
+function table(rows, cols, mark = () => "") {
+  return `<table class="data"><tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr>${rows.map(r => `<tr>${cols.map(c => `<td class="${mark(r, c)}">${escapeHtml(r[c])}</td>`).join("")}</tr>`).join("")}</table>`;
+}
+function render() {
+  const bad = conflicts(dbs.wide);
+  $("#wide").innerHTML = table(view(dbs.wide), COLUMNS, (r, c) => (c === "email" && bad.includes(r.customer) ? "bad" : "") + (hot.wide?.(r, c) ? " hot" : ""));
+  const n = dbs.norm;
+  $("#norm").innerHTML = [["customers", n.customers], ["products", n.products], ["orders", n.orders]].map(([name, rows]) =>
+    `<div><b>${name}</b><div class="scroll-x">${table(rows, Object.keys(rows[0]), (r, c) => (hot.norm?.(name, r, c) ? "hot" : ""))}</div></div>`).join("");
+  for (const k of ["wide", "norm"]) $(`#${k}Stats`).innerHTML = [[customers(dbs[k]).length, "customers"], [conflicts(dbs[k]).length, "conflicting emails"], [cells(dbs[k]), "values stored"]].map(statTile).join("");
+}
+const HOT = {
+  editEmail: { wide: (r, c) => r.order === 1003 && c === "email", norm: (t, r, c) => t === "customers" && r.name === "Ada" && c === "email" },
+  addCustomer: { norm: (t, r) => t === "customers" && r.name === "Grace" },
+};
+function act(name) {
+  for (const k of ["wide", "norm"]) {
+    const before = customers(dbs[k]), r = ACTIONS[name](dbs[k]); dbs[k] = r.db;
+    const lost = before.filter(c => !customers(r.db).includes(c)), split = conflicts(r.db);
+    $(`#${k}Note`).textContent = r.error ? `Can't: ${r.error}.` : [`${r.written} row ${name === "deleteOrder" ? "deleted" : "written"}.`,
+      ...lost.map(c => `${c} is forgotten.`), ...split.map(c => `${c} has ${new Set(view(r.db).filter(x => x.customer === c).map(x => x.email)).size} different emails.`)].join(" ");
+  }
+  hot = HOT[name] ?? {}; render();
+}
+document.querySelectorAll("[data-act]").forEach(b => (b.onclick = () => { b.disabled = true; act(b.dataset.act); }));
+$("#reset").onclick = reset;
+reset();
+</script>
+</body>
+</html>

@@ -258,6 +258,12 @@ export const CATALOG = [
     blurb: "What npm install actually solves: version ranges, a diamond conflict, backtracking, duplicates, and why lockfiles exist.", prereqs: ["build-systems"] },
   { id: "cdn", title: "CDNs & edge caching", area: "networking", topic: "how-the-network-works", level: "core", tags: ["cdn", "edge", "latency", "cache", "ttl", "thundering herd", "anycast"],
     blurb: "Why the web feels fast from Sydney: edge servers near users, cache hits and misses, TTLs, and the stampede after a purge.", prereqs: ["http-caching"] },
+  { id: "multiple-testing", title: "Multiple testing", area: "statistics", topic: "experiments-and-inference", level: "deep", tags: ["p-values", "p-hacking", "bonferroni", "false discovery rate", "benjamini-hochberg", "experiments"],
+    blurb: "Test twenty useless ideas and one probably “wins”: false discoveries, Bonferroni, and Benjamini–Hochberg's rising line.", prereqs: ["abtest"] },
+  { id: "nat", title: "NAT and hole punching", area: "networking", topic: "how-the-network-works", level: "core", tags: ["nat", "ip addresses", "ports", "stun", "turn", "webrtc", "peer to peer", "ipv4"],
+    blurb: "How every device at home shares one public address, why strangers can't reach you, and how video calls punch through anyway.", prereqs: ["routing", "tcp"] },
+  { id: "normalization", title: "Database normalisation", area: "databases", topic: "queries", level: "intro", tags: ["normal forms", "3nf", "foreign keys", "schema design", "anomalies", "denormalisation", "sql"],
+    blurb: "Store each fact once: three edits that make a one-table design contradict itself, and the linked tables that don't.", prereqs: [] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -268,12 +274,12 @@ export const hrefOf = c => `explainers/${c.id}/`;
  *  intro, audience and outcomes are shown on the path's own page (path/?id=…). */
 export const PATHS = [
   { id: "internet", title: "How the internet works", blurb: "From typing a URL to a secure, cached page.",
-    steps: ["dns", "tcp", "routing", "hash-functions", "dh", "signatures", "tls", "http-caching", "cdn", "load-balancing"],
+    steps: ["dns", "tcp", "routing", "nat", "hash-functions", "dh", "signatures", "tls", "http-caching", "cdn", "load-balancing"],
     intro: "Typing a web address sets off a chain of systems most people never see. This path follows one page load from start to finish: finding the server, getting data across an unreliable network, proving you're talking to the right site, and serving the result fast to people around the world.",
     audience: "Developers who use the web every day and want to know what happens between pressing Enter and seeing the page.",
     outcomes: ["Trace a page load from DNS lookup to a cached response", "Explain how TCP turns lossy packets into a reliable stream", "Say what TLS actually proves, and how", "Explain why CDNs and load balancers make sites fast and resilient"] },
   { id: "databases", title: "Databases from the disk up", blurb: "How a database stores, finds and protects your rows.",
-    steps: ["btree", "hashtable", "bloom", "lsm", "race-conditions", "isolation", "write-ahead-log", "file-systems", "sql-joins", "query-planner", "columnar"],
+    steps: ["normalization", "btree", "hashtable", "bloom", "lsm", "race-conditions", "isolation", "write-ahead-log", "file-systems", "sql-joins", "query-planner", "columnar"],
     intro: "A database's job is to store your data, find it quickly, and never lose or corrupt it, even when the power fails mid-write. This path builds a database from the disk up: the data structures it stores rows in, how it stays correct under concurrent use and crashes, and how it decides to answer a query.",
     audience: "Anyone who writes SQL and wants to know why some queries are instant and others crawl.",
     outcomes: ["Compare B-trees and LSM trees and when each wins", "Explain isolation levels and the anomalies they prevent", "Describe how a write-ahead log survives a crash", "Read a query plan and spot a bad estimate"] },
@@ -298,7 +304,7 @@ export const PATHS = [
     audience: "Developers and analysts who want solid foundations before (or instead of) deep learning.",
     outcomes: ["Explain overfitting and how to detect it", "Compare nearest neighbours and decision trees", "Choose a decision threshold with ROC curves", "Use clustering, PCA and embeddings to find structure"] },
   { id: "stats", title: "Statistics for engineers", blurb: "Enough statistics to run an experiment and not fool yourself.",
-    steps: ["monte-carlo", "clt", "bootstrap", "abtest", "simpson", "bayes", "roc"],
+    steps: ["monte-carlo", "clt", "bootstrap", "abtest", "multiple-testing", "simpson", "bayes", "roc"],
     intro: "Most bad decisions from data come from a few classic mistakes: trusting a noisy number, peeking at an experiment, or comparing groups that aren't alike. This path builds the intuition to avoid them, mostly through simulation rather than formulas.",
     audience: "Engineers and product people who run experiments or read dashboards and want to trust the conclusions.",
     outcomes: ["Explain why averages become predictable and how wide an error bar is", "Put an error bar on almost any number with the bootstrap", "Run an A/B test without fooling yourself", "Recognise Simpson's paradox and reason with Bayes"] },
