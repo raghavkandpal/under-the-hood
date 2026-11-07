@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linear regression</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #plot { width: 100%; max-width: 460px; height: auto; display: block; margin: 8px auto 0; cursor: crosshair; touch-action: manipulation; }
+  #plot text { font-size: 11px; fill: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Linear regression</h1>
+  <p class="lede">Given a cloud of points, which straight line fits best? Least squares answers: the one that makes the total area of these squares as small as possible. Every point gets a vote, which is also its weakness.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Noise <input type="range" id="noise" min="0" max="3" step="0.1" value="1"> <b id="nv"></b></label>
+      <button id="new">New points</button><button id="outlier">Add an outlier</button><button id="clear">Clear</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <label class="inline">Your slope <input type="range" id="ms" min="-1" max="2" step="0.05" value="0.3"> <b id="msv"></b></label>
+      <label class="inline">Your intercept <input type="range" id="mi" min="-4" max="8" step="0.1" value="4"> <b id="miv"></b></label>
+    </div>
+    <svg id="plot" viewBox="0 0 400 400" role="img" aria-label="Scatter plot with the least-squares line, your line, and each point's squared miss. Click to add a point."></svg>
+    <ul class="legend"><li><i style="--c:var(--accent)"></i>least squares</li><li><i style="--c:var(--muted)"></i>your line</li><li><i style="--c:var(--accent-soft)"></i>squared misses</li></ul>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Residuals.</b> For any line, each point misses it by some vertical distance, its <i>residual</i>. Least squares picks the line that minimises the sum of the squared residuals: the total area of the squares on the plot. Squaring makes misses above and below count the same, and makes big misses count much more than small ones.</p>
+  <p><b>A formula, not a search.</b> The best line always passes through the average point, and its slope is how x and y vary together divided by how much x varies on its own: cov(x, y) / var(x). No iteration is needed, which is why regression was practical long before computers. Nudge the line any way from there and the squares grow.</p>
+  <div class="note"><b>Try it.</b> Move your own line until its squares are as small as you can make them, then compare with the least-squares line. Then add an outlier.</div>
+  <p><b>R².</b> The share of the variation in y that the line explains: 1 means every point is on the line, 0 means the line does no better than always guessing the average. With more noise it falls, even if the underlying relationship is just as real.</p>
+  <p><b>Outliers.</b> Because misses are squared, one point far from the rest pulls hard. A single outlier among twenty points can cut the slope by a third or more. Check residuals before trusting a fit, and reach for robust alternatives (least absolute deviations, Huber loss) when bad data is likely. A good fit also says nothing about cause: see <a href="../simpson/">Simpson's paradox</a>.</p>
+  <p class="caveat">Simplified: one input variable and a straight line. With many inputs the same idea becomes a matrix equation, and it's what a single neuron with no activation computes; see <a href="../gradient-descent/">gradient descent</a> for fitting models without a formula.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { fit, sse, noisy } from "./linear-regression.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+let pts, seed = 1;
+const X = x => 30 + 36 * x, Y = y => 370 - 24 * (y + 3), ix = px => (px - 30) / 36, iy = py => (370 - py) / 24 - 3; // x 0..10, y −3..12.5
+function reset() { pts = noisy({ n: 20, noise: +$("#noise").value, rnd: mulberry(seed) }); render(); }
+function render() {
+  $("#nv").textContent = $("#noise").value; $("#msv").textContent = (+$("#ms").value).toFixed(2); $("#miv").textContent = (+$("#mi").value).toFixed(1);
+  const svg = $("#plot"); svg.replaceChildren();
+  for (let x = 0; x <= 10; x += 2) svg.append(svgEl("text", { x: X(x), y: 392, "text-anchor": "middle" }, x));
+  for (let y = 0; y <= 12; y += 4) svg.append(svgEl("line", { x1: X(0), x2: X(10), y1: Y(y), y2: Y(y), stroke: "var(--border)" }), svgEl("text", { x: 22, y: Y(y) + 4, "text-anchor": "end" }, y));
+  const ms = +$("#ms").value, mi = +$("#mi").value;
+  const line = (b, a, col, w) => svg.append(svgEl("line", { x1: X(0), y1: Y(a), x2: X(10), y2: Y(a + 10 * b), stroke: col, "stroke-width": w }));
+  if (pts.length >= 2) { const f = fit(pts);
+    for (const [x, y] of pts) { const r = y - (f.intercept + f.slope * x), side = Math.abs(r) * 24;
+      svg.append(svgEl("rect", { x: X(x), y: Math.min(Y(y), Y(y - r)), width: side, height: side, fill: "var(--accent-soft)", opacity: 0.8 })); }
+    line(ms, mi, "var(--muted)", 1.5); line(f.slope, f.intercept, "var(--accent)", 2.5);
+    $("#stats").innerHTML = [[f.slope.toFixed(2), "slope"], [f.intercept.toFixed(2), "intercept"], [f.r2.toFixed(2), "R²"], [f.sse.toFixed(1), "sum of squares"], [sse(pts, ms, mi).toFixed(1), "your line's sum"]].map(statTile).join("");
+  } else $("#stats").innerHTML = "";
+  for (const [x, y] of pts) svg.append(svgEl("circle", { cx: X(x), cy: Y(y), r: 4, fill: "var(--text)" }));
+}
+$("#plot").onclick = e => { const r = $("#plot").getBoundingClientRect(), px = (e.clientX - r.left) * 400 / r.width, py = (e.clientY - r.top) * 400 / r.height;
+  const x = ix(px), y = iy(py); if (x >= 0 && x <= 10) { pts.push([x, y]); render(); } };
+$("#noise").onchange = reset; $("#noise").oninput = () => ($("#nv").textContent = $("#noise").value);
+$("#ms").oninput = $("#mi").oninput = render;
+$("#new").onclick = () => { seed++; reset(); };
+$("#outlier").onclick = () => { pts.push([9.5, -2]); render(); };
+$("#clear").onclick = () => { pts = []; render(); };
+reset();
+</script>
+</body>
+</html>

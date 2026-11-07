@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The birthday paradox</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>The birthday paradox</h1>
+  <p class="lede">In a room of 23 people, it's slightly more likely than not that two share a birthday. Most people guess you'd need well over a hundred. The same surprise decides how long your ids can be before two of them collide.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">People <input type="range" id="n" min="2" max="80" value="23"> <b id="nv"></b></label>
+      <button id="room" class="primary">New room</button>
+    </div>
+    <svg class="chart" id="year" viewBox="0 0 600 110" role="img" aria-label="The 365 days of the year with each person's birthday, and any shared day highlighted"></svg>
+    <ul class="legend"><li><i style="--c:var(--accent)"></i>a birthday</li><li><i style="--c:var(--red)"></i>shared</li></ul>
+    <svg class="chart" id="curve" viewBox="0 0 600 170" role="img" aria-label="Chance of a shared birthday by number of people"></svg>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel">
+    <b>Random ids and hashes</b>
+    <div class="scroll-x"><table class="data" id="ids"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Count pairs, not people.</b> The intuition goes wrong by asking whether someone shares <i>your</i> birthday. The question is whether <i>any two</i> people do, and 23 people make 253 pairs, each with a 1-in-365 chance of matching. With that many chances, a match becomes likely.</p>
+  <p><b>The exact answer.</b> It's easier to compute the chance that all birthdays differ: the second person avoids the first (364/365), the third avoids both (363/365), and so on. Multiply those together and subtract from one. At 23 people that's 50.7%; at 70 it's 99.9%.</p>
+  <div class="note"><b>Try it.</b> Make a few rooms of 23 and count how many have a shared birthday, then try 40.</div>
+  <p><b>The square-root rule.</b> With <i>N</i> equally likely values, collisions become likely after about 1.18 √<i>N</i> items, not <i>N</i>/2. That's why <a href="../hash-functions/">hash</a> sizes come in powers that seem far too big: a 32-bit hash or id collides with even odds after only about 77,000 items, and a 64-bit one after about 5 billion. Random UUIDs have 122 random bits so that collisions stay negligible even across trillions.</p>
+  <p><b>In security.</b> Finding <i>any</i> two inputs with the same hash (a collision) takes about the square root of the work of matching one <i>given</i> hash. So a 128-bit hash gives only 64 bits of collision resistance, which is why SHA-256 is used where collisions matter, and why MD5 and SHA-1 were broken by collision attacks first.</p>
+  <p class="caveat">Simplified: birthdays are equally likely and there's no 29 February. Real birthdays cluster a little, which makes a match slightly more likely still.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { collision, needed, pairs, room } from "./birthday-paradox.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+let seed = 1;
+const big = x => (x >= 1e12 ? x.toExponential(1).replace("e+", " × 10^") : Math.round(x).toLocaleString());
+function render() {
+  const n = +$("#n").value, r = room(n, 365, mulberry(seed)); $("#nv").textContent = n;
+  const year = $("#year"), cols = 37, cw = 592 / cols, shared = new Set(r.days.filter((d, i) => r.days.indexOf(d) !== i)); year.replaceChildren();
+  for (let d = 0; d < 365; d++) { const has = r.days.includes(d), x = 4 + (d % cols) * cw, y = 4 + Math.floor(d / cols) * 10.2;
+    year.append(svgEl("rect", { x, y, width: cw - 2, height: 8.5, rx: 1.5, fill: shared.has(d) ? "var(--red)" : has ? "var(--accent)" : "var(--surface-2)", stroke: has ? "none" : "var(--border)", "stroke-width": 0.5 })); }
+  const L = 40, R = 590, T = 10, B = 145, X = k => L + (R - L) * (k - 1) / 79, Y = p => B - (B - T) * p, svg = $("#curve"); svg.replaceChildren();
+  for (const p of [0, 0.5, 1]) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(p), y2: Y(p), stroke: "var(--border)" }), svgEl("text", { x: L - 6, y: Y(p) + 4, "text-anchor": "end" }, p * 100 + "%"));
+  for (const k of [1, 20, 40, 60, 80]) svg.append(svgEl("text", { x: X(k), y: B + 16, "text-anchor": "middle" }, k));
+  svg.append(svgEl("polyline", { points: Array.from({ length: 80 }, (_, i) => `${X(i + 1)},${Y(collision(i + 1, 365))}`).join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": 2.2 }),
+    svgEl("circle", { cx: X(n), cy: Y(collision(n, 365)), r: 5, fill: "var(--accent)" }));
+  $("#stats").innerHTML = [[(collision(n, 365) * 100).toFixed(1) + "%", "chance of a shared birthday"], [pairs(n).toLocaleString(), "pairs of people"], [r.pair ? "yes" : "no", "this room"]].map(statTile).join("");
+}
+$("#ids").innerHTML = `<tr><th>Random bits</th><th>Items for a 1% chance</th><th>for 50%</th></tr>` + [32, 64, 122, 128].map(b => `<tr><td class="num">${b}</td><td class="num">${big(needed(2 ** b, 0.01))}</td><td class="num">${big(needed(2 ** b, 0.5))}</td></tr>`).join("");
+$("#n").oninput = render;
+$("#room").onclick = () => { seed++; render(); };
+render();
+</script>
+</body>
+</html>
