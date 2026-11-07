@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IP addresses and subnets</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .bits { font-family: var(--mono); font-size: 15px; display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 12px; }
+  .bits span.net { color: var(--accent); font-weight: 700; } .bits span.host { color: var(--muted); }
+  input.ip { font-family: var(--mono); width: 10em; }
+  table.data td { font-family: var(--mono); } table.data tr.match td { color: var(--text); } table.data tr.miss td { color: var(--muted); }
+  table.data tr.best td { background: var(--accent-soft); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>IP addresses and subnets</h1>
+  <p class="lede">An IPv4 address is just a 32-bit number written as four bytes. The “/24” after it says how many of those bits name the network, and the rest name a machine on it.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Address <input class="ip" id="ip" value="192.168.1.10" spellcheck="false" aria-label="IPv4 address"></label>
+      <label class="inline">Prefix <input type="range" id="len" min="0" max="32" value="24"> <b id="lenv"></b></label>
+    </div>
+    <div class="bits" id="bits" aria-hidden="true"></div>
+    <ul class="legend"><li><i style="--c:var(--accent)"></i>network</li><li><i style="--c:var(--muted)"></i>host</li></ul>
+    <div class="stats" id="stats" style="--stat-min:150px"></div>
+    <p class="status" id="err"></p>
+  </div>
+
+  <div class="panel">
+    <div class="row"><b>Routing table</b>
+      <label class="inline">To <input class="ip" id="dst" value="10.1.2.3" spellcheck="false" aria-label="Destination address"></label></div>
+    <div class="scroll-x"><table class="data" id="routes"></table></div>
+    <p class="status" id="chosen"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Four bytes.</b> Each part of 192.168.1.10 is one byte, 0 to 255, so the whole address is a number between 0 and about 4.3 billion. Computers compare and mask that number directly; the dotted form is only for people.</p>
+  <p><b>Prefixes.</b> A network is a block of consecutive addresses whose first <i>n</i> bits are the same. CIDR notation writes it as the first address and <i>n</i>: 192.168.1.0/24 is the 256 addresses from 192.168.1.0 to 192.168.1.255. Every bit you take off the prefix doubles the block. The <i>subnet mask</i> 255.255.255.0 is the same thing written as an address: <i>n</i> ones followed by zeros. AND an address with the mask and you get its network.</p>
+  <p><b>Two addresses set aside.</b> In a normal subnet, the all-zeros host is the network's own name and the all-ones host is the broadcast address, which reaches every machine on it. So a /24 holds 254 hosts. A /31, used for links between two routers, keeps both, and a /32 is a single machine.</p>
+  <p><b>Longest prefix wins.</b> A router's table lists prefixes, not addresses, and several can contain the same destination. It picks the most specific: a /24 beats a /8, and 0.0.0.0/0, the <i>default route</i>, matches everything, so it's used only when nothing else does. That's how a VPN can take over one company network while everything else still goes to your ISP. See <a href="../routing/">routing</a> for how those tables get filled in.</p>
+  <div class="note"><b>Try it.</b> Send packets to 10.1.2.3, 10.1.9.9 and 8.8.8.8, and see which route each one takes.</div>
+  <p><b>Private ranges.</b> 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16 are reserved for private networks and never routed on the internet; <a href="../nat/">NAT</a> is how they get out. IPv6 uses the same prefix idea with 128-bit addresses, so a single /64 subnet holds 2⁶⁴ hosts.</p>
+  <p class="caveat">Simplified: IPv4 only, and the routing table is matched by a plain scan. Real routers use tries or special memory (TCAM) to find the longest match in nanoseconds.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, escapeHtml } from "../../shared/common.js";
+import { parse, format, bits, block, route, kind } from "./subnets.js";
+chrome();
+
+const ROUTES = [
+  { prefix: "0.0.0.0/0", via: "ISP (default)" }, { prefix: "10.0.0.0/8", via: "company VPN" }, { prefix: "10.1.0.0/16", via: "office" },
+  { prefix: "10.1.2.0/24", via: "lab" }, { prefix: "192.168.1.0/24", via: "home network" },
+];
+function render() {
+  const ip = parse($("#ip").value), len = +$("#len").value; $("#lenv").textContent = "/" + len;
+  $("#err").textContent = ip === null ? "Not an IPv4 address." : "";
+  if (ip === null) return;
+  const b = bits(ip), blk = block(ip, len);
+  $("#bits").innerHTML = [0, 8, 16, 24].map(o => `<span>${[...b.slice(o, o + 8)].map((c, i) => `<span class="${o + i < len ? "net" : "host"}">${c}</span>`).join("")}</span>`).join("");
+  $("#stats").innerHTML = [[`${format(blk.network)}/${len}`, "network"], [format(blk.mask), "mask"], [`${format(blk.first)} – ${format(blk.last)}`, "usable range"],
+    [blk.usable.toLocaleString(), "usable hosts"], [len >= 31 ? "–" : format(blk.broadcast), "broadcast"], [kind(ip), "kind"]].map(statTile).join("");
+}
+function renderRoutes() {
+  const ip = parse($("#dst").value), best = ip === null ? null : route(ROUTES, ip);
+  $("#routes").innerHTML = `<tr><th>Prefix</th><th>Send to</th></tr>` + ROUTES.map(r => {
+    const m = ip !== null && route([r], ip);
+    return `<tr class="${best?.prefix === r.prefix ? "best" : m ? "match" : "miss"}"><td>${r.prefix}</td><td>${escapeHtml(r.via)}</td></tr>`; }).join("");
+  $("#chosen").textContent = ip === null ? "Not an IPv4 address." : `${ROUTES.filter(r => route([r], ip)).length} routes match; the /${best.len} is the most specific.`;
+}
+$("#ip").oninput = $("#len").oninput = render; $("#dst").oninput = renderRoutes;
+render(); renderRoutes();
+</script>
+</body>
+</html>

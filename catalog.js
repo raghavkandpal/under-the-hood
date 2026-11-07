@@ -11,6 +11,7 @@ export const AREAS = [
   ] },
   { id: "networking", title: "Networking & the web", topics: [
     { id: "how-the-network-works", title: "How the network works" },
+    { id: "the-web", title: "The web" },
   ] },
   { id: "databases", title: "Databases & storage", topics: [
     { id: "storage-engines", title: "Storage engines" },
@@ -124,7 +125,7 @@ export const CATALOG = [
     blurb: "Same loop, same data, several times slower: cache lines, sets, LRU eviction and why visit order matters.", prereqs: [] },
   { id: "virtual-memory", title: "Virtual memory", area: "systems", topic: "memory", level: "deep", tags: ["paging", "tlb", "page faults", "operating systems", "lru"],
     blurb: "Every address is translated on every access: pages, frames, the TLB, page faults, thrashing and Belady's anomaly.", prereqs: ["cpu-cache"] },
-  { id: "http-caching", title: "HTTP caching", area: "networking", topic: "how-the-network-works", level: "core", tags: ["cache-control", "etag", "cdn", "web performance", "304"],
+  { id: "http-caching", title: "HTTP caching", area: "networking", topic: "the-web", level: "core", tags: ["cache-control", "etag", "cdn", "web performance", "304"],
     blurb: "max-age, ETags, CDNs and no-store: when the browser reuses, revalidates or re-downloads, and why deploys go unseen.", prereqs: ["dns"] },
   { id: "routing", title: "Internet routing", area: "networking", topic: "how-the-network-works", level: "core", tags: ["routing", "bellman-ford", "rip", "bgp", "count to infinity", "network"],
     blurb: "Routers gossip with neighbours to find paths nobody planned. Cut a cable and watch bad news travel slowly.", prereqs: ["pathfinding"] },
@@ -256,7 +257,7 @@ export const CATALOG = [
     blurb: "Prove you know a secret while revealing nothing about it: sealed commitments, random challenges, and a bluffer who can't last.", prereqs: ["hash-functions", "signatures"] },
   { id: "dependency-resolution", title: "Dependency resolution", area: "tools", topic: "building-and-shipping", level: "core", tags: ["npm", "pip", "cargo", "semver", "lockfile", "package manager", "backtracking"],
     blurb: "What npm install actually solves: version ranges, a diamond conflict, backtracking, duplicates, and why lockfiles exist.", prereqs: ["build-systems"] },
-  { id: "cdn", title: "CDNs & edge caching", area: "networking", topic: "how-the-network-works", level: "core", tags: ["cdn", "edge", "latency", "cache", "ttl", "thundering herd", "anycast"],
+  { id: "cdn", title: "CDNs & edge caching", area: "networking", topic: "the-web", level: "core", tags: ["cdn", "edge", "latency", "cache", "ttl", "thundering herd", "anycast"],
     blurb: "Why the web feels fast from Sydney: edge servers near users, cache hits and misses, TTLs, and the stampede after a purge.", prereqs: ["http-caching"] },
   { id: "multiple-testing", title: "Multiple testing", area: "statistics", topic: "experiments-and-inference", level: "deep", tags: ["p-values", "p-hacking", "bonferroni", "false discovery rate", "benjamini-hochberg", "experiments"],
     blurb: "Test twenty useless ideas and one probably “wins”: false discoveries, Bonferroni, and Benjamini–Hochberg's rising line.", prereqs: ["abtest"] },
@@ -264,6 +265,18 @@ export const CATALOG = [
     blurb: "How every device at home shares one public address, why strangers can't reach you, and how video calls punch through anyway.", prereqs: ["routing", "tcp"] },
   { id: "normalization", title: "Database normalisation", area: "databases", topic: "queries", level: "intro", tags: ["normal forms", "3nf", "foreign keys", "schema design", "anomalies", "denormalisation", "sql"],
     blurb: "Store each fact once: three edits that make a one-table design contradict itself, and the linked tables that don't.", prereqs: [] },
+  { id: "congestion-control", title: "TCP congestion control", area: "networking", topic: "how-the-network-works", level: "core", tags: ["tcp", "aimd", "slow start", "cubic", "bbr", "fairness", "bufferbloat"],
+    blurb: "Speed up until packets drop, then halve: slow start, the AIMD sawtooth, and why halving makes two flows share fairly.", prereqs: ["tcp"] },
+  { id: "http-versions", title: "HTTP/1.1, 2 and 3", area: "networking", topic: "the-web", level: "core", tags: ["http/2", "http/3", "quic", "head-of-line blocking", "multiplexing", "web performance"],
+    blurb: "Six connections, one multiplexed stream, then QUIC: how each HTTP version loads a page, and what one lost packet costs.", prereqs: ["tcp", "tls"] },
+  { id: "subnets", title: "IP addresses and subnets", area: "networking", topic: "how-the-network-works", level: "intro", tags: ["ip address", "cidr", "subnet mask", "ipv4", "longest prefix match", "private ranges"],
+    blurb: "What /24 means: addresses as 32-bit numbers, network and host bits, and how routers pick the most specific route.", prereqs: [] },
+  { id: "websockets", title: "Polling vs WebSockets", area: "networking", topic: "the-web", level: "core", tags: ["websocket", "long polling", "server-sent events", "real-time", "push", "http"],
+    blurb: "Polling, long polling or a WebSocket: how fast each gets a server event to the browser, and how many requests it costs.", prereqs: ["tcp"] },
+  { id: "xss", title: "Cross-site scripting", area: "security", topic: "attacks-and-defences", level: "intro", tags: ["xss", "escaping", "content security policy", "owasp", "web security", "injection"],
+    blurb: "A comment that runs code: why escaping stops a script tag but not an unquoted attribute or a javascript: link.", prereqs: ["sql-injection"] },
+  { id: "csrf", title: "Cross-site request forgery", area: "security", topic: "attacks-and-defences", level: "core", tags: ["csrf", "samesite", "cookies", "csrf token", "web security", "owasp"],
+    blurb: "Another site makes your browser send your bank cookie: what SameSite Lax and Strict and CSRF tokens each stop.", prereqs: ["xss"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -274,7 +287,7 @@ export const hrefOf = c => `explainers/${c.id}/`;
  *  intro, audience and outcomes are shown on the path's own page (path/?id=…). */
 export const PATHS = [
   { id: "internet", title: "How the internet works", blurb: "From typing a URL to a secure, cached page.",
-    steps: ["dns", "tcp", "routing", "nat", "hash-functions", "dh", "signatures", "tls", "http-caching", "cdn", "load-balancing"],
+    steps: ["dns", "tcp", "congestion-control", "routing", "subnets", "nat", "hash-functions", "dh", "signatures", "tls", "http-versions", "websockets", "http-caching", "cdn", "load-balancing"],
     intro: "Typing a web address sets off a chain of systems most people never see. This path follows one page load from start to finish: finding the server, getting data across an unreliable network, proving you're talking to the right site, and serving the result fast to people around the world.",
     audience: "Developers who use the web every day and want to know what happens between pressing Enter and seeing the page.",
     outcomes: ["Trace a page load from DNS lookup to a cached response", "Explain how TCP turns lossy packets into a reliable stream", "Say what TLS actually proves, and how", "Explain why CDNs and load balancers make sites fast and resilient"] },
@@ -289,7 +302,7 @@ export const PATHS = [
     audience: "Developers and curious readers who use chatbots and want a real mental model of what's inside.",
     outcomes: ["Explain gradient descent and backpropagation in plain terms", "Describe tokens, embeddings and attention, and how they fit together", "Say how a model picks each next word, and what temperature changes", "Explain the KV cache, quantization, speculative decoding and RAG"] },
   { id: "security", title: "Security essentials", blurb: "The crypto and protocols behind every login and padlock.",
-    steps: ["hash-functions", "password-hashing", "totp", "cipher-modes", "dh", "signatures", "tls", "oauth", "sql-injection", "zero-knowledge"],
+    steps: ["hash-functions", "password-hashing", "totp", "cipher-modes", "dh", "signatures", "tls", "oauth", "sql-injection", "xss", "csrf", "zero-knowledge"],
     intro: "Every login, padlock and password reset rests on a few cryptographic building blocks and the protocols built from them. This path starts with hashes and keys, builds up to TLS and OAuth, and ends with the attacks that break real systems when those pieces are misused.",
     audience: "Developers who handle logins, secrets or user data, and anyone who wants to know what the padlock means.",
     outcomes: ["Explain hashing, encryption and signatures, and which to use when", "Describe how TLS and “Sign in with…” keep credentials safe", "Store passwords properly and add a second factor", "Spot SQL injection and the misuse of cipher modes"] },

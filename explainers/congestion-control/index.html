@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCP congestion control</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  .legend i.line { height: 3px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TCP congestion control</h1>
+  <p class="lede">Your connection shares every link with strangers, and nobody tells it how fast it may send. TCP finds out by speeding up until packets get lost, then backing off. Done the right way, everyone ends up with a fair share.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="rule"></div></div>
+    <div class="row" style="margin-top:6px">
+      <label class="inline">Link <input type="range" id="cap" min="20" max="100" step="10" value="50"> <b id="capv"></b></label>
+      <label class="inline">Buffer <input type="range" id="buf" min="0" max="100" step="10" value="0"> <b id="bufv"></b></label>
+      <label class="inline"><input type="checkbox" id="ss" checked> Slow start</label>
+    </div>
+    <svg class="chart" id="chart" viewBox="0 0 600 230" role="img" aria-label="Each flow's congestion window over time, and the link's capacity"></svg>
+    <ul class="legend">
+      <li><i class="line" style="--c:var(--blue)"></i>flow 1</li>
+      <li><i class="line" style="--c:var(--accent)"></i>flow 2</li>
+      <li><i class="line" style="--c:var(--red)"></i>capacity</li>
+    </ul>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The window.</b> A <a href="../tcp/">TCP</a> sender may have only so many unacknowledged packets in flight: its <i>congestion window</i>. Each round trip it sends about one window's worth. A bigger window means faster sending, so the whole question is how to set it without knowing the link's speed or who else is using it.</p>
+  <p><b>Slow start.</b> A new connection starts with a tiny window and doubles it every round trip: 1, 2, 4, 8… That finds the right order of magnitude in a handful of round trips. Once a packet is lost, it switches to growing carefully.</p>
+  <p><b>AIMD.</b> Additive increase, multiplicative decrease: add one packet per round trip, and halve the window when a loss shows the link is full. The window traces a sawtooth. With no buffer, it swings between half and all of the link, so a single flow uses about 75% of it. A router buffer the size of the link fills those troughs, at the cost of packets queueing (that queue is the lag you feel on a busy Wi-Fi network).</p>
+  <p><b>Why halving is fair.</b> When two flows both add one, the gap between them stays the same. When both halve, the gap halves too. So every loss shrinks the head start of whoever got there first, and the flows converge on equal shares. Subtract a fixed amount instead (AIAD) and the gap never closes; grow by 10% (MIMD) and the big flow grows faster than the small one. Chiu and Jain proved in 1989 that AIMD is the combination that converges.</p>
+  <div class="note"><b>Try it.</b> Flow 2 joins at round trip 40, when flow 1 already holds the link. Watch how many losses it takes AIMD to even them out, then switch to AIAD.</div>
+  <p><b>Today.</b> Linux defaults to CUBIC, which grows along a cubic curve so it refills fast long-distance links quicker, but still backs off multiplicatively. Google's BBR instead measures the bottleneck's bandwidth and round-trip time and paces to them, rather than waiting for loss.</p>
+  <p class="caveat">Simplified: time moves in whole round trips, every flow has the same round-trip time, and a loss hits every flow at once. Real losses are uneven, and flows with shorter round trips grow faster and take more.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { simulate } from "./congestion-control.js";
+chrome();
+
+let rule = "aimd";
+tabs($("#rule"), { aimd: "AIMD", aiad: "AIAD", mimd: "MIMD" }, rule, k => { rule = k; render(); });
+function render() {
+  const capacity = +$("#cap").value, buffer = +$("#buf").value, rtts = 200;
+  $("#capv").textContent = capacity; $("#bufv").textContent = buffer;
+  const r = simulate({ rule, capacity, buffer, rtts, slowStart: $("#ss").checked });
+  const L = 36, R = 590, T = 10, B = 205, M = (capacity + buffer) * 1.15, X = t => L + (R - L) * t / (rtts - 1), Y = v => B - (B - T) * Math.min(v, M) / M;
+  const svg = $("#chart"); svg.replaceChildren();
+  for (const v of [0, capacity, capacity + buffer]) svg.append(svgEl("text", { x: L - 5, y: Y(v) + 4, "text-anchor": "end" }, v));
+  svg.append(svgEl("line", { x1: L, x2: R, y1: B, y2: B, stroke: "var(--border)" }), svgEl("line", { x1: L, x2: R, y1: Y(capacity + buffer), y2: Y(capacity + buffer), stroke: "var(--red)", "stroke-dasharray": "5 4" }));
+  r.series.forEach((s, i) => svg.append(svgEl("polyline", { points: s.map((v, t) => (v === null ? null : `${X(t)},${Y(v)}`)).filter(Boolean).join(" "), fill: "none", stroke: i ? "var(--accent)" : "var(--blue)", "stroke-width": 1.8 })));
+  for (const t of [0, 50, 100, 150, 199]) svg.append(svgEl("text", { x: X(t), y: B + 16, "text-anchor": "middle" }, t));
+  $("#stats").innerHTML = [[Math.round(r.utilisation * 100) + "%", "link used"], [r.avgs.map(a => Math.round(a)).join(" / "), "average windows"], [r.fairness.toFixed(2), "fairness (1 = equal)"], [r.losses.length, "loss events"]].map(statTile).join("");
+}
+["#cap", "#buf"].forEach(s => ($(s).oninput = render)); $("#ss").onchange = render;
+render();
+</script>
+</body>
+</html>

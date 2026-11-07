@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTTP/1.1, 2 and 3</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 4px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  .lane { margin-top: 12px; } .lane b { font-size: 14px; }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>HTTP/1.1, 2 and 3</h1>
+  <p class="lede">A web page is dozens of files. Each version of HTTP found a better way to fetch them all at once, and HTTP/3 finally stopped one lost packet from holding up the rest.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Loss <input type="range" id="loss" min="0" max="20" value="3"> <b id="lossv"></b></label>
+      <button id="again">New page load</button>
+    </div>
+    <div class="lane"><b>HTTP/1.1</b> <span class="status" id="t-h1"></span>
+      <svg class="chart" id="g-h1" viewBox="0 0 600 138" role="img" aria-label="HTTP/1.1: when each file was fetched"></svg></div>
+    <div class="lane"><b>HTTP/2</b> <span class="status" id="t-h2"></span>
+      <svg class="chart" id="g-h2" viewBox="0 0 600 138" role="img" aria-label="HTTP/2: when each file was fetched"></svg></div>
+    <div class="lane"><b>HTTP/3</b> <span class="status" id="t-h3"></span>
+      <svg class="chart" id="g-h3" viewBox="0 0 600 138" role="img" aria-label="HTTP/3: when each file was fetched"></svg></div>
+    <ul class="legend">
+      <li><i style="--c:var(--accent)"></i>transferring</li>
+      <li><i style="--c:var(--red)"></i>stalled by loss</li>
+      <li><i style="--c:var(--border)"></i>waiting</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <b>Average over 1,000 loads, in round trips</b>
+    <div class="scroll-x"><table class="data" id="table"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>HTTP/1.1.</b> One connection carries one request at a time: ask, wait a round trip, get the file, ask for the next. Browsers open about six connections per site to fetch six files at once, and each new connection pays its own <a href="../tcp/">TCP</a> and <a href="../tls/">TLS</a> handshakes first. Sites used to work around the limit by bundling files and spreading them over extra domains.</p>
+  <p><b>HTTP/2.</b> One connection, many <i>streams</i>: the browser sends every request at once, and the responses come back interleaved in small frames. No more queuing behind six slots. But it all rides on one TCP byte stream, and TCP delivers bytes strictly in order. If one packet is lost, everything after it waits for the retransmission, even frames for other files that arrived fine. That's <i>head-of-line blocking</i>, and the more files are in flight, the more likely each round trip contains a loss.</p>
+  <div class="note"><b>Try it.</b> Raise the loss to 10%. HTTP/2 falls behind HTTP/1.1, whose six separate connections each stall alone.</div>
+  <p><b>HTTP/3.</b> QUIC moves the transport into user space on top of UDP, and keeps a separate order for each stream. A lost packet now delays only the file it belonged to. QUIC also merges the transport and TLS 1.3 handshakes into one round trip, and lets a phone switch from Wi-Fi to mobile data without starting over.</p>
+  <p class="caveat">Simplified: time moves in round trips, files are small and equal, every lost packet costs one extra round trip, and congestion control is ignored. HTTP/2 also compresses headers, and HTTP/3 can resume known servers with no handshake at all.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl } from "../../shared/common.js";
+import { load, average, PROTOCOLS } from "./http-versions.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const NAMES = { h1: "HTTP/1.1", h2: "HTTP/2", h3: "HTTP/3" };
+let seed = 1;
+function render() {
+  const loss = +$("#loss").value / 100; $("#lossv").textContent = $("#loss").value + "%";
+  const runs = Object.fromEntries(Object.keys(NAMES).map(p => [p, load(p, { loss, rnd: mulberry(seed) })]));
+  const span = Math.max(12, ...Object.values(runs).map(r => r.total));
+  for (const [p, r] of Object.entries(runs)) {
+    const svg = $(`#g-${p}`), hs = PROTOCOLS[p].handshake, n = r.files.length, L = 4, rowH = 4, cw = 592 / span;
+    $(`#t-${p}`).textContent = `${r.total} round trips`; svg.replaceChildren();
+    for (let t = 0; t <= span; t += 2) svg.append(svgEl("text", { x: L + t * cw, y: n * rowH + 14, "text-anchor": "middle" }, t));
+    svg.append(svgEl("rect", { x: L, y: 0, width: hs * cw, height: n * rowH, fill: "var(--surface-2)" }));
+    r.files.forEach((f, i) => {
+      if (f.start > hs) svg.append(svgEl("rect", { x: L + hs * cw, y: i * rowH, width: (f.start - hs) * cw, height: rowH - 1, fill: "var(--border)" }));
+      for (let t = f.start; t < f.end; t++) svg.append(svgEl("rect", { x: L + t * cw, y: i * rowH, width: cw - 0.5, height: rowH - 1, fill: f.stalls.includes(t) ? "var(--red)" : "var(--accent)" }));
+    });
+  }
+}
+function table() {
+  const losses = [0, 2, 5, 10, 20];
+  $("#table").innerHTML = `<tr><th>Loss</th>${losses.map(l => `<th>${l}%</th>`).join("")}</tr>` + Object.entries(NAMES).map(([p, n]) =>
+    `<tr><td>${n}</td>${losses.map((l, k) => `<td class="num">${average(p, { loss: l / 100 }, 1000, mulberry(k + 1)).toFixed(1)}</td>`).join("")}</tr>`).join("");
+}
+$("#loss").oninput = render;
+$("#again").onclick = () => { seed++; render(); };
+render(); table();
+</script>
+</body>
+</html>

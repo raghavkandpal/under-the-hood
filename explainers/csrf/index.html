@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cross-site request forgery</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  table.data td { text-align: center; } table.data td:first-child, table.data th:first-child { text-align: left; }
+  table.data td button { width: 100%; font-size: 13px; padding: 4px 6px; }
+  table.data td button.bad { color: var(--red); } table.data td button.good { color: var(--green); }
+  table.data td button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  table.data tr.attack td:first-child { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cross-site request forgery</h1>
+  <p class="lede">You're logged in to your bank in one tab. In another, you open a page that quietly submits a transfer form to the bank. Your browser helpfully attaches your bank cookie, and the bank sees a request from you.</p>
+
+  <div class="panel">
+    <div class="scroll-x"><table class="data" id="matrix"></table></div>
+    <ul class="legend"><li><i style="--c:var(--red)"></i>goes wrong</li><li><i style="--c:var(--green)"></i>as intended</li></ul>
+    <p class="status" id="story"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Ambient credentials.</b> A session cookie is sent with every request to its site, whoever caused the request: the bank's own page, a form on another site, an image tag, a script. The bank's server sees a valid cookie and has no way to tell that you didn't mean it. The attacker never sees your cookie or the response; they don't need to, because the transfer has already happened.</p>
+  <p><b>SameSite cookies.</b> A cookie marked <code>SameSite=Lax</code> isn't sent on requests that other sites start, with one exception: following a link (a top-level GET navigation) still sends it, so links from email and search results open you logged in. That stops forged forms and background <code>fetch()</code>. Browsers now treat cookies with no SameSite setting as Lax. <code>Strict</code> doesn't make the exception, which is safer but means every link from outside lands you logged out.</p>
+  <p><b>Safe methods.</b> Lax relies on GET requests being harmless, as HTTP says they should be. A bank that transfers money on <code>GET /transfer?to=…</code> is wide open even with Lax, and with a token too, since links carry no token.</p>
+  <div class="note"><b>Try it.</b> Compare the evil GET link under Lax and under a token, then see what Strict does to the link from your email.</div>
+  <p><b>CSRF tokens.</b> The bank puts a random secret in every form it serves and rejects any POST without it. Another site can make your browser send a request, but it can't read the bank's pages, so it can't know the token. Most web frameworks do this for you. Checking the <code>Origin</code> header works on the same principle: the browser, not the page, says where the request came from.</p>
+  <p><b>Not XSS.</b> All of this assumes the attacker's code runs on <i>another</i> site. With <a href="../xss/">cross-site scripting</a> their code runs on the bank's own pages, where it can read the token and every defence here is useless.</p>
+  <p class="caveat">Simplified: one session cookie, and the token check skips GETs as most frameworks do. Lax also has a two-minute grace period for new cookies on cross-site POSTs in some browsers.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml } from "../../shared/common.js";
+import { SCENARIOS, DEFENCES, outcome, good, cookieSent } from "./csrf.js";
+chrome();
+
+let sel = ["getLink", "lax"];
+function render() {
+  $("#matrix").innerHTML = `<tr><th>Request to bank.example</th>${Object.values(DEFENCES).map(d => `<th>${d}</th>`).join("")}</tr>` +
+    Object.entries(SCENARIOS).map(([k, s]) => `<tr class="${s.attack ? "attack" : ""}"><td>${escapeHtml(s.name)}</td>${Object.keys(DEFENCES).map(d =>
+      `<td><button data-k="${k}" data-d="${d}" class="${good(k, d) ? "good" : "bad"}" aria-pressed="${sel[0] === k && sel[1] === d}">${outcome(k, d)}</button></td>`).join("")}</tr>`).join("");
+  const [k, d] = sel, s = SCENARIOS[k], o = outcome(k, d);
+  $("#story").textContent = `${s.method} from ${s.from}${s.topLevel ? ", as a navigation" : ", in the background"}. Cookie ${cookieSent(s, d) ? "sent" : "not sent"}${d === "token" && s.method !== "GET" ? `, token ${s.token ? "present" : "missing"}` : ""}. Result: ${o}.`;
+}
+$("#matrix").onclick = e => { const b = e.target.closest("button[data-k]"); if (b) { sel = [b.dataset.k, b.dataset.d]; render(); } };
+render();
+</script>
+</body>
+</html>
