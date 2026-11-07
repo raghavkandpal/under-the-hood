@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Branch prediction</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+  table.data tr.sel td { background: var(--accent-soft); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Branch prediction</h1>
+  <p class="lede">The same loop over the same numbers can run several times faster if the numbers are sorted first. Nothing about the work changes. The processor just stops guessing wrong about one <code>if</code>.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="pattern"></div></div>
+    <div class="row" style="margin-top:6px"><div class="seg" id="pred"></div></div>
+    <svg class="chart" id="strip" viewBox="0 0 600 110" role="img" aria-label="The first 200 branches: which way each went, and whether the guess was right"></svg>
+    <ul class="legend"><li><i style="--c:var(--text)"></i>taken</li><li><i style="--c:var(--border)"></i>not taken</li><li><i style="--c:var(--red)"></i>wrong guess</li></ul>
+    <div class="scroll-x"><table class="data" id="table"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Pipelines guess.</b> A modern core works on a dozen or more instructions at once, each at a different stage, like an assembly line. When it reaches a branch, the instructions after it are already needed, but whether the condition is true won't be known for several cycles. Rather than wait, the processor guesses and carries on. A right guess costs nothing. A wrong one means throwing away the work in flight and restarting, around 15 cycles.</p>
+  <p><b>The sorted-array trick.</b> Take <code>if (x &gt;= 128) sum += x</code> over random bytes. Unsorted, the branch is a coin toss and no predictor beats 50%. Sorted, it's false for the first half and true for the rest, so after one wrong guess at the switch every guess is right. With 15 cycles a miss, that's roughly 8.5 cycles per element against 1: the same instructions, several times faster.</p>
+  <p><b>Counters.</b> The simplest real predictor remembers which way the branch went last time. A 2-bit counter needs two wrong guesses in a row before it changes its mind. That matters for loops: at the end of each loop the exit branch falls through once, and a 1-bit predictor then gets the next loop's first iteration wrong as well. A 2-bit counter misses only the exit.</p>
+  <div class="note"><b>Try it.</b> On the alternating pattern, compare the 1-bit and 2-bit counters with the history predictor.</div>
+  <p><b>History.</b> Real predictors also look at the last several outcomes and keep a separate counter for each recent pattern, so they learn repeating sequences like alternation, or a loop that always runs 8 times. Modern designs (TAGE, perceptron predictors) combine many history lengths and get well over 95% right on typical code.</p>
+  <p><b>Avoiding the branch.</b> Compilers can sometimes replace a branch with a conditional move, or with arithmetic like <code>sum += x &amp; -(x &gt;= 128)</code>, which has nothing to predict. Code that sorts or groups data so similar items come together helps the predictor and the <a href="../cpu-cache/">cache</a> at the same time.</p>
+  <p class="caveat">Simplified: one branch in isolation, one cycle per element otherwise, and a 15-cycle penalty. Real predictors share tables between branches, and the speculative work they throw away was the root of the Spectre attacks.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, tabs } from "../../shared/common.js";
+import { run, PATTERNS, cycles } from "./branch-prediction.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const PN = { random: "Random bytes", sorted: "Sorted bytes", loop: "Loop of 8", alternating: "Alternating" };
+const KN = { static: "Always taken", oneBit: "1-bit", twoBit: "2-bit counter", history: "History" };
+let pattern = "random", pred = "twoBit";
+tabs($("#pattern"), PN, pattern, k => { pattern = k; render(); });
+tabs($("#pred"), KN, pred, k => { pred = k; render(); });
+const N = 4000;
+function render() {
+  const outcomes = PATTERNS[pattern](N, mulberry(1)), r = run(pred, outcomes), svg = $("#strip"), shown = 200, per = 50, cw = 592 / per;
+  svg.replaceChildren();
+  for (let i = 0; i < shown; i++) { const x = 4 + (i % per) * cw, y = 4 + Math.floor(i / per) * 26;
+    svg.append(svgEl("rect", { x, y, width: cw - 1.5, height: 14, rx: 2, fill: outcomes[i] ? "var(--text)" : "var(--border)" }));
+    if (!r.hits[i]) svg.append(svgEl("rect", { x, y: y + 16, width: cw - 1.5, height: 4, rx: 1, fill: "var(--red)" })); }
+  $("#table").innerHTML = `<tr><th>${N.toLocaleString()} branches</th><th>Wrong guesses</th><th>Cycles per element</th></tr>` + Object.entries(KN).map(([k, n]) => { const x = run(k, outcomes), m = Math.round(x.missRate * N);
+    return `<tr class="${k === pred ? "sel" : ""}"><td>${n}</td><td class="num">${(x.missRate * 100).toFixed(1)}%</td><td class="num">${(cycles(N, m) / N).toFixed(2)}</td></tr>`; }).join("");
+}
+render();
+</script>
+</body>
+</html>

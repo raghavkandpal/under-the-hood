@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polling vs WebSockets</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Polling vs WebSockets</h1>
+  <p class="lede">HTTP only lets the browser ask. So how does a chat app show a new message the moment it's sent? Either ask over and over, ask and wait, or open a connection where the server can speak first.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Events <input type="range" id="rate" min="1" max="60" value="6"> <b id="ratev"></b></label>
+      <label class="inline">Poll every <input type="range" id="int" min="1" max="30" value="10"> <b id="intv"></b></label>
+      <button id="again">New events</button>
+    </div>
+    <svg class="chart" id="chart" viewBox="0 0 600 190" role="img" aria-label="The first two minutes: events, requests and when each event reaches the browser"></svg>
+    <ul class="legend">
+      <li><i style="--c:var(--red)"></i>event on the server</li>
+      <li><i style="--c:var(--muted)"></i>request</li>
+      <li><i style="--c:var(--accent)"></i>wait until delivered</li>
+    </ul>
+    <div class="scroll-x"><table class="data" id="table"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Polling.</b> The browser asks “anything new?” every few seconds. It's simple and works everywhere, but an event waits half the interval on average before anyone asks, and most requests come back empty. Each one carries several hundred bytes of HTTP headers, and the server has to handle every one of them from every user.</p>
+  <p><b>Long polling.</b> The browser asks, and the server holds the request open until it has something to say (or a timeout, around 30 seconds, passes). Delivery is nearly instant. But every event costs a whole request and response, plus a round trip to set up the next one, so a busy stream ends up making more requests than plain polling would.</p>
+  <div class="note"><b>Try it.</b> Push the events up to 60 a minute and compare the request counts for polling and long polling.</div>
+  <p><b>WebSockets.</b> One HTTP request asks to <i>upgrade</i> the connection. After the server agrees, the same <a href="../tcp/">TCP</a> connection carries small frames in both directions, each with a header of 2 to 14 bytes. Events arrive half a round trip after they happen, and an idle connection costs only an occasional ping. The price is a long-lived connection per user, which servers, load balancers and proxies all have to hold open.</p>
+  <p><b>Server-sent events.</b> When only the server needs to push, as with notifications or live scores, SSE streams events down a normal HTTP response. With <a href="../http-versions/">HTTP/2</a> many streams share one connection, and the browser reconnects by itself.</p>
+  <p class="caveat">Simplified: header sizes are rough averages, the network never loses packets, and the server answers instantly. Real long polling also loses events that arrive while no request is open, unless the server queues them, as this one does.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl } from "../../shared/common.js";
+import { events, deliver } from "./websockets.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const NAMES = { poll: "Polling", long: "Long polling", ws: "WebSocket" };
+let seed = 1;
+function render() {
+  const perMin = +$("#rate").value, interval = +$("#int").value;
+  $("#ratev").textContent = perMin + "/min"; $("#intv").textContent = interval + " s";
+  const evs = events({ perMin, rnd: mulberry(seed) }), res = Object.fromEntries(Object.keys(NAMES).map(m => [m, deliver(m, evs, { interval })]));
+  const L = 90, R = 590, span = 120, X = t => L + (R - L) * t / span, svg = $("#chart"); svg.replaceChildren();
+  const shown = evs.filter(e => e < span);
+  svg.append(svgEl("text", { x: L - 8, y: 24, "text-anchor": "end" }, "server"));
+  for (const e of shown) svg.append(svgEl("line", { x1: X(e), x2: X(e), y1: 12, y2: 30, stroke: "var(--red)", "stroke-width": 2 }));
+  Object.entries(NAMES).forEach(([m, n], k) => {
+    const y = 62 + k * 46, r = res[m];
+    svg.append(svgEl("text", { x: L - 8, y: y + 4, "text-anchor": "end" }, n), svgEl("line", { x1: L, x2: R, y1: y, y2: y, stroke: "var(--border)" }));
+    for (const t of r.times.filter(t => t < span)) svg.append(svgEl("line", { x1: X(t), x2: X(t), y1: y - 7, y2: y + 7, stroke: "var(--muted)" }));
+    shown.forEach((e, i) => svg.append(svgEl("line", { x1: X(e), x2: X(Math.min(span, e + r.latency[i])) + 1.5, y1: y - 12, y2: y - 12, stroke: "var(--accent)", "stroke-width": 4, "stroke-linecap": "round" })));
+  });
+  for (const t of [0, 30, 60, 90, 120]) svg.append(svgEl("text", { x: X(t), y: 182, "text-anchor": "middle" }, t + "s"));
+  const kb = b => (b / 1024).toFixed(1) + " KB";
+  $("#table").innerHTML = `<tr><th>10 minutes</th><th>Average delay</th><th>Requests</th><th>Overhead</th></tr>` + Object.entries(NAMES).map(([m, n]) =>
+    `<tr><td>${n}</td><td class="num">${res[m].avg < 1 ? Math.round(res[m].avg * 1000) + " ms" : res[m].avg.toFixed(1) + " s"}</td><td class="num">${res[m].requests}</td><td class="num">${kb(res[m].bytes)}</td></tr>`).join("");
+}
+["#rate", "#int"].forEach(s => ($(s).oninput = render));
+$("#again").onclick = () => { seed++; render(); };
+render();
+</script>
+</body>
+</html>

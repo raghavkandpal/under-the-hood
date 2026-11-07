@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>String searching</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  input.mono { font-family: var(--mono); }
+  #text { width: 100%; max-width: 560px; } #pat { width: 12em; }
+  .grid { font-family: var(--mono); font-size: 14px; line-height: 1.55; margin-top: 10px; white-space: pre; }
+  .grid div { display: flex; } .grid span { width: 1.15ch; text-align: center; flex: none; }
+  .grid .txt { color: var(--text); font-weight: 600; border-bottom: 1px solid var(--border); margin-bottom: 2px; }
+  .grid .ok { color: var(--green); font-weight: 700; } .grid .no { color: var(--red); font-weight: 700; background: var(--red-soft); }
+  .grid .known { color: var(--muted); } .grid .idle { color: var(--muted); opacity: 0.35; }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>String searching</h1>
+  <p class="lede">Ctrl+F looks simple: slide the word along the text and compare. The clever algorithms learn from each mismatch how far they can safely jump, and some barely read most of the text.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="algo"></div><div class="seg" id="preset"></div></div>
+    <div class="row" style="margin-top:8px">
+      <label class="inline">Text <input class="mono" id="text" spellcheck="false"></label>
+      <label class="inline">Find <input class="mono" id="pat" spellcheck="false"></label>
+    </div>
+    <div class="scroll-x"><div class="grid" id="grid" aria-label="Each alignment of the pattern against the text"></div></div>
+    <ul class="legend"><li><i style="--c:var(--green)"></i>match</li><li><i style="--c:var(--red)"></i>mismatch</li><li><i style="--c:var(--muted)"></i>known, not compared</li></ul>
+    <div class="scroll-x"><table class="data" id="table"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Naive.</b> Line the pattern up at each position in turn and compare characters left to right until one differs. On ordinary text the first character usually differs, so it's fast. On repetitive text, like a run of a's with a b at the end, almost every alignment matches all but the last character, and the work becomes n × m.</p>
+  <p><b>Knuth–Morris–Pratt.</b> When a mismatch comes after some matches, you already know what those text characters were: they were the start of the pattern. KMP precomputes, for each prefix of the pattern, how long a piece of it is also its own suffix. On a mismatch it shifts the pattern so that piece lines up, and carries on from the same text position. It never re-reads a text character it has passed, so it does at most about 2n comparisons whatever the input.</p>
+  <p><b>Boyer–Moore–Horspool.</b> Compare from the pattern's <i>end</i>. If the text character under the last position doesn't occur in the pattern at all, nothing can match until you're past it, so jump the whole pattern length. Otherwise jump just far enough to line it up with its last occurrence in the pattern. With long patterns and a large alphabet most jumps are big, and it reads a fraction of the text: the longer the pattern, the faster the search. GNU grep is built on this idea.</p>
+  <div class="note"><b>Try it.</b> On the sentence, search for a long word with Horspool and count how few columns get compared. Then switch to the repetitive text and compare all three.</div>
+  <p class="caveat">Simplified: Horspool is the simple half of Boyer–Moore; the full algorithm adds a second, KMP-like shift rule. Real tools also use SIMD to compare many bytes at once, and automata like Aho–Corasick to search for many patterns together.</p>
+</main>
+<script type="module">
+import { chrome, $, tabs, escapeHtml } from "../../shared/common.js";
+import { ALGORITHMS } from "./string-search.js";
+chrome();
+
+const NAMES = { naive: "Naive", kmp: "KMP", horspool: "Horspool" };
+const PRESETS = { prose: ["the quick fox jumps over the lazy dog and the quiet frog", "quiet frog"], dna: ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab", "aaaaab"], self: ["abcabcabdabcabcabd", "abcabd"] };
+let algo = "horspool";
+tabs($("#algo"), NAMES, algo, k => { algo = k; render(); });
+const pick = tabs($("#preset"), { prose: "Sentence", dna: "Repetitive", self: "Self-similar" }, "prose", k => { [$("#text").value, $("#pat").value] = PRESETS[k]; render(); });
+[$("#text").value, $("#pat").value] = PRESETS.prose;
+$("#text").oninput = $("#pat").oninput = () => { pick(null); render(); };
+function render() {
+  const text = $("#text").value, pat = $("#pat").value;
+  if (!pat || pat.length > text.length) { $("#grid").innerHTML = ""; $("#table").innerHTML = ""; return; }
+  const r = ALGORITHMS[algo](text, pat), cell = (c, cls) => `<span class="${cls}">${escapeHtml(c === " " ? "·" : c)}</span>`, rows = r.trace.slice(0, 40);
+  $("#grid").innerHTML = `<div class="txt">${[...text].map(c => cell(c, "")).join("")}</div>` + rows.map(({ shift, cells }) => {
+    const at = new Map(cells.map(c => [c.i, c]));
+    return `<div>${[...text].map((_, x) => { const i = x - shift; if (i < 0 || i >= pat.length) return `<span></span>`; const c = at.get(i);
+      return cell(pat[i], !c ? "idle" : c.known ? "known" : c.ok ? "ok" : "no"); }).join("")}</div>`; }).join("") + (r.trace.length > rows.length ? `<div>${cell("…", "idle")}</div>` : "");
+  $("#table").innerHTML = `<tr><th></th><th>Comparisons</th><th>Alignments</th><th>Matches</th></tr>` + Object.entries(NAMES).map(([k, n]) => { const x = ALGORITHMS[k](text, pat);
+    return `<tr><td>${k === algo ? `<b>${n}</b>` : n}</td><td class="num">${x.comparisons}</td><td class="num">${x.trace.length}</td><td class="num">${x.matches.length}</td></tr>`; }).join("");
+}
+render();
+</script>
+</body>
+</html>

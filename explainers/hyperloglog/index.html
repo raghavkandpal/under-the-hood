@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HyperLogLog</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>HyperLogLog</h1>
+  <p class="lede">How many different people visited today? Keeping every id you've seen takes memory in proportion to the answer. HyperLogLog gets within a few percent of a billion using about a kilobyte, by watching for unusually lucky hashes.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Distinct visitors <input type="range" id="n" min="1" max="6" step="0.1" value="4"> <b id="nv"></b></label>
+      <label class="inline">Registers <input type="range" id="p" min="4" max="14" value="10"> <b id="pv"></b></label>
+      <button id="again">New visitors</button>
+    </div>
+    <svg class="chart" id="chart" viewBox="0 0 600 160" role="img" aria-label="Each register's value: the longest run of leading zero bits it has seen"></svg>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel">
+    <b>100,000 visitors, 20 trials each</b>
+    <div class="scroll-x"><table class="data" id="table"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Lucky runs.</b> Flip a coin until it lands heads. A run of 10 tails before the first heads happens about once in 1,024 tries. So if someone tells you the longest run they saw was 10, they probably tried around a thousand times. Hash every visitor id into random-looking bits and count the leading zeros: the longest run you've seen tells you roughly how many distinct ids there were. Repeats hash the same way, so seeing a visitor twice changes nothing.</p>
+  <p><b>Averaging.</b> One longest run is a wild guess, off by a factor of two either way. So HyperLogLog splits the hashes into <i>m</i> buckets (the first few bits pick the register) and keeps the longest run per register. Combining them with a harmonic mean, which isn't thrown off by one lucky register, and a correction constant gives an estimate with a standard error of about 1.04/√m: 3% with 1,024 registers, under 1% with 16,384.</p>
+  <p><b>Tiny memory.</b> A register only needs to store a number up to about 64, which is 6 bits. 16,384 registers are 12 KB, and that sketch counts up to billions of distinct items at under 1% error. Redis's <code>PFCOUNT</code> works exactly like this.</p>
+  <div class="note"><b>Try it.</b> Push the visitors to a million and the registers down to 16, then up to 16,384, and compare the error with the table.</div>
+  <p><b>Merging.</b> Two sketches of the same size combine by taking the larger value in each register. The result is exactly the sketch you'd have built from both streams, so servers can count separately and merge, and daily sketches combine into a weekly unique count without double-counting anyone.</p>
+  <p class="caveat">Simplified: 32-bit hashes and only the small-range correction. Production versions use 64-bit hashes, a sparse format while the count is small, and bias tables (HyperLogLog++).</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { sketch, add, estimate, stdError } from "./hyperloglog.js";
+chrome();
+
+let seed = 0;
+const fmt = n => Math.round(n).toLocaleString();
+function build(p, n, tag) { const s = sketch(p); for (let i = 0; i < n; i++) add(s, `${tag}-${i}`); return s; }
+function render() {
+  const n = Math.round(10 ** +$("#n").value), p = +$("#p").value, m = 1 << p;
+  $("#nv").textContent = fmt(n); $("#pv").textContent = m.toLocaleString();
+  const s = build(p, n, "v" + seed), e = estimate(s), top = Math.max(8, ...s.reg);
+  const L = 26, R = 590, T = 8, B = 140, w = (R - L) / m, svg = $("#chart"); svg.replaceChildren();
+  for (const v of [0, Math.round(top / 2), top]) svg.append(svgEl("text", { x: L - 5, y: B - (B - T) * v / top + 4, "text-anchor": "end" }, v));
+  svg.append(svgEl("line", { x1: L, x2: R, y1: B, y2: B, stroke: "var(--border)" }));
+  s.reg.forEach((r, i) => r && svg.append(svgEl("rect", { x: L + i * w, y: B - (B - T) * r / top, width: Math.max(w - (m <= 64 ? 1 : 0), 0.6), height: (B - T) * r / top, fill: "var(--accent)" })));
+  svg.append(svgEl("text", { x: L, y: B + 15 }, "register 1"), svgEl("text", { x: R, y: B + 15, "text-anchor": "end" }, `register ${m.toLocaleString()}`));
+  $("#stats").innerHTML = [[fmt(n), "true count"], [fmt(e), "estimate"], [((e - n) / n * 100).toFixed(1) + "%", "error"], [`${Math.ceil(m * 6 / 8).toLocaleString()} B`, "sketch size"], [`${fmt(n * 16 / 1024)} KB`, "exact set, 16 B per id"]].map(statTile).join("");
+}
+function table() {
+  $("#table").innerHTML = `<tr><th>Registers</th><th>Size</th><th>Expected error</th><th>Average error</th></tr>` + [4, 6, 8, 10, 12, 14].map(p => {
+    let err = 0; for (let t = 0; t < 20; t++) err += Math.abs(estimate(build(p, 100000, "t" + t)) - 100000) / 100000;
+    return `<tr><td class="num">${(1 << p).toLocaleString()}</td><td class="num">${Math.ceil((1 << p) * 6 / 8).toLocaleString()} B</td><td class="num">${(stdError(p) * 100).toFixed(1)}%</td><td class="num">${(err / 20 * 100).toFixed(1)}%</td></tr>`; }).join("");
+}
+$("#n").oninput = $("#p").oninput = render;
+$("#again").onclick = () => { seed++; render(); };
+render(); setTimeout(table, 50);
+</script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markov chains</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  .legend i.line { height: 3px; border-radius: 2px; }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Markov chains</h1>
+  <p class="lede">If tomorrow's weather depends only on today's, you can forecast a week ahead by multiplying a small table by itself. Do it long enough and something odd happens: the forecast stops depending on today at all.</p>
+
+  <div class="panel">
+    <div class="row"><b>Today</b><div class="seg" id="start"></div></div>
+    <div class="row" style="margin-top:6px">
+      <label class="inline">Sunny stays sunny <input type="range" id="ss" min="0.05" max="0.95" step="0.05" value="0.7"> <b id="ssv"></b></label>
+      <label class="inline">Rain stays rainy <input type="range" id="rr" min="0.05" max="0.95" step="0.05" value="0.5"> <b id="rrv"></b></label>
+    </div>
+    <div class="scroll-x"><table class="data" id="matrix"></table></div>
+    <svg class="chart" id="chart" viewBox="0 0 600 190" role="img" aria-label="Chance of each kind of weather on each of the next 14 days, with the long-run mix as dashed lines"></svg>
+    <ul class="legend"><li><i class="line" style="--c:var(--accent)"></i>sunny</li><li><i class="line" style="--c:var(--muted)"></i>cloudy</li><li><i class="line" style="--c:var(--blue)"></i>rainy</li></ul>
+    <svg class="chart" id="walk" viewBox="0 0 600 40" role="img" aria-label="One simulated stretch of 60 days"></svg>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Memoryless.</b> A Markov chain is a set of states and, for each one, the chances of moving to each state next. Only the present matters: how the weather got to be rainy doesn't change tomorrow's odds. The table is the whole model, and every row adds up to 1.</p>
+  <p><b>Forecasting.</b> If today is sunny, tomorrow's chances are just the sunny row. For the day after, average the rows by those chances, which is multiplying the distribution by the table once more. A forecast <i>n</i> days out is the table multiplied by itself <i>n</i> times.</p>
+  <p><b>The long run.</b> Each multiplication blends the rows a bit more, and after a couple of weeks every starting point gives the same answer: the <i>stationary distribution</i>, the mix that one more step leaves unchanged. It's also how often each kind of day turns up over a long stretch, which is why the simulated days' counts land on it. This holds for any chain where every state can reach every other and the chain doesn't cycle in lockstep.</p>
+  <div class="note"><b>Try it.</b> Make sunny days very sticky and watch both the long-run mix and how many days it takes to forget today.</div>
+  <p><b>Everywhere.</b> <a href="../pagerank/">PageRank</a> is the stationary distribution of a random web surfer. Text predictors used to be Markov chains over words, and language models are vastly richer versions of the same question: what comes next, given what came before. Markov chain Monte Carlo samples from hard distributions by designing a chain whose long run is the distribution you want.</p>
+  <p class="caveat">Simplified: three states, and changing one probability rescales the rest of its row. Real weather has a longer memory, which you can model by making each state “the last two days”.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { STATES, WEATHER, evolve, stationary, walk, setProb } from "./markov-chains.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const COL = ["var(--accent)", "var(--muted)", "var(--blue)"], ICON = ["☀", "☁", "☂"];
+let start = 0;
+tabs($("#start"), { 0: "Sunny", 1: "Cloudy", 2: "Rainy" }, "0", k => { start = +k; render(); });
+function render() {
+  const ss = +$("#ss").value, rr = +$("#rr").value, P = setProb(setProb(WEATHER, 0, 0, ss), 2, 2, rr), pi = stationary(P), days = 14;
+  $("#ssv").textContent = Math.round(ss * 100) + "%"; $("#rrv").textContent = Math.round(rr * 100) + "%";
+  $("#matrix").innerHTML = `<tr><th>Today ↓ / tomorrow →</th>${STATES.map(s => `<th>${s}</th>`).join("")}</tr>` + P.map((row, i) => `<tr><td>${STATES[i]}</td>${row.map(x => `<td class="num">${Math.round(x * 100)}%</td>`).join("")}</tr>`).join("");
+  const ev = evolve(STATES.map((_, i) => +(i === start)), P, days), L = 40, R = 590, T = 10, B = 165, X = t => L + (R - L) * t / days, Y = v => B - (B - T) * v, svg = $("#chart"); svg.replaceChildren();
+  for (const v of [0, 0.5, 1]) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(v), y2: Y(v), stroke: "var(--border)" }), svgEl("text", { x: L - 6, y: Y(v) + 4, "text-anchor": "end" }, v * 100 + "%"));
+  for (let t = 0; t <= days; t += 2) svg.append(svgEl("text", { x: X(t), y: B + 16, "text-anchor": "middle" }, t ? `day ${t}` : "today"));
+  STATES.forEach((_, j) => { svg.append(svgEl("line", { x1: L, x2: R, y1: Y(pi[j]), y2: Y(pi[j]), stroke: COL[j], "stroke-dasharray": "4 4", opacity: 0.7 }),
+    svgEl("polyline", { points: ev.map((d, t) => `${X(t)},${Y(d[j])}`).join(" "), fill: "none", stroke: COL[j], "stroke-width": 2.2 })); });
+  const w = walk(P, start, 60, mulberry(5)), ws = $("#walk"); ws.replaceChildren();
+  w.days.forEach((s, t) => ws.append(svgEl("text", { x: 5 + t * 9.8 + 4, y: 24, "text-anchor": "middle", style: `fill:${COL[s]};font-size:11px` }, ICON[s])));
+  const settle = ev.findIndex(d => d.every((x, j) => Math.abs(x - pi[j]) < 0.01));
+  $("#stats").innerHTML = [...STATES.map((s, j) => [Math.round(pi[j] * 100) + "%", `${s} in the long run`]), [settle < 0 ? `> ${days}` : settle, "days until today is forgotten"]].map(statTile).join("");
+}
+$("#ss").oninput = $("#rr").oninput = render;
+render();
+</script>
+</body>
+</html>

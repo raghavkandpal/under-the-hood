@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Processes: fork, exec, wait</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  ul.tree, ul.tree ul { list-style: none; margin: 0; padding-left: 22px; }
+  ul.tree { padding-left: 0; margin-top: 10px; font-family: var(--mono); font-size: 14px; }
+  ul.tree li { margin: 4px 0; } ul.tree ul { border-left: 1px solid var(--border); margin-left: 10px; }
+  ul.tree button { font-family: var(--mono); font-size: 13.5px; padding: 3px 10px; }
+  ul.tree button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  ul.tree button.zombie { color: var(--red); border-style: dashed; }
+  pre.log { font-family: var(--mono); font-size: 13px; background: var(--surface-2); border-radius: 8px; padding: 8px 12px; margin: 10px 0 0; min-height: 3em; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Processes: fork, exec, wait</h1>
+  <p class="lede">Every program you run is started the same odd way. A process makes an exact copy of itself, and the copy then replaces its own program with the new one. When it finishes, it lingers as a zombie until its parent asks how it went.</p>
+
+  <div class="panel">
+    <div class="row"><button id="run" class="primary">Shell runs ls</button><button id="reset">Reset</button></div>
+    <ul class="tree" id="tree" aria-label="Process tree: pick a process"></ul>
+    <div class="row" style="margin-top:10px">
+      <button data-call="fork">fork()</button><button data-call="exec">exec("grep")</button><button data-call="exit">exit(0)</button><button data-call="wait">wait()</button>
+    </div>
+    <pre class="log" id="log" role="status"></pre>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>fork.</b> The kernel duplicates the calling process: same program, same memory, same open files, a new process id. Both copies return from the same <code>fork()</code> call. The parent gets the child's pid back and the child gets 0, which is the only way each knows which one it is. Copying all of memory would be slow, so the kernel shares the pages and copies one only when either side writes to it (copy-on-write; see <a href="../virtual-memory/">virtual memory</a>).</p>
+  <p><b>exec.</b> The child then calls <code>exec</code> with a program path. The kernel throws away its memory and loads the new program, but the pid, the parent and the open files stay. That's how a shell's <code>ls &gt; out.txt</code> works: after the fork, the child points its standard output at the file, then execs <code>ls</code>, which writes to “standard output” without knowing it's a file. <a href="../pipes/">Pipes</a> are set up the same way.</p>
+  <p><b>exit and wait.</b> When a process exits, the kernel frees almost everything, but keeps a small entry with its exit status until the parent calls <code>wait()</code> to collect it. Until then it's a <i>zombie</i>. A parent that never waits leaks zombies, which is why servers that spawn helpers must reap them.</p>
+  <div class="note"><b>Try it.</b> Fork the shell, fork the child, then exit the child before the grandchild. Watch who becomes the grandchild's parent, and what happens when the grandchild exits.</div>
+  <p><b>Orphans.</b> If a parent exits first, its children are re-parented to process 1, init (systemd on most Linux systems), whose job includes waiting on every orphan so no zombie lingers. A process tree is a family history: everything descends from init.</p>
+  <p class="caveat">Simplified: no signals, no blocking (a wait with live children just reports it would block), and init reaps instantly. Linux's <code>clone()</code> generalises fork, and <code>posix_spawn()</code> combines fork and exec.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml, sleep } from "../../shared/common.js";
+import { boot, fork, exec, exit, wait, runCommand, children } from "./processes.js";
+chrome();
+
+let sys, sel, gen = 0;
+function reset() { gen++; sys = boot(); sel = 2; $("#log").textContent = ""; render(); }
+function node(p) {
+  const kids = children(sys, p.pid);
+  return `<li><button data-pid="${p.pid}" aria-pressed="${p.pid === sel}" class="${p.state}">${p.pid} ${escapeHtml(p.program)}${p.state === "zombie" ? ` (zombie, ${p.code})` : ""}</button>${kids.length ? `<ul>${kids.map(node).join("")}</ul>` : ""}</li>`;
+}
+function render() {
+  $("#tree").innerHTML = node(sys.procs[1]);
+  const p = sys.procs[sel], live = p && p.state === "running";
+  document.querySelectorAll("[data-call]").forEach(b => (b.disabled = !live || (b.dataset.call === "exit" && sel === 1)));
+  $("#run").disabled = sys.procs[2]?.state !== "running";
+}
+const log = line => { $("#log").textContent = ($("#log").textContent + "\n" + line).trim().split("\n").slice(-4).join("\n"); };
+const CALLS = {
+  fork: () => { const r = fork(sys, sel); log(`${sel}: fork() → ${r.result}   (child ${r.result}: fork() → 0)`); return r; },
+  exec: () => { const r = exec(sys, sel, "grep"); log(`${sel}: exec("grep"): same pid, new program`); return r; },
+  exit: () => { const r = exit(sys, sel, 0); log(r.error ? `${sel}: ${r.error}` : `${sel}: exit(0)`); return r; },
+  wait: () => { const r = wait(sys, sel); log(r.error ? `${sel}: wait() ${r.error}` : `${sel}: wait() → pid ${r.result.pid}, status ${r.result.code}`); return r; },
+};
+document.querySelectorAll("[data-call]").forEach(b => (b.onclick = () => { gen++; sys = CALLS[b.dataset.call]().sys; if (!sys.procs[sel]) sel = 2; render(); }));
+$("#tree").onclick = e => { const b = e.target.closest("[data-pid]"); if (b) { sel = +b.dataset.pid; render(); } };
+$("#run").onclick = async () => {
+  const g = ++gen; sel = 2;
+  for (const st of runCommand(sys, 2, "ls")) { if (g !== gen) return; sys = st.sys; log(st.call); render(); await sleep(700); }
+};
+$("#reset").onclick = reset;
+reset();
+</script>
+</body>
+</html>

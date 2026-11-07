@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data leakage</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  pre.code { font-family: var(--mono); font-size: 13px; background: var(--surface-2); border-radius: 8px; padding: 8px 12px; margin: 10px 0 0; overflow-x: auto; }
+  pre.code b { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Data leakage</h1>
+  <p class="lede">Here are 100 customers, 1,000 columns of random numbers, and a random yes/no label. There is nothing to learn. Yet one small change in the order of the steps gets a model to 80% accuracy on held-out data.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="mode"></div></div>
+    <pre class="code" id="code"></pre>
+    <div class="row" style="margin-top:8px">
+      <label class="inline">Columns <input type="range" id="p" min="1" max="3.7" step="0.1" value="3"> <b id="pv"></b></label>
+      <button id="run" class="primary">Run 20 experiments</button>
+    </div>
+    <svg class="chart" id="chart" viewBox="0 0 600 160" role="img" aria-label="Test accuracy of each experiment"></svg>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The test set is a promise.</b> You hold some data back so you can estimate how the model will do on data it has never seen. That estimate is only honest if nothing about the held-out rows influenced any decision made during training. <i>Leakage</i> is any path by which they did, and it makes the score look better than the model really is.</p>
+  <p><b>Choosing features first.</b> With 1,000 columns of noise, some will differ between the yes and no groups purely by chance. Picking the 20 most different columns using <i>all</i> rows means picking columns that happen to separate the test rows too. The model then “predicts” them, and the score says 80%. Pick them using the training rows only and the test rows get no say: the score falls back to a coin flip. The more columns you search, the stronger the illusion.</p>
+  <div class="note"><b>Try it.</b> Run all three pipelines with 1,000 columns, then the leaky one with only 10 columns, then with 5,000.</div>
+  <p><b>Duplicates.</b> If the same customer appears in both sets (two orders, two scans of the same patient, near-identical photos), the model has already seen the answer. Split by customer, not by row, and remove near-duplicates first.</p>
+  <p><b>Other leaks.</b> Scaling or filling in missing values with averages computed on all the data. Tuning settings by checking the test score again and again, which slowly fits the test set (it's <a href="../multiple-testing/">multiple testing</a> in disguise). Features that are only known after the fact: “refund issued” predicts “customer complained” rather well. Random splits of time series, where the model trains on the future. The cure for all of them is the same: put every step that learns from data inside the training fold, which libraries like scikit-learn do with pipelines.</p>
+  <p class="caveat">Simplified: a nearest-centroid classifier on 20 selected columns, a 70/30 split, and 20 duplicated rows. The effect is the same for any model, and grows when rows are few and columns many.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { experiment } from "./data-leakage.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const CODE = {
+  honest: "split rows into train / test\nchoose 20 columns using train\nfit on train\nscore on test",
+  leaky: "<b>choose 20 columns using all rows</b>\nsplit rows into train / test\nfit on train\nscore on test",
+  duplicates: "split rows into train / test\n<b>copy 20 train rows into test</b>\nchoose 20 columns using train\nfit on train, score on test",
+};
+let mode = "leaky", seed = 1;
+tabs($("#mode"), { honest: "Honest", leaky: "Choose columns first", duplicates: "Duplicate rows" }, mode, k => { mode = k; $("#code").innerHTML = CODE[k]; clear(); });
+$("#code").innerHTML = CODE[mode];
+const pCount = () => Math.round(10 ** +$("#p").value);
+function clear() { $("#chart").replaceChildren(); $("#stats").innerHTML = ""; }
+function run() {
+  const p = pCount(), rnd = mulberry(seed++), accs = Array.from({ length: 20 }, () => experiment({ mode, p, rnd }));
+  const L = 30, R = 590, B = 130, X = a => L + (R - L) * a, svg = $("#chart"); svg.replaceChildren();
+  for (const a of [0, 0.25, 0.5, 0.75, 1]) svg.append(svgEl("text", { x: X(a), y: B + 18, "text-anchor": "middle" }, a * 100 + "%"));
+  svg.append(svgEl("line", { x1: L, x2: R, y1: B, y2: B, stroke: "var(--border)" }), svgEl("line", { x1: X(0.5), x2: X(0.5), y1: 10, y2: B, stroke: "var(--text)", "stroke-dasharray": "4 4" }), svgEl("text", { x: X(0.5) + 5, y: 20 }, "coin flip"));
+  const bins = {}; accs.forEach(a => { const b = Math.round(a * 30); const k = (bins[b] = (bins[b] ?? 0) + 1);
+    svg.append(svgEl("circle", { cx: X(b / 30), cy: B - 8 - (k - 1) * 13, r: 5.5, fill: mode === "honest" ? "var(--blue)" : "var(--red)", opacity: 0.85 })); });
+  const avg = accs.reduce((s, a) => s + a, 0) / accs.length;
+  $("#stats").innerHTML = [[Math.round(avg * 100) + "%", "average test accuracy"], ["50%", "what's really possible"], [p.toLocaleString(), "noise columns searched"]].map(statTile).join("");
+}
+$("#p").oninput = () => { $("#pv").textContent = pCount().toLocaleString(); clear(); };
+$("#run").onclick = run;
+$("#pv").textContent = pCount().toLocaleString(); run();
+</script>
+</body>
+</html>

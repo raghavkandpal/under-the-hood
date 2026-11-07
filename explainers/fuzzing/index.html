@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coverage-guided fuzzing</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  .legend i.line { height: 3px; border-radius: 2px; }
+  pre.code { font-family: var(--mono); font-size: 13px; background: var(--surface-2); border-radius: 8px; padding: 8px 12px; margin: 10px 0 0; overflow-x: auto; }
+  table.data td { font-family: var(--mono); } table.data td.num { text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Coverage-guided fuzzing</h1>
+  <p class="lede">Throw random bytes at a parser and you'll mostly test its first <code>if</code>. A coverage-guided fuzzer watches which branches each input reaches, keeps the inputs that got somewhere new, and builds on them, one byte of progress at a time.</p>
+
+  <div class="panel">
+<pre class="code">if (len &lt; 5) return
+if (b[0] != 'F') return
+if (b[1] != 'U') return
+if (b[2] != 'Z') return
+if (b[3] != '!') return
+if (b[4] &gt; 200) crash()</pre>
+    <div class="row" style="margin-top:10px"><b>Start from</b><div class="seg" id="start"></div></div>
+    <svg class="chart" id="chart" viewBox="0 0 600 200" role="img" aria-label="Branches reached as the number of runs grows, for both fuzzers"></svg>
+    <ul class="legend"><li><i class="line" style="--c:var(--accent)"></i>coverage-guided</li><li><i class="line" style="--c:var(--muted)"></i>random bytes</li></ul>
+    <p class="status" id="status"></p>
+    <div class="scroll-x"><table class="data" id="corpus"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Random isn't enough.</b> To reach the crash, an input needs four exact bytes in a row, about a 1 in 4 billion chance for random data, and then a large fifth byte. A random fuzzer running 20,000 inputs gets past the length check and almost never past the first letter. Real bugs hide behind exactly this kind of check: magic numbers, checksums, version fields, keywords.</p>
+  <p><b>Coverage as a signal.</b> The program is compiled with lightweight instrumentation that records which branches each run took. An input that reaches a branch no earlier input did is interesting, so it joins the <i>corpus</i>. New inputs are made by mutating corpus entries: overwrite a byte, insert or delete one, flip a bit. The fuzzer climbs one check at a time, because getting the first letter right is rewarded before anyone knows about the second.</p>
+  <p><b>Deterministic, then random.</b> Like AFL, this fuzzer gives each new corpus entry a deterministic pass, trying every value at every byte position, before falling back to random edits (“havoc”). Each new letter then costs at most 256 tries per byte position, and the whole bug falls in two or three thousand runs.</p>
+  <div class="note"><b>Try it.</b> Start from the two-byte input and see where the guided fuzzer gets stuck. Nothing between two and five bytes reaches a new branch, so nothing is kept.</div>
+  <p><b>Plateaus.</b> Coverage only helps when partial progress shows up as a new branch. A length check, a checksum over the whole input, or a 4-byte comparison compiled into one instruction gives no foothold. Real fuzzers split comparisons into byte-by-byte checks, mine constants from the binary into a dictionary, and start from a seed corpus of valid files. libFuzzer, AFL++ and Google's OSS-Fuzz, which has found tens of thousands of bugs in open-source projects, all work this way.</p>
+  <p class="caveat">Simplified: a target with six checks, one mutation per run, and no crash triage or input minimisation. Coverage here is per branch; real tools also count how many times each edge was taken.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, tabs, escapeHtml } from "../../shared/common.js";
+import { fuzz, show, BRANCHES } from "./fuzzing.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const STARTS = { hi: [104, 105, 33, 33, 33], aaaaa: [65, 65, 65, 65, 65], short: [104, 105] }, RUNS = 20000;
+let start = "hi";
+tabs($("#start"), { hi: "hi!!!", aaaaa: "AAAAA", short: "hi" }, start, k => { start = k; render(); });
+function render() {
+  const g = fuzz({ guided: true, rnd: mulberry(1), start: STARTS[start], runs: RUNS }), r = fuzz({ guided: false, rnd: mulberry(2), start: STARTS[start], runs: RUNS });
+  const L = 30, R = 590, T = 10, B = 175, X = n => L + (R - L) * n / RUNS, Y = v => B - (B - T) * v / BRANCHES, svg = $("#chart"); svg.replaceChildren();
+  for (let v = 0; v <= BRANCHES; v++) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(v), y2: Y(v), stroke: "var(--border)", "stroke-width": 0.5 }), svgEl("text", { x: L - 6, y: Y(v) + 4, "text-anchor": "end" }, v));
+  for (const n of [0, 5000, 10000, 15000, 20000]) svg.append(svgEl("text", { x: X(n), y: B + 16, "text-anchor": "middle" }, n.toLocaleString()));
+  const line = (res, col) => { const pts = []; let prev = res.curve[0][1]; for (const [n, v] of res.curve) { pts.push(`${X(n)},${Y(prev)}`, `${X(n)},${Y(v)}`); prev = v; } pts.push(`${X(res.crash ? res.crash.at : RUNS)},${Y(prev)}`);
+    svg.append(svgEl("polyline", { points: pts.join(" "), fill: "none", stroke: col, "stroke-width": 2.2 })); };
+  line(r, "var(--muted)"); line(g, "var(--accent)");
+  if (g.crash) svg.append(svgEl("text", { x: X(g.crash.at) + 6, y: Y(BRANCHES) + 4, style: "fill:var(--red);font-weight:700" }, `crash at run ${g.crash.at.toLocaleString()}`));
+  $("#status").textContent = g.crash ? `Guided: crashed after ${g.crash.at.toLocaleString()} runs. Random: ${r.covered} of ${BRANCHES} branches after ${RUNS.toLocaleString()}.`
+    : `Guided: stuck at ${g.covered} of ${BRANCHES} branches after ${RUNS.toLocaleString()} runs.`;
+  $("#corpus").innerHTML = `<tr><th>Corpus</th><th>Run</th><th>New branch</th></tr>` + g.corpus.map(c => `<tr><td>${escapeHtml(show(c.input))}</td><td class="num">${c.at.toLocaleString()}</td><td>${escapeHtml(c.found.join(", "))}</td></tr>`).join("") +
+    (g.crash ? `<tr><td style="color:var(--red)">${escapeHtml(show(g.crash.input))}</td><td class="num">${g.crash.at.toLocaleString()}</td><td style="color:var(--red)">crash</td></tr>` : "");
+}
+render();
+</script>
+</body>
+</html>

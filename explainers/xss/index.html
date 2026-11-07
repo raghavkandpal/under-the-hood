@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cross-site scripting</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  input.payload { font-family: var(--mono); width: 100%; max-width: 420px; }
+  pre.out { font-family: var(--mono); font-size: 13.5px; background: var(--surface-2); padding: 10px 12px; border-radius: 8px; white-space: pre-wrap; word-break: break-all; margin: 10px 0 0; }
+  .verdict { margin-top: 8px; font-weight: 600; } .verdict.bad { color: var(--red); } .verdict.good { color: var(--green); }
+  table.data td { text-align: center; } table.data td:first-child, table.data th:first-child { text-align: left; font-family: var(--mono); font-size: 12.5px; }
+  table.data td.bad { color: var(--red); font-weight: 700; } table.data td.good { color: var(--green); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cross-site scripting</h1>
+  <p class="lede">A comment box that shows what people typed. If the page pastes that text straight into its HTML, a comment can contain code, and the code runs in every visitor's browser with their login.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="ctx"></div><div class="seg" id="def"></div></div>
+    <div class="row" style="margin-top:8px" id="presets"></div>
+    <div class="row" style="margin-top:6px"><input class="payload" id="input" spellcheck="false" aria-label="Comment text"></div>
+    <pre class="out" id="out" aria-label="The HTML the server sends"></pre>
+    <div class="verdict" id="verdict" role="status"></div>
+    <div class="scroll-x" style="margin-top:10px"><table class="data" id="matrix"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Data becomes code.</b> HTML mixes content and instructions in one string. If a page builds that string by gluing in user text, the browser can't tell which parts the developer wrote, exactly like <a href="../sql-injection/">SQL injection</a>. A script injected this way runs as the site itself: it can read the page, send requests with the visitor's cookies, or rewrite the login form.</p>
+  <p><b>Escaping.</b> Replace the five characters that mean something in HTML (&amp; &lt; &gt; " ') with entities like <code>&amp;lt;</code>. The browser then shows them as text. That stops a <code>&lt;script&gt;</code> tag, and plain comments like “Tom &amp; Jerry &lt;3” still display correctly.</p>
+  <p><b>Context matters.</b> Escaping is only right for text between tags. Inside an unquoted attribute, a space is enough to start a new attribute, and none of the escaped characters are needed to write <code>onmouseover=…</code>. Inside a link, <code>javascript:</code> URLs need no special characters at all. Each place needs its own rule: quote every attribute, and allow only http and https links.</p>
+  <div class="note"><b>Try it.</b> Pick the attribute context and the handler payload, then switch from “Escape” to “By context”. Then do the same for the javascript: link.</div>
+  <p><b>Let the framework do it.</b> Template engines and frameworks such as React escape by default, per context, so the safe path is the easy one. The holes are the escape hatches: <code>innerHTML</code>, <code>dangerouslySetInnerHTML</code>, building URLs from user input. If you must allow some HTML, run it through a sanitiser that keeps an allowlist of tags.</p>
+  <p><b>Defence in depth.</b> A Content Security Policy header such as <code>script-src 'self'</code> tells the browser to refuse inline scripts, event-handler attributes and javascript: URLs, so even a missed escape doesn't run. Marking session cookies <code>HttpOnly</code> keeps scripts from reading them.</p>
+  <p class="caveat">Simplified: the check looks for script tags, event attributes and javascript: links in the generated HTML, nothing is ever rendered, and the payloads are harmless alerts. Real attacks also use encoded characters, SVG and CSS. See OWASP's cheat sheet below.</p>
+</main>
+<script type="module">
+import { chrome, $, tabs, escapeHtml as esc } from "../../shared/common.js";
+import { CONTEXTS, PAYLOADS, render, runs } from "./xss.js";
+chrome();
+
+const DEFS = { none: "None", escape: "Escape", context: "By context" };
+const LABELS = { plain: "Plain", script: "Script tag", handler: "Handler", quote: "Quote", jsurl: "javascript:" };
+let ctx = "body", def = "none";
+tabs($("#ctx"), Object.fromEntries(Object.entries(CONTEXTS).map(([k, c]) => [k, c.name])), ctx, k => { ctx = k; update(); });
+tabs($("#def"), DEFS, def, k => { def = k; update(); });
+const pick = tabs($("#presets"), LABELS, "script", k => { $("#input").value = PAYLOADS[k]; update(); });
+$("#input").value = PAYLOADS.script;
+$("#input").oninput = () => { pick(null); update(); };
+function update() {
+  const html = render(ctx, $("#input").value, def), why = runs(html);
+  $("#out").textContent = html;
+  $("#verdict").className = "verdict " + (why ? "bad" : "good");
+  $("#verdict").textContent = why ? `Runs script: ${why}.` : "Shown as text.";
+  $("#matrix").innerHTML = `<tr><th>${esc(CONTEXTS[ctx].name)}</th>${Object.values(DEFS).map(d => `<th>${d}</th>`).join("")}</tr>` +
+    Object.entries(PAYLOADS).map(([, p]) => `<tr><td>${esc(p)}</td>${Object.keys(DEFS).map(d => runs(render(ctx, p, d)) ? `<td class="bad">runs</td>` : `<td class="good">safe</td>`).join("")}</tr>`).join("");
+}
+update();
+</script>
+</body>
+</html>

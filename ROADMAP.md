@@ -1,22 +1,22 @@
 # Roadmap
 
-Plan for the next explainers, plus the working notes a new session needs. 105 explainers exist today, in 9 areas, 27 topics and 11 learning paths, each with free further reading.
+Plan for the next explainers, plus the working notes a new session needs. 135 explainers exist today, in 9 areas, 29 topics and 11 learning paths, each with free further reading.
 
 ## Where the gaps are
 
-Areas and topics as of the topics-and-paths change (99 explainers). Each explainer has an area and a topic in `catalog.js`; `PATHS` lists learning paths.
+Areas and topics after batch 11 (135 explainers). Each explainer has an area and a topic in `catalog.js`; `PATHS` lists learning paths.
 
 | Area | Count | Intro / Core / Deep | Topics | Gap |
 |---|---|---|---|---|
-| Systems: hardware & OS | 11 | 5 / 5 / 1 | Numbers & text, Memory, Operating systems | processes & syscalls, I/O |
-| Networking & the web | 4 | 1 / 3 / 0 | How the network works | **thinnest area**: HTTP/2-3, CDNs, WebSockets, NAT, Wi-Fi |
-| Databases & storage | 7 | 0 / 4 / 3 | Storage engines, Queries, Transactions & durability | **no intro** (what an index is, normalisation) |
-| Distributed systems | 13 | 1 / 9 / 3 | Traffic & reliability, Spreading data, Agreement, Time & order | sharding, leader election |
-| Security & cryptography | 10 | 4 / 5 / 1 | Building blocks, Protocols, Attacks & defences | XSS/CSRF, zero-knowledge (Batch 2) |
-| Algorithms & data structures | 19 | 7 / 10 / 2 | Foundations, Data structures, Search & graphs, Compression & signals | balanced trees, string matching |
-| Machine learning & AI | 20 | 8 / 9 / 3 | Classic ML, Neural networks, Language models | fine-tuning/LoRA, evaluation |
-| Statistics & probability | 6 | 4 / 2 / 0 | Probability, Experiments & inference | **no deep dive**: regression, multiple testing |
-| Developer tools | 9 | 1 / 7 / 1 | Version control, Building & shipping, Compilers & runtimes, Everyday tools | dependency resolution (Batch 2), debuggers |
+| Systems: hardware & OS | 15 | 6 / 7 / 2 | Numbers & text, Memory, Operating systems, The processor | SIMD, interrupts & syscalls in depth |
+| Networking & the web | 10 | 2 / 8 / 0 | How the network works, The web | **no deep dive**: QUIC in depth, BGP, Wi-Fi |
+| Databases & storage | 10 | 1 / 5 / 4 | Storage engines, Queries, Transactions & durability | more intro (what an index is), vector search |
+| Distributed systems | 17 | 1 / 12 / 4 | Traffic & reliability, Spreading data, Agreement, Time & order | **one intro**; Paxos, exactly-once streams |
+| Security & cryptography | 13 | 5 / 6 / 2 | Building blocks, Protocols, Attacks & defences | JWTs, passkeys/WebAuthn, timing attacks |
+| Algorithms & data structures | 25 | 8 / 14 / 3 | Foundations, Data structures, Search & graphs, Compression & signals | tries vs suffix arrays, max flow |
+| Machine learning & AI | 23 | 8 / 11 / 4 | Classic ML, Neural networks, Language models | logistic regression, RLHF, mixture of experts |
+| Statistics & probability | 10 | 6 / 3 / 1 | Probability, Experiments & inference | power analysis, survival curves |
+| Developer tools | 12 | 1 / 10 / 1 | Version control, Building & shipping, Compilers & runtimes, Everyday tools | **one intro**; debuggers, three-way merge |
 
 New explainers: pick the topic when scaffolding (`npm run new -- <id> "<Title>" <area> <level> <topic>`), and add them to a learning path in `PATHS` if one fits. `tests/catalog.test.js` checks that path steps come after their prerequisites.
 
@@ -88,9 +88,18 @@ All eight shipped (zero-knowledge and dependency-resolution last). Also added: `
 
 Three gaps from the table: `multiple-testing` (statistics deep dive: Bonferroni vs Benjamini–Hochberg on a sorted p-value plot), `nat` (networking: translation table, filtering, hole punching easy vs symmetric NAT), `normalization` (databases intro: update, deletion and insertion anomalies side by side with three linked tables). Each joined a learning path. Next: WebSockets or HTTP/2 (networking is still thinnest), regression (statistics), balanced trees.
 
+## Batches 7–11 ✅ done
+
+Thirty explainers, one PR per batch, each stacked on the one before:
+- **7, networking and web security:** congestion-control, http-versions, subnets, websockets, xss, csrf. Adds the networking topic "The web" (http-caching and cdn moved there).
+- **8, algorithms:** balanced-trees, string-search, hyperloglog, count-min-sketch, topological-sort, minimax. `shared/hash32.js` is the string hash both sketches (and sharding) use.
+- **9, systems and tools:** deadlock, processes, io-multiplexing, branch-prediction, profilers, fuzzing. Adds the systems topic "The processor".
+- **10, databases and distributed:** mvcc, sharding, fencing-tokens, idempotency, inverted-index, replication-lag.
+- **11, ML and statistics:** linear-regression, data-leakage, lora, beam-search, markov-chains, birthday-paradox.
+
 ## How to work (read before starting)
 
-**Start:** run `npm test` and expect all tests passing (485 at the time of writing). The local preview config is `.claude/launch.json`, name `under-the-hood`, port 8766; it's git-ignored, so recreate it if missing. Or run `npm start` (port 8765).
+**Start:** run `npm test` and expect all tests passing (600 at the time of writing). The local preview config is `.claude/launch.json`, name `under-the-hood`, port 8766; it's git-ignored, so recreate it if missing. Or run `npm start` (port 8765).
 
 **For each explainer:**
 1. `npm run new -- <id> "<Title>" <area> <level>`. This creates `explainers/<id>/` (page, logic, test) and the catalog entry, and refuses to overwrite. Never hand-create files in `shared/` without checking they don't exist: an earlier session overwrote the RSA module (used by the signatures and TLS pages) this way.
@@ -108,6 +117,9 @@ Three gaps from the table: `multiple-testing` (statistics deep dive: Bonferroni 
 - **Canvas with distance semantics** (knn) must be square, or circles look like ellipses.
 - **Bash:** pipe `< /dev/null` into node commands. A stray `cat > file` with no heredoc hangs waiting on stdin.
 - **Hidden browser pane** pauses `requestAnimationFrame`: override it with `setTimeout` inside the iframe for checks.
+- **Figures must exist when the page loads.** `textFloor()` in `shared/common.js` measures each `svg[viewBox]` once, on load, and on phones wraps it in a sideways-scrolling `.scroll-x` so labels stay ≥ 11px. Put chart SVGs in the HTML and redraw their contents; an SVG created later by script never gets the wrapper.
+- **Make the model honest before the page.** Several first drafts quietly failed their own claims: coverage-guided fuzzing needed AFL's deterministic stage to find the bug reliably, read-your-writes looked perfect only because every read fell inside its window, and a 4-bit history predictor can't learn a loop of 8. Print the numbers across the parameter range first.
+- **Sources:** the first source must not be an encyclopedia (a test checks), and every new domain goes in `TRUSTED`. Check a host answers from here before adding it: `nlp.stanford.edu` refused connections and had to be dropped.
 
 **Final sweep (run before ending a session):** from `index.html` in the browser, start the sweep detached and poll, since a single call times out:
 

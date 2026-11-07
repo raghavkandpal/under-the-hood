@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sampling profilers</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #flame { width: 100%; height: auto; display: block; margin-top: 8px; }
+  #flame text { font-size: 11px; fill: var(--text); pointer-events: none; }
+  #flame rect { cursor: pointer; }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sampling profilers</h1>
+  <p class="lede">Where does a program spend its time? Instead of timing every function call, a sampling profiler interrupts the program at random moments and writes down what it was doing. Add up enough snapshots and the slow parts stand out.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Samples <input type="range" id="n" min="1" max="4" step="0.1" value="2.5"> <b id="nv"></b></label>
+      <button id="again">Sample again</button>
+    </div>
+    <svg id="flame" viewBox="0 0 600 150" role="img" aria-label="Flame graph: each box is a function, as wide as the share of samples it appeared in, with its callers above it"></svg>
+    <p class="status" id="status"></p>
+    <div class="scroll-x"><table class="data" id="table"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Sampling.</b> Many times a second (often 100 to 1,000), a timer interrupts the program and the profiler records the call stack: the function running now, the one that called it, and so on up to <code>main</code>. It never touches the program's code, so it slows it down by a percent or two. A function that runs 35% of the time shows up in about 35% of the samples. With <i>n</i> samples the error shrinks like 1/√<i>n</i>: a hundred samples give a rough picture, ten thousand an accurate one.</p>
+  <p><b>Flame graphs.</b> Merge identical stacks and draw them as boxes: the root at the top, each function below the function that called it, as wide as its share of samples. A box's width counts time in that function <i>and everything it called</i>; the part not covered by boxes below it is its own (self) time. Wide boxes with nothing underneath are where the CPU is actually busy.</p>
+  <div class="note"><b>Try it.</b> Find the hottest function in the table, then find it in the flame graph. It appears twice, and neither box looks like the biggest.</div>
+  <p><b>Two views.</b> The flame graph splits a function by who called it. That's what you want for “which feature is slow?”, but a utility called from many places, like a JSON parser, gets sliced into narrow boxes and looks harmless. A table of self time per function adds the slices back together. Real profilers (perf, pprof, Chrome DevTools, py-spy) offer both, plus an inverted flame graph that starts from the busy functions and shows their callers.</p>
+  <p><b>Instrumenting instead.</b> The alternative is to add timing code to every function entry and exit. That gives exact call counts, but the timing code itself costs time, which distorts small, frequently called functions most: exactly the ones you're looking for.</p>
+  <p class="caveat">Simplified: a fixed made-up program, each function's self time in one block, and perfectly random sample times. Real samplers can be biased toward points where the program can safely be interrupted (safepoints).</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";
+import { sample, flame, selfCounts, trueSelf } from "./profilers.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+let seed = 1, sel = null;
+const truth = trueSelf(), pct = v => (v * 100).toFixed(1) + "%";
+function render() {
+  const n = Math.round(10 ** +$("#n").value), stacks = sample(n, mulberry(seed)), root = flame(stacks), self = selfCounts(stacks), svg = $("#flame");
+  $("#nv").textContent = n.toLocaleString(); svg.replaceChildren();
+  const rowH = 22;
+  (function draw(node, x, w, d) {
+    if (d > 0) {
+      const g = svgEl("rect", { x: x + 0.5, y: (d - 1) * rowH, width: Math.max(0, w - 1), height: rowH - 2, rx: 3, fill: node.name === sel ? "var(--accent)" : "var(--accent-soft)", stroke: "var(--accent)", "stroke-width": 0.6 });
+      g.append(svgEl("title", {}, `${node.name}: ${node.count} samples (${pct(node.count / n)})`));
+      g.onclick = () => { sel = node.name; render(); }; svg.append(g);
+      if (w > 7 * node.name.length) svg.append(svgEl("text", { x: x + 5, y: (d - 1) * rowH + 15, style: node.name === sel ? "fill:var(--on-accent)" : "" }, node.name));
+    }
+    let cx = x; for (const c of node.children) { const cw = w * c.count / node.count; draw(c, cx, cw, d + 1); cx += cw; }
+  })(root, 0, 600, 0);
+  $("#status").textContent = sel ? `${sel}: ${pct((self[sel] ?? 0) / n)} of samples in its own code, true value ${pct(truth[sel])}.` : "";
+  $("#table").innerHTML = `<tr><th>Self time</th><th>Measured</th><th>True</th></tr>` + Object.entries(truth).sort((a, b) => b[1] - a[1]).map(([f, t]) =>
+    `<tr><td>${escapeHtml(f)}</td><td class="num">${pct((self[f] ?? 0) / n)}</td><td class="num">${pct(t)}</td></tr>`).join("");
+}
+$("#n").oninput = render;
+$("#again").onclick = () => { seed++; render(); };
+render();
+</script>
+</body>
+</html>

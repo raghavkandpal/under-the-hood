@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoRA fine-tuning</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .maps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+  .maps figure { margin: 0; } .maps figcaption { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 4px; }
+  .maps svg { width: 100%; height: auto; display: block; border-radius: 4px; background: var(--surface-2); }
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 10px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>LoRA fine-tuning</h1>
+  <p class="lede">Fine-tuning a large language model normally means updating billions of weights and storing a full copy for every task. LoRA bets that the change a task needs is simple, and learns it as the product of two thin matrices instead.</p>
+
+  <div class="panel">
+    <div class="row"><label class="inline">Rank <input type="range" id="r" min="1" max="32" value="4"> <b id="rv"></b></label></div>
+    <div class="maps">
+      <figure><svg id="m0" viewBox="0 0 32 32" role="img" aria-label="The full update"></svg><figcaption>full update ΔW</figcaption></figure>
+      <figure><svg id="m1" viewBox="0 0 32 32" role="img" aria-label="The rank-limited update B times A"></svg><figcaption>B·A</figcaption></figure>
+      <figure><svg id="m2" viewBox="0 0 32 32" role="img" aria-label="What the rank-limited update misses"></svg><figcaption>missed</figcaption></figure>
+    </div>
+    <ul class="legend"><li><i style="--c:var(--blue)"></i>positive</li><li><i style="--c:var(--red)"></i>negative</li></ul>
+    <svg class="chart" id="sv" viewBox="0 0 600 120" role="img" aria-label="Strength of each direction in the update, strongest first, with the ones kept highlighted"></svg>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The update, not the model.</b> Fine-tuning changes each weight matrix W to W + ΔW. Full fine-tuning learns every entry of ΔW: for one 4,096 × 4,096 attention matrix that's 16.8 million numbers, and a model has hundreds of such matrices. Storing a full copy per customer or per task quickly becomes the expensive part.</p>
+  <p><b>Low rank.</b> LoRA freezes W and writes the update as ΔW = B·A, where B is d × r and A is r × d, with a small rank r like 8. That's 2 × 4,096 × 8 = 65,536 numbers instead of 16.8 million, 0.4% of the original. Only A and B are trained, so the optimiser's memory shrinks by the same factor, and an adapter for a new task is a few megabytes you can swap in at serving time.</p>
+  <p><b>Why it works.</b> A rank-r matrix can only push in r independent directions. The LoRA paper found that fine-tuning updates really are dominated by a few strong directions, so a small rank captures most of them. The bar chart shows the strength of each direction in this update (its singular values): the first few carry most of it, and the tail is close to noise.</p>
+  <div class="note"><b>Try it.</b> Slide the rank from 1 up to 4, where the strong directions end, then on to 32, and watch where the missed part stops shrinking quickly.</div>
+  <p><b>Merging.</b> After training, B·A can be added into W once, so the fine-tuned model runs exactly as fast as the original. QLoRA combines this with a 4-bit <a href="../quantization/">quantized</a> frozen model, which lets a single consumer GPU fine-tune models that would otherwise need a server.</p>
+  <p class="caveat">Simplified: a 32 × 32 made-up update, and we compute the best rank-r fit directly (truncated SVD) instead of learning A and B by <a href="../gradient-descent/">gradient descent</a>, which converges to a similar answer.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { targetUpdate, lowRank, norm, sub, params } from "./lora.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const T = targetUpdate({ rnd: mulberry(2) }), full = lowRank(T, 32), max = Math.max(...T.flat().map(Math.abs));
+function heat(svg, M) {
+  svg.replaceChildren();
+  M.forEach((row, i) => row.forEach((x, j) => { const a = Math.min(1, Math.abs(x) / max); if (a > 0.03) svg.append(svgEl("rect", { x: j, y: i, width: 1, height: 1, fill: x > 0 ? "var(--blue)" : "var(--red)", opacity: a })); }));
+}
+heat($("#m0"), T);
+function render() {
+  const r = +$("#r").value, { approx } = lowRank(T, r), miss = sub(T, approx), err = norm(miss) / norm(T);
+  $("#rv").textContent = r; heat($("#m1"), approx); heat($("#m2"), miss);
+  const svg = $("#sv"), s = full.sigmas, L = 10, w = 580 / s.length; svg.replaceChildren();
+  s.forEach((v, k) => svg.append(svgEl("rect", { x: L + k * w + 1, y: 100 - 90 * v / s[0], width: w - 2, height: 90 * v / s[0], rx: 2, fill: k < r ? "var(--accent)" : "var(--border)" })));
+  svg.append(svgEl("text", { x: L, y: 114 }, "strongest"), svgEl("text", { x: 590, y: 114, "text-anchor": "end" }, "weakest"));
+  const big = params(4096, r);
+  $("#stats").innerHTML = [[Math.round(err * 100) + "%", "of the update missed"], [`${params(32, r).lora} of ${params(32, r).full}`, "numbers trained here"], [(big.lora / big.full * 100).toFixed(1) + "%", "of a 4,096-wide layer"]].map(statTile).join("");
+}
+$("#r").oninput = render;
+render();
+</script>
+</body>
+</html>

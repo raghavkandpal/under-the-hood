@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beam search</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .steps { display: grid; gap: 8px; margin-top: 10px; }
+  .step { display: grid; grid-template-columns: 4.5em 1fr; gap: 8px; align-items: start; font-size: 14px; }
+  .step > b { color: var(--muted); font-weight: 600; }
+  .cands { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cand { font-family: var(--mono); font-size: 13px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); }
+  .cand.kept { border-color: var(--accent); background: var(--accent-soft); }
+  .cand.dropped { color: var(--muted); text-decoration: line-through; }
+  .cand small { color: var(--muted); margin-left: 6px; }
+  table.data td.num { font-family: var(--mono); text-align: right; } table.data tr.sel td { background: var(--accent-soft); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Beam search</h1>
+  <p class="lede">A language model gives a probability for each possible next word. Always taking the single likeliest word seems sensible, but it can walk you into a dead end: the best sentence may start with a word that looked second-best.</p>
+
+  <div class="panel">
+    <div class="row"><b>Beam width</b><div class="seg" id="k"></div></div>
+    <div class="steps" id="steps"></div>
+    <div class="stats" id="stats"></div>
+    <div class="scroll-x"><table class="data" id="all"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Sentence probability.</b> A model like this gives P(next word | words so far). A whole sentence's probability is the product along the way: P(a) × P(quiet | a) × P(night | a quiet) × P(. | a quiet night) = 0.4 × 0.9 × 0.85 × 1 = 0.306. The best sentence is the one with the largest product, but there are vocabulary<sup>length</sup> of them, so you can't score them all.</p>
+  <p><b>Greedy.</b> Take the likeliest word at each step. It's fast and often fine, but here “the” (0.5) beats “a” (0.4) at the first step, and every sentence after “the” spreads its probability over many continuations. Greedy ends on a sentence with probability 0.07, under a quarter of the best.</p>
+  <p><b>Beams.</b> Keep the <i>k</i> best partial sentences at every step instead of one. Extend each by every possible next word, score the candidates, and keep the top <i>k</i> again. With <i>k</i> = 2, “a” survives the first step, and its strong continuation pulls ahead. The cost grows linearly with <i>k</i>, not exponentially with length.</p>
+  <div class="note"><b>Try it.</b> Compare widths 1 and 2 step by step, and see where the eventual winner would have been dropped.</div>
+  <p><b>Where it's used.</b> Beam search is standard where there's one right output: translation, speech recognition, summarisation. Chat models mostly <a href="../sampling/">sample</a> instead, because the single most probable reply tends to be bland and repetitive. Beam search also favours short outputs (each extra word multiplies by a number below one), so real systems divide by a length penalty.</p>
+  <p class="caveat">Simplified: a hand-made model with a dozen sentences. Real vocabularies have tens of thousands of words, and beams are usually 4 to 10 wide.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs, escapeHtml } from "../../shared/common.js";
+import { beam, all } from "./beam-search.js";
+chrome();
+
+let k = 1;
+tabs($("#k"), { 1: "1 (greedy)", 2: "2", 3: "3" }, "1", v => { k = +v; render(); });
+const sentences = all(), p = v => v.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+function render() {
+  const r = beam(k), best = sentences[0];
+  $("#steps").innerHTML = r.steps.map((s, i) => `<div class="step"><b>Step ${i + 1}</b><div class="cands">${s.kept.map(c => `<span class="cand kept">${escapeHtml(c.seq)}<small>${p(c.p)}</small></span>`).join("")}${s.dropped.map(c => `<span class="cand dropped">${escapeHtml(c.seq)}<small>${p(c.p)}</small></span>`).join("")}</div></div>`).join("");
+  $("#stats").innerHTML = [[escapeHtml(r.best.seq), "result"], [p(r.best.p), "its probability"], [r.best.seq === best.seq ? "yes" : "no", "the best sentence?"], [r.scored, "candidates scored"]].map(statTile).join("");
+  $("#all").innerHTML = `<tr><th>All ${sentences.length} sentences</th><th>Probability</th></tr>` + sentences.map(s => `<tr class="${s.seq === r.best.seq ? "sel" : ""}"><td>${escapeHtml(s.seq)}</td><td class="num">${p(s.p)}</td></tr>`).join("");
+}
+render();
+</script>
+</body>
+</html>

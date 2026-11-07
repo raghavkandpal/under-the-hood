@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Full-text search</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #q { font-family: var(--mono); width: 16em; max-width: 100%; }
+  .postings { font-family: var(--mono); font-size: 13.5px; margin-top: 10px; display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; }
+  .postings span.d { display: inline-block; min-width: 1.6em; padding: 1px 5px; margin: 0 3px 3px 0; border-radius: 4px; border: 1px solid var(--border); text-align: center; }
+  .postings span.d.hit { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  ol.results { margin: 10px 0 0; padding-left: 22px; font-size: 14.5px; } ol.results li { margin: 6px 0; }
+  ol.results mark { background: var(--accent-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
+  ol.results small { color: var(--muted); font-family: var(--mono); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Full-text search</h1>
+  <p class="lede">Searching a million documents for “password reset” can't mean reading a million documents. A search engine does the reading once, ahead of time, and builds an index from every word to the places it appears, like the one at the back of a book.</p>
+
+  <div class="panel">
+    <div class="row"><label class="inline">Search <input id="q" spellcheck="false" value="password page"></label><div class="seg" id="presets"></div></div>
+    <div class="postings" id="postings" aria-label="Posting list of each word: the documents it appears in"></div>
+    <ol class="results" id="results"></ol>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Inverting.</b> Split each document into words (lowercased, punctuation gone) and, for every word, append the document's id to that word's <i>posting list</i>. The result maps words to documents instead of documents to words, hence <i>inverted</i>. Lists are kept sorted by document id, and usually also record each word's positions within the document.</p>
+  <p><b>AND queries.</b> To find documents containing both words, walk the two sorted lists side by side, like the merge step of merge sort: compare the two front ids, step past the smaller, and keep any id that's in both. That costs at most the two lists' lengths, however many documents exist. Starting with the shortest list, and skipping ahead in long ones, makes it faster still.</p>
+  <p><b>Phrases.</b> Positions turn the index into a phrase matcher. “login page” matches only where <i>page</i> sits one position after <i>login</i> in the same document, so it finds two documents where the words appear together, and none for “page login”.</p>
+  <div class="note"><b>Try it.</b> Compare <code>account page</code> with <code>"account page"</code>, then search for a word that appears almost everywhere.</div>
+  <p><b>Ranking.</b> Matching isn't enough: users want the best match first. The classic score, tf-idf, adds up for each query word how often it appears in the document (term frequency) times how rare it is across all documents (inverse document frequency, the log of total over containing). “your” is in most documents and barely counts; “invoice” is in one and counts a lot. Modern engines use a refined version, BM25, that also adjusts for document length. Lucene, and so Elasticsearch and Solr, and PostgreSQL's full-text search all build on this.</p>
+  <p class="caveat">Simplified: eight short documents, no stemming (“payments” and “payment” are different words), and no stop words. Real indexes compress their posting lists heavily and are merged in segments, much like an <a href="../lsm/">LSM tree</a>.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs, escapeHtml } from "../../shared/common.js";
+import { DOCS, build, tokens, intersect, search } from "./inverted-index.js";
+chrome();
+
+const index = build(DOCS), n = DOCS.length, totalWords = DOCS.reduce((s, d) => s + tokens(d).length, 0);
+const PRESETS = { a: "password page", b: "account page", c: "\"account page\"", d: "your" };
+const pick = tabs($("#presets"), Object.fromEntries(Object.entries(PRESETS).map(([k, v]) => [k, escapeHtml(v)])), "a", k => { $("#q").value = PRESETS[k]; render(); });
+$("#q").oninput = () => { pick(null); render(); };
+function render() {
+  const q = $("#q").value, words = [...new Set(tokens(q))], res = search(index, q, n), hits = new Set(res.map(r => r.doc));
+  $("#postings").innerHTML = words.map(w => `<b>${escapeHtml(w)}</b><div>${(index.get(w) ?? []).map(p => `<span class="d ${hits.has(p.doc) ? "hit" : ""}">${p.doc + 1}</span>`).join("") || "–"}</div>`).join("");
+  const mark = d => escapeHtml(d).replace(/[A-Za-z0-9]+/g, w => (words.includes(w.toLowerCase()) ? `<mark>${w}</mark>` : w));
+  $("#results").innerHTML = res.map(r => `<li value="${r.doc + 1}">${mark(DOCS[r.doc])} <small>${r.score.toFixed(2)}</small></li>`).join("");
+  const read = words.reduce((s, w) => s + (index.get(w)?.length ?? 0), 0), cmp = intersect(words.map(w => index.get(w) ?? [])).comparisons;
+  $("#stats").innerHTML = [[res.length, "matches"], [read, "posting entries read"], [cmp, "comparisons to intersect"], [totalWords, "words a full scan reads"]].map(statTile).join("");
+}
+render();
+</script>
+</body>
+</html>
