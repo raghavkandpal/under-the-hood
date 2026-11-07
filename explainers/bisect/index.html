@@ -45,7 +45,7 @@ chrome();
 
 let seed = 1, culprit, run, shown;
 const N = () => 2 ** +$("#n").value;
-const untestable = i => $("#skips").checked && i % 7 === 3 && Math.abs(i - culprit) > 1;
+const untestable = i => $("#skips").checked && i % 7 === 3;
 function reset() { const n = N(), r = mulberry(seed); culprit = 1 + Math.floor(r() * (n - 1)); run = bisect(n, i => (untestable(i) ? "skip" : i >= culprit)); shown = 0; render(); }
 function render() {
   const n = N(); $("#nv").textContent = n.toLocaleString();

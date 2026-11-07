@@ -2,8 +2,8 @@
 // The network delays and drops some heartbeats, so "late" can mean "slow", not "dead". Times in seconds. No DOM.
 
 import { quantile } from "../../shared/normal.js";
+import { gaussian as gauss } from "../../shared/random.js";
 
-const gauss = rnd => { let u = 0; while (!u) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
 
 /** Heartbeat arrival times over `seconds` of healthy running, then the server crashes. */
 export function arrivals({ seconds = 600, jitter = 0.15, loss = 0.02, rnd }) {

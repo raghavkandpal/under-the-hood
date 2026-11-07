@@ -1,7 +1,7 @@
 // BGP, the protocol between networks: each autonomous system (AS) tells its neighbours which address blocks it can
 // reach and by which path of ASes. Path-vector propagation, hijacks, and origin validation (RPKI). No DOM.
 
-import { parse, contains } from "../../shared/subnets.js";
+import { parse, contains, route } from "../../shared/subnets.js";
 
 /** A small made-up internet: who peers with whom. AS 8 will play the attacker. */
 export const LINKS = [[1, 2], [1, 3], [2, 4], [3, 5], [3, 7], [4, 5], [4, 6], [5, 6], [6, 8], [7, 8]];
@@ -33,10 +33,6 @@ function covered(prefix, origin, roas) {
 }
 
 /** The route `as` uses for `ip`: its most specific matching prefix, with the AS path. */
-export function routeFor(table, as, ip) {
-  const addr = parse(ip); let best = null;
-  for (const [prefix, path] of Object.entries(table[as])) { const [n, l] = prefix.split("/"); if (contains(parse(n), +l, addr) && (!best || +l > best.len)) best = { len: +l, prefix, path }; }
-  return best;
-}
+export const routeFor = (table, as, ip) => route(Object.entries(table[as]).map(([prefix, path]) => ({ prefix, path })), parse(ip));
 /** Where traffic from `as` to `ip` ends up: the origin at the end of that route. */
 export const destination = (table, as, ip) => routeFor(table, as, ip)?.path.at(-1) ?? null;

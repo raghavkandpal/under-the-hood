@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { bisect } from "./bisect.js";
 
 test("finds the first bad commit in at most ⌈log2 n⌉ tests", () => {
-  for (const n of [2, 10, 100, 1000]) for (const bad of [1, Math.max(1, Math.floor(n / 3)), n - 1]) {
+  for (const n of [2, 10, 100, 1000, 2 ** 20]) for (const bad of [1, Math.max(1, Math.floor(n / 3)), n - 1]) {
     const r = bisect(n, i => i >= bad);
     assert.equal(r.found, bad, `n=${n} bad=${bad}`); assert.ok(r.steps.length <= Math.ceil(Math.log2(n)), `n=${n}: ${r.steps.length}`);
   }

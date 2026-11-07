@@ -1,6 +1,8 @@
 // Timing attacks: an early-exit string compare takes longer the more of the secret you guessed right, and an attacker
 // who can time it recovers the secret one character at a time. Costs are in character comparisons. No DOM.
 
+import { gaussian as gauss } from "../../shared/random.js";
+
 /** early: stop at the first difference, like a === b. constant: always look at every character, like crypto.timingSafeEqual. */
 export function cost(kind, secret, guess) {
   if (kind === "constant") return secret.length;
@@ -9,7 +11,6 @@ export function cost(kind, secret, guess) {
 }
 
 const HEX = "0123456789abcdef";
-const gauss = rnd => { let u = 0; while (!u) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
 
 /**
  * Guess a hex secret one position at a time: try all 16 characters there, time each `samples` times (each timing is

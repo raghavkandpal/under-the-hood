@@ -16,5 +16,6 @@ test("halving the lift you want to detect needs about four times the users", () 
 test("simulated experiments agree, and small ones that do win overstate the lift", () => {
   const big = simulate({ p: 0.1, lift: 0.02, n: 3841, runs: 2000, rnd: mulberry(1) }), small = simulate({ p: 0.1, lift: 0.02, n: 1000, runs: 2000, rnd: mulberry(2) });
   assert.ok(Math.abs(big.detected - 0.8) < 0.03, `${big.detected}`); assert.ok(Math.abs(small.detected - power({ p: 0.1, lift: 0.02, n: 1000 })) < 0.04, `${small.detected}`);
-  assert.ok(small.liftWhenSignificant > 0.03, `significant small tests report ${small.liftWhenSignificant}, truth 0.02`);
+  const l1000 = small.liftWhenSignificant, l500 = simulate({ p: 0.1, lift: 0.02, n: 500, runs: 2000, rnd: mulberry(3) }).liftWhenSignificant;
+  assert.ok(l1000 > 0.034 && l1000 < 0.04, `nearly double at 1,000: ${l1000}`); assert.ok(l500 > 0.04, `more than double at 500: ${l500}`);
 });

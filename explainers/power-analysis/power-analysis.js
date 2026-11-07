@@ -2,6 +2,7 @@
 // many users that takes. Normal approximation for two proportions. No DOM.
 
 import { phi, quantile } from "../../shared/normal.js";
+import { gaussian as gauss } from "../../shared/random.js";
 
 /** Chance a two-sided test at level alpha detects a true lift from p to p + lift, with n users per group. */
 export function power({ p, lift, n, alpha = 0.05 }) {
@@ -14,7 +15,6 @@ export function sampleSize({ p, lift, power: target = 0.8, alpha = 0.05 }) {
   return Math.ceil((za * Math.sqrt(2 * pbar * (1 - pbar)) + zb * Math.sqrt(p * (1 - p) + p2 * (1 - p2))) ** 2 / lift ** 2);
 }
 
-const gauss = rnd => { let u = 0; while (!u) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
 /**
  * Run `runs` simulated experiments. Each group's conversion count is drawn from its binomial (normal approximation)
  * and compared with a pooled two-proportion z-test. Returns the share detected and the average lift the winners reported.

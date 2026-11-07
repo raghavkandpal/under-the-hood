@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sigmoid, train, predict } from "./logistic-regression.js";
+import { sigmoid, train, predict, logLoss } from "./logistic-regression.js";
 import { mulberry } from "../../shared/random.js";
 
 test("the sigmoid turns any score into a probability", () => {
@@ -26,4 +26,9 @@ test("perfectly separable groups push the weights up forever, unless L2 holds th
   const pts = [{ x: 0.2, y: 0.2, label: 0 }, { x: 0.3, y: 0.1, label: 0 }, { x: 0.8, y: 0.9, label: 1 }, { x: 0.9, y: 0.7, label: 1 }];
   const short = train(pts, { steps: 500 }), long = train(pts, { steps: 5000 }), reg = train(pts, { steps: 5000, l2: 0.01 });
   assert.ok(Math.hypot(...long.w) > 1.5 * Math.hypot(...short.w)); assert.ok(Math.hypot(...reg.w) < Math.hypot(...long.w) / 2);
+});
+
+test("log loss: 90% and right costs about 0.1, 99% and wrong about 4.6", () => {
+  const sure = q => ({ w: [0, 0], b: Math.log(q / (1 - q)) }), pt = label => [{ x: 0, y: 0, label }];
+  assert.ok(Math.abs(logLoss(sure(0.9), pt(1)) - 0.105) < 0.001); assert.ok(Math.abs(logLoss(sure(0.99), pt(0)) - 4.605) < 0.001);
 });

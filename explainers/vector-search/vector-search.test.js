@@ -14,5 +14,5 @@ test("probing every cluster finds exactly the true nearest neighbours; one probe
 test("each extra probe buys recall with more scanning", () => {
   const rnd = mulberry(9), avg = probes => { let r = 0, sc = 0; for (let t = 0; t < 200; t++) { const p = data[Math.floor(rnd() * data.length)].map(v => v + (rnd() - 0.5) * 0.02), s = search(index, p, 10, probes); r += recall(s.ids, exact(data, p, 10)); sc += s.scanned; } return [r / 200, sc / 200]; };
   const [r1, s1] = avg(1), [r2, s2] = avg(2), [r4] = avg(4);
-  assert.ok(r1 > 0.8 && r1 < 0.95, `${r1}`); assert.ok(r2 > r1 && r4 >= r2, `${r1} ${r2} ${r4}`); assert.ok(s2 > s1 && s1 < 0.05 * 2000, `${s1} ${s2}`);
+  assert.ok(r1 > 0.8 && r1 < 0.95, `${r1}`); assert.ok(r2 > r1 && r4 >= r2, `${r1} ${r2} ${r4}`); assert.ok(s2 > s1 && s1 > 0.03 * 2000 && s1 < 0.05 * 2000, `about 4% of the data: ${s1} ${s2}`);
 });

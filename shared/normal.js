@@ -1,4 +1,4 @@
-// The standard normal distribution, shared by multiple-testing, failure-detection and power-analysis.
+// The standard normal distribution.
 
 /** CDF (Abramowitz & Stegun 7.1.26, error < 2e-7). */
 export function phi(z) {
