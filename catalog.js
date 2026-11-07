@@ -277,6 +277,18 @@ export const CATALOG = [
     blurb: "A comment that runs code: why escaping stops a script tag but not an unquoted attribute or a javascript: link.", prereqs: ["sql-injection"] },
   { id: "csrf", title: "Cross-site request forgery", area: "security", topic: "attacks-and-defences", level: "core", tags: ["csrf", "samesite", "cookies", "csrf token", "web security", "owasp"],
     blurb: "Another site makes your browser send your bank cookie: what SameSite Lax and Strict and CSRF tokens each stop.", prereqs: ["xss"] },
+  { id: "balanced-trees", title: "Balanced search trees", area: "algorithms", topic: "data-structures", level: "core", tags: ["avl tree", "red-black tree", "rotations", "binary search tree", "log n", "data structures"],
+    blurb: "Sorted keys turn a search tree into a list; AVL rotations keep 31 keys five levels deep, one small fix at a time.", prereqs: ["big-o"] },
+  { id: "string-search", title: "String searching", area: "algorithms", topic: "search-and-graphs", level: "core", tags: ["kmp", "boyer-moore", "horspool", "pattern matching", "grep", "strings"],
+    blurb: "Slide, compare, jump: naive search, Knuth–Morris–Pratt and Boyer–Moore–Horspool, counting every character they read.", prereqs: ["big-o"] },
+  { id: "hyperloglog", title: "HyperLogLog", area: "algorithms", topic: "data-structures", level: "deep", tags: ["cardinality", "distinct count", "sketch", "probabilistic", "redis", "big data"],
+    blurb: "Count a million distinct visitors in under a kilobyte by remembering the longest run of zeros each bucket has seen.", prereqs: ["hash-functions"] },
+  { id: "count-min-sketch", title: "Count-min sketch", area: "algorithms", topic: "data-structures", level: "core", tags: ["sketch", "heavy hitters", "frequency", "streaming", "probabilistic", "top-k"],
+    blurb: "Approximate counts for a huge stream in a fixed grid of counters: collisions only add, so take the smallest.", prereqs: ["hash-functions", "bloom"] },
+  { id: "topological-sort", title: "Topological sort", area: "algorithms", topic: "search-and-graphs", level: "intro", tags: ["dag", "dependencies", "kahn's algorithm", "build order", "cycle detection", "graphs"],
+    blurb: "Order a build so nothing runs before what it needs, find which steps can run in parallel, and catch circular dependencies.", prereqs: [] },
+  { id: "minimax", title: "Game trees and minimax", area: "algorithms", topic: "search-and-graphs", level: "core", tags: ["game tree", "alpha-beta", "tic-tac-toe", "search", "chess engines", "adversarial"],
+    blurb: "Play tic-tac-toe against perfect search, and see alpha-beta pruning reach the same answer after 26 times fewer positions.", prereqs: ["big-o"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -322,7 +334,7 @@ export const PATHS = [
     audience: "Engineers and product people who run experiments or read dashboards and want to trust the conclusions.",
     outcomes: ["Explain why averages become predictable and how wide an error bar is", "Put an error bar on almost any number with the bootstrap", "Run an A/B test without fooling yourself", "Recognise Simpson's paradox and reason with Bayes"] },
   { id: "algorithms", title: "The algorithms toolkit", blurb: "The handful of ideas behind most fast code.",
-    steps: ["big-o", "sorting", "hashtable", "heap", "skip-list", "autocomplete", "union-find", "quadtree", "dynamic-programming", "pathfinding", "sat-sudoku"],
+    steps: ["big-o", "sorting", "hashtable", "heap", "skip-list", "balanced-trees", "autocomplete", "string-search", "union-find", "topological-sort", "quadtree", "dynamic-programming", "pathfinding", "minimax", "sat-sudoku"],
     intro: "A handful of algorithms and data structures account for most fast code. This path starts with how to compare algorithms at all, then works through the structures that make lookups, ordering and grouping cheap, and ends with search and constraint solving for harder problems.",
     audience: "Programmers preparing for interviews, or anyone who wants to know why some code scales and some doesn't.",
     outcomes: ["Estimate how code scales with Big-O", "Pick the right structure: hash table, heap, trie, skip list or union-find", "Solve problems with dynamic programming", "Explain how pathfinding and constraint solvers search efficiently"] },

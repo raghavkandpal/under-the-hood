@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Topological sort</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #dag { width: 100%; height: auto; display: block; margin-top: 8px; }
+  #dag text { font-size: 11px; fill: var(--text); }
+  #dag text.deg { font-family: var(--mono); fill: var(--muted); }
+  ol.order { margin: 8px 0 0; padding-left: 22px; font-size: 14px; columns: 2; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Topological sort</h1>
+  <p class="lede">A build has steps that depend on other steps. Any order works as long as nothing runs before what it needs. Finding one is a topological sort, and the same algorithm notices when the dependencies go round in a circle.</p>
+
+  <div class="panel">
+    <div class="row">
+      <button id="step" class="primary">Next step</button><button id="all">Run to the end</button><button id="reset">Reset</button>
+      <label class="inline"><input type="checkbox" id="cycle"> deploy → codegen</label>
+    </div>
+    <svg id="dag" viewBox="0 0 600 250" role="img" aria-label="Build tasks with arrows from each task to the tasks that need it"></svg>
+    <ul class="legend"><li><i style="--c:var(--green)"></i>done</li><li><i style="--c:var(--accent)"></i>ready</li><li><i style="--c:var(--control-border)"></i>waiting</li></ul>
+    <ol class="order" id="order"></ol>
+    <p class="status" id="status"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The graph.</b> Draw each task as a node and an arrow from every task to each one that needs it. Without circles, that's a directed acyclic graph, or DAG. A topological order lists the nodes so that every arrow points forwards. Build tools, spreadsheets recalculating cells, package installers, course prerequisites and <a href="../build-systems/">make</a> all need one.</p>
+  <p><b>Kahn's algorithm.</b> Count each task's unmet dependencies, the small number on each box. Tasks with zero are ready. Take any ready task, put it next in the order, and cross it off: every task that needed it now has one fewer unmet dependency, and any that hit zero become ready. Repeat until nothing is ready. Each arrow is crossed off once, so it runs in O(nodes + arrows).</p>
+  <p><b>Many right answers.</b> When several tasks are ready at once, any of them can go next. This build has 48 valid orders. Tasks that are ready together don't depend on each other, so a build tool can run them in parallel, which is how <code>make -j</code> keeps every core busy.</p>
+  <div class="note"><b>Try it.</b> Tick the extra arrow so deploy must happen before codegen, and run to the end.</div>
+  <p><b>Cycles.</b> If tasks depend on each other in a circle, none of them ever reaches zero. The algorithm stops with tasks left over, and those leftovers are exactly the ones in the cycle or waiting behind it. That's how a package manager reports a circular dependency instead of hanging.</p>
+  <p class="caveat">Simplified: ties are broken by list order. Depth-first search gives another classic algorithm: list each task after everything below it is finished, then reverse the list.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";
+import { kahn, allOrders, TASKS, DEPS } from "./topological-sort.js";
+chrome();
+
+let shown = 0;
+const edges = () => ($("#cycle").checked ? [...DEPS, ["deploy", "codegen"]] : DEPS);
+/** Columns by the longest chain of dependencies above each task. */
+const level = {}; for (const n of kahn(TASKS, DEPS).order) level[n] = Math.max(0, ...DEPS.filter(([, b]) => b === n).map(([a]) => level[a] + 1));
+const cols = {}, pos = {}; for (const n of TASKS) (cols[level[n]] ??= []).push(n);
+for (const [c, ns] of Object.entries(cols)) ns.forEach((n, i) => (pos[n] = [8 + 98 * c, 125 + (i - (ns.length - 1) / 2) * 58]));
+function render() {
+  const E = edges(), r = kahn(TASKS, E), done = new Set(r.order.slice(0, shown)), st = shown ? r.steps[shown - 1] : null;
+  const indeg = st ? st.indeg : Object.fromEntries(TASKS.map(n => [n, E.filter(([, b]) => b === n).length]));
+  const ready = new Set(st ? st.ready : TASKS.filter(n => !indeg[n]));
+  const svg = $("#dag"); svg.replaceChildren();
+  const defs = svgEl("defs"), marker = svgEl("marker", { id: "arr", viewBox: "0 0 8 8", refX: 8, refY: 4, markerWidth: 6, markerHeight: 6, orient: "auto" });
+  marker.append(svgEl("path", { d: "M0,0 L8,4 L0,8 z", fill: "var(--muted)" })); defs.append(marker); svg.append(defs);
+  for (const [a, b] of E) { const [x1, y1] = pos[a], [x2, y2] = pos[b], back = x2 <= x1;
+    svg.append(svgEl("path", { d: back ? `M${x1 + 45},${y1 - 12} C${x1 + 45},${10} ${x2 + 45},${10} ${x2 + 45},${y2 - 12}` : `M${x1 + 90},${y1} L${x2},${y2}`, fill: "none", stroke: back ? "var(--red)" : "var(--muted)", "stroke-width": back ? 1.8 : 1, "marker-end": "url(#arr)" })); }
+  for (const n of TASKS) { const [x, y] = pos[n], d = done.has(n), rd = !d && ready.has(n);
+    svg.append(svgEl("rect", { x, y: y - 12, width: 90, height: 24, rx: 6, fill: d ? "var(--green-soft)" : "var(--surface)", stroke: d ? "var(--green)" : rd ? "var(--accent)" : "var(--control-border)", "stroke-width": rd ? 2 : 1 }),
+      svgEl("text", { x: x + 6, y: y + 4 }, n), svgEl("text", { x: x + 84, y: y + 4, "text-anchor": "end", class: "deg" }, d ? "✓" : indeg[n])); }
+  $("#order").innerHTML = r.order.slice(0, shown).map(n => `<li>${escapeHtml(n)}</li>`).join("");
+  const finished = shown === r.steps.length;
+  $("#status").textContent = !finished ? "" : r.cycle.length ? `Stuck: ${r.cycle.length} tasks never become ready (${r.cycle.join(", ")}).` : `Done: one of ${allOrders(TASKS, E).count} valid orders.`;
+  $("#step").disabled = $("#all").disabled = finished;
+}
+$("#step").onclick = () => { shown++; render(); };
+$("#all").onclick = () => { shown = kahn(TASKS, edges()).steps.length; render(); };
+$("#reset").onclick = () => { shown = 0; render(); };
+$("#cycle").onchange = () => { shown = 0; render(); };
+render();
+</script>
+</body>
+</html>

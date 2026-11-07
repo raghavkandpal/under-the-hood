@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game trees and minimax</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .board { display: grid; grid-template-columns: repeat(3, 72px); gap: 6px; margin: 12px 0 4px; }
+  .board button { height: 72px; font-size: 30px; font-weight: 700; padding: 0; position: relative; }
+  .board button small { position: absolute; bottom: 4px; left: 0; right: 0; font-size: 11px; font-weight: 600; }
+  .board button small.win { color: var(--green); } .board button small.lose { color: var(--red); } .board button small.draw { color: var(--muted); }
+  .board button.x { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Game trees and minimax</h1>
+  <p class="lede">To play a game perfectly, imagine every move, every reply, and every reply to that, all the way to the end. Then assume your opponent is as clever as you. That's minimax, and alpha-beta pruning lets it skip most of the work.</p>
+
+  <div class="panel">
+    <div class="row"><button id="new" class="primary">New game</button><button id="first">Computer starts</button>
+      <label class="inline"><input type="checkbox" id="hints" checked> Scores</label></div>
+    <div class="board" id="board" role="grid" aria-label="Tic-tac-toe board"></div>
+    <p class="status" id="status"></p>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The game tree.</b> Every position branches into one child per legal move, down to positions where someone has won or the board is full. Tic-tac-toe's full tree has 549,946 positions. Score the end positions: +1 if X won, −1 if O won, 0 for a draw.</p>
+  <p><b>Minimax.</b> Work back up from the ends. In a position where X is to move, X picks the child with the highest score; where O moves, O picks the lowest. Each position's score is what happens with perfect play from there. The empty board scores 0: neither side can force a win, so a perfect player never loses at tic-tac-toe. The computer here searches to the end before every move, and preferring quicker wins and slower losses keeps it from dawdling.</p>
+  <p><b>Alpha-beta pruning.</b> Suppose X has already found a move that guarantees a draw. Exploring another move, X sees O has a reply that wins. X doesn't need to see O's other replies: that move is already worse than the draw, and O would never let it be better. Alpha and beta are the best scores each side is already guaranteed; once they cross, the rest of that branch can't matter and is skipped. The answer is identical, and from the empty board it looks at 20,866 positions instead of 549,946.</p>
+  <div class="note"><b>Try it.</b> Start a game and compare the two position counts after the computer's first reply, then after a few more moves as the tree shrinks.</div>
+  <p><b>Bigger games.</b> Chess has around 10⁴⁴ legal positions, far too many to search to the end. Engines search a few moves ahead, score the positions there with a heuristic (material, mobility, king safety, or a neural network), and rely on good move ordering, because alpha-beta prunes most when the best move is tried first. Go programs replaced exhaustive search with sampling (Monte Carlo tree search) guided by learned evaluations.</p>
+  <p class="caveat">Simplified: no transposition table, so positions reached by different move orders are searched again; with one, tic-tac-toe has only 5,478 distinct positions.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile } from "../../shared/common.js";
+import { search, winner, moveScores } from "./minimax.js";
+chrome();
+
+let board, human = "X", ai = "O", last = null;
+function reset(aiFirst) { board = Array(9).fill(null); human = aiFirst ? "O" : "X"; ai = aiFirst ? "X" : "O"; last = null; if (aiFirst) think(); render(); }
+function think() {
+  const pruned = search(board, ai), full = search(board, ai, { prune: false });
+  board[pruned.move] = ai; last = { pruned: pruned.nodes, full: full.nodes };
+}
+function render() {
+  const w = winner(board), scores = !w && $("#hints").checked ? moveScores(board, human) : [], mine = s => (human === "X" ? s : -s);
+  $("#board").innerHTML = board.map((c, i) => { const s = scores[i], k = s == null ? "" : mine(s) > 0 ? "win" : mine(s) < 0 ? "lose" : "draw";
+    return `<button data-i="${i}" class="${c === "X" ? "x" : ""}" ${c || w ? "disabled" : ""} aria-label="${c ?? `empty cell ${i + 1}`}">${c ?? ""}${k ? `<small class="${k}">${k}</small>` : ""}</button>`; }).join("");
+  $("#status").textContent = w === "draw" ? "Draw." : w ? (w === human ? "You win." : "Computer wins.") : `You play ${human}.`;
+  $("#stats").innerHTML = last ? [[last.full.toLocaleString(), "positions, plain minimax"], [last.pruned.toLocaleString(), "positions, alpha-beta"], [(last.full / last.pruned).toFixed(1) + "×", "fewer"]].map(statTile).join("") : "";
+}
+$("#board").onclick = e => { const b = e.target.closest("button[data-i]"); if (!b || b.disabled) return; board[+b.dataset.i] = human; if (!winner(board)) think(); render(); };
+$("#new").onclick = () => reset(false); $("#first").onclick = () => reset(true); $("#hints").onchange = render;
+reset(false);
+</script>
+</body>
+</html>

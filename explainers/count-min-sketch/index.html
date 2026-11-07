@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Count-min sketch</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+  table.data tr { cursor: pointer; } table.data tr.sel td { background: var(--accent-soft); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Count-min sketch</h1>
+  <p class="lede">Which search terms are trending right now? Counting every distinct term exactly needs a table as big as the vocabulary. A count-min sketch keeps a small fixed grid of counters instead, and its answers are never too low.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Width <input type="range" id="w" min="1" max="3" step="0.1" value="2.3"> <b id="wv"></b></label>
+      <label class="inline">Rows <input type="range" id="d" min="1" max="8" value="4"> <b id="dv"></b></label>
+    </div>
+    <svg class="chart" id="grid" viewBox="0 0 600 120" role="img" aria-label="The sketch's counters, darker for larger counts, with the selected item's counters marked"></svg>
+    <ul class="legend"><li><i style="--c:var(--accent)"></i>counter</li><li><i style="--c:var(--red)"></i>selected item's counters</li></ul>
+    <div class="stats" id="stats"></div>
+    <div class="scroll-x"><table class="data" id="table"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>A grid of counters.</b> The sketch has <i>d</i> rows of <i>w</i> counters, and one <a href="../hash-functions/">hash function</a> per row. To count an item, hash it once per row and add one to the counter it lands on in each row. To ask how often you've seen it, look up the same <i>d</i> counters and take the smallest.</p>
+  <p><b>Why the minimum.</b> Every counter an item touches holds its true count plus the counts of whatever other items hashed to the same place. Collisions only ever add, so each counter overcounts or is exact, and the smallest one is the closest. An item has to collide badly in every row at once to get a bad estimate.</p>
+  <p><b>The guarantee.</b> With width <i>w</i>, each estimate exceeds the truth by at most about e/<i>w</i> of the whole stream, with probability at least 1 − e<sup>−d</sup>. Width controls how big the error can be, and depth how often it happens. Memory is <i>w</i> × <i>d</i> counters however many distinct items there are.</p>
+  <div class="note"><b>Try it.</b> Shrink the width until the long-tail item looks popular, then add rows and watch its estimate fall back.</div>
+  <p><b>Where it's used.</b> The error is a fraction of the total, so it's small next to popular items and large next to rare ones. That's exactly right for finding heavy hitters: trending topics, the busiest IP addresses in a flood, hot keys in a cache. Like a <a href="../bloom/">Bloom filter</a>, it trades exactness for a fixed, tiny footprint, and two sketches of the same shape merge by adding their counters.</p>
+  <p class="caveat">Simplified: one stream of 50,000 events over 5,000 items, with popularity following a power law. Variants subtract an estimate of the noise, or update only the smallest counters (conservative update) to cut overcounting further.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { sketch, add, query, cells, epsilon, zipfStream } from "./count-min-sketch.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const stream = zipfStream({ items: 5000, length: 50000, rnd: mulberry(1) }), truth = new Map();
+for (const x of stream) truth.set(x, (truth.get(x) ?? 0) + 1);
+const ranked = [...truth].sort((a, b) => b[1] - a[1]), shown = [...ranked.slice(0, 6), ranked[200], ranked[ranked.length - 1]];
+let sel = shown[0][0];
+function render() {
+  const w = Math.round(10 ** +$("#w").value), d = +$("#d").value, s = sketch(w, d); stream.forEach(x => add(s, x));
+  $("#wv").textContent = w; $("#dv").textContent = d;
+  const cols = Math.min(w, 150), per = w / cols, rowH = Math.min(26, 104 / d), svg = $("#grid"), max = Math.max(...s.rows.map(r => Math.max(...r)));
+  svg.replaceChildren();
+  s.rows.forEach((row, r) => { for (let c = 0; c < cols; c++) { let v = 0; for (let k = Math.floor(c * per); k < Math.floor((c + 1) * per); k++) v = Math.max(v, row[k]);
+    svg.append(svgEl("rect", { x: 4 + c * 592 / cols, y: 4 + r * rowH, width: 592 / cols - (cols < 80 ? 1 : 0), height: rowH - 2, fill: "var(--accent)", opacity: 0.08 + 0.92 * Math.sqrt(v / max) })); } });
+  cells(s, sel).forEach((c, r) => svg.append(svgEl("rect", { x: 4 + Math.floor(c / per) * 592 / cols - 1, y: 3 + r * rowH, width: Math.max(592 / cols, 3) + 2, height: rowH, fill: "none", stroke: "var(--red)", "stroke-width": 2 })));
+  const errs = ranked.map(([x, c]) => query(s, x) - c);
+  $("#stats").innerHTML = [[`${(w * d).toLocaleString()}`, `counters, for ${truth.size.toLocaleString()} items`], [(errs.reduce((a, b) => a + b, 0) / errs.length).toFixed(1), "average overcount"], [Math.max(...errs).toLocaleString(), "worst overcount"], [Math.round(epsilon(w) * stream.length).toLocaleString(), "bound (e/w × events)"]].map(statTile).join("");
+  $("#table").innerHTML = `<tr><th>Item</th><th>True</th><th>Estimate</th></tr>` + shown.map(([x, c]) => `<tr data-x="${x}" class="${x === sel ? "sel" : ""}"><td>${x}</td><td class="num">${c.toLocaleString()}</td><td class="num">${query(s, x).toLocaleString()}</td></tr>`).join("");
+}
+$("#table").onclick = e => { const tr = e.target.closest("tr[data-x]"); if (tr) { sel = tr.dataset.x; render(); } };
+$("#w").oninput = $("#d").oninput = render;
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Balanced search trees</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #tree { width: 100%; height: auto; display: block; margin-top: 8px; }
+  #tree text { font-size: 11px; fill: var(--text); font-family: var(--mono); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Balanced search trees</h1>
+  <p class="lede">A binary search tree finds any key in a few steps, as long as it stays bushy. Feed it keys in sorted order and it grows into a long chain. AVL trees fix that with small local rotations.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="kind"></div><div class="seg" id="order"></div></div>
+    <div class="row" style="margin-top:6px"><button id="step" class="primary">Insert next</button><button id="all">Insert all</button><button id="reset">Reset</button></div>
+    <svg id="tree" viewBox="0 0 600 260" role="img" aria-label="The tree after the keys inserted so far"></svg>
+    <div class="stats" id="stats"></div>
+    <p class="status" id="last"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Search trees.</b> Every node's left subtree holds smaller keys and its right subtree larger ones, so a search goes left or right at each node and never backtracks. The cost is the depth of the key. A tree of 31 keys can be 5 levels deep, or 31.</p>
+  <p><b>The bad case.</b> Insert keys in sorted order and each one is larger than everything so far, so it goes to the far right. The tree becomes a linked list and search is O(n). Sorted input is common in real life: ids, timestamps, names loaded from a sorted file.</p>
+  <p><b>Rotations.</b> A rotation turns a parent and child around: the child moves up, the parent moves down to the other side, and one subtree changes hands. In-order is preserved, so the tree still sorts correctly, and only three pointers change. An AVL tree records each node's height. After an insert, it walks back up, and wherever one side is two levels taller than the other it rotates once, or twice when the new key went in on the inside (the LR and RL cases).</p>
+  <div class="note"><b>Try it.</b> Insert the sorted keys one at a time in AVL mode and watch where each rotation happens. Then insert them all without balancing.</div>
+  <p><b>What it guarantees.</b> No AVL tree is ever more than about 1.44 log₂ n deep, so search, insert and delete are O(log n) whatever order keys arrive in. Red-black trees, used by Java's TreeMap and Linux's scheduler, loosen the rule to rotate less often. Databases use the same idea with hundreds of keys per node: the <a href="../btree/">B-tree</a>.</p>
+  <p class="caveat">Simplified: insert only, with distinct integer keys. Deletes rebalance the same way but can rotate at every level on the way up.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { build, height, avgDepth, layout } from "./balanced-trees.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const N = 31, sorted = Array.from({ length: N }, (_, i) => i + 1);
+const shuffled = (() => { const a = [...sorted], r = mulberry(3); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; })();
+let avl = false, keys = sorted, done = 0;
+tabs($("#kind"), { bst: "Plain BST", avl: "AVL" }, "bst", k => { avl = k === "avl"; render(); });
+tabs($("#order"), { sorted: "Sorted keys", random: "Random keys" }, "sorted", k => { keys = k === "sorted" ? sorted : shuffled; done = 0; render(); });
+function render() {
+  const { root, rotations } = build(keys.slice(0, done), avl), before = build(keys.slice(0, Math.max(0, done - 1)), avl).rotations.length;
+  const nodes = layout(root), H = Math.max(1, height(root)), svg = $("#tree"), byKey = new Map(nodes.map(n => [n.key, n]));
+  const X = x => 20 + 560 * (x + 0.5) / N, Y = d => 18 + (H > 1 ? 230 * d / Math.max(H - 1, 4) : 0);
+  svg.replaceChildren();
+  for (const n of nodes) if (n.parent !== null) { const p = byKey.get(n.parent); svg.append(svgEl("line", { x1: X(p.x), y1: Y(p.d), x2: X(n.x), y2: Y(n.d), stroke: "var(--control-border)" })); }
+  for (const n of nodes) { const isNew = n.key === keys[done - 1];
+    svg.append(svgEl("circle", { cx: X(n.x), cy: Y(n.d), r: 8.5, fill: isNew ? "var(--accent)" : "var(--surface)", stroke: isNew ? "var(--accent)" : "var(--control-border)" }),
+      svgEl("text", { x: X(n.x), y: Y(n.d) + 3.5, "text-anchor": "middle", style: isNew ? "fill:var(--on-accent)" : "" }, n.key)); }
+  $("#stats").innerHTML = [[`${done} / ${N}`, "keys"], [height(root), "height"], [avgDepth(root).toFixed(1), "average steps to find a key"], [avl ? rotations.length : "–", "rotations"]].map(statTile).join("");
+  $("#last").textContent = done && avl && rotations.length > before ? `Inserting ${keys[done - 1]} needed a ${rotations.at(-1)} rotation.` : "";
+  $("#step").disabled = $("#all").disabled = done === N;
+}
+$("#step").onclick = () => { done++; render(); };
+$("#all").onclick = () => { done = N; render(); };
+$("#reset").onclick = () => { done = 0; render(); };
+render();
+</script>
+</body>
+</html>
