@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multiple testing</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  .legend i.ring { background: none; border: 2px solid var(--c); border-radius: 50%; }
+  .legend i.dot { border-radius: 50%; }
+  table.data td.num { font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Multiple testing</h1>
+  <p class="lede">Test twenty ideas that do nothing at p &lt; 0.05 and, about two times in three, at least one of them “wins”. The more questions you ask of the same data, the more answers come from luck.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="method"></div></div>
+    <div class="row" style="margin-top:6px">
+      <label class="inline">Tests <input type="range" id="m" min="1" max="100" value="20"> <b id="mv"></b></label>
+      <label class="inline">Real effects <input type="range" id="real" min="0" max="50" step="5" value="0"> <b id="realv"></b></label>
+      <button id="again" class="primary">Run again</button>
+    </div>
+    <svg class="chart" id="chart" viewBox="0 0 600 240" role="img" aria-label="Each test's p-value, smallest first, against the method's threshold"></svg>
+    <ul class="legend">
+      <li><i class="dot" style="--c:var(--green)"></i>true win</li>
+      <li><i class="dot" style="--c:var(--red)"></i>false win</li>
+      <li><i class="ring" style="--c:var(--green)"></i>missed</li>
+      <li><i class="ring" style="--c:var(--muted)"></i>no effect</li>
+    </ul>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row"><b>1,000 runs</b><button id="long">Run</button></div>
+    <div class="scroll-x"><table class="data" id="table"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>One test.</b> A p-value below 0.05 means: if the idea did nothing, data this extreme would turn up less than 5% of the time. So a test of a useless idea still “wins” 1 time in 20. That's the price of one test, and it's usually acceptable.</p>
+  <p><b>Many tests.</b> Each extra test buys another 5% lottery ticket. With 20 independent tests of nothing, the chance that none wins is 0.95²⁰ ≈ 36%, so 64% of the time you get at least one false discovery. Testing many metrics, many segments (“it worked for users in Ohio on Tuesdays”), many variants, or peeking at a running <a href="../abtest/">A/B test</a> all count. So does trying analyses until one comes out significant, which is p-hacking.</p>
+  <div class="note"><b>Try it.</b> With 20 tests and no real effects, run 1,000 experiments without a correction, then with each correction. Then add 20% real effects and compare how many each one finds.</div>
+  <p><b>Bonferroni.</b> Divide the threshold by the number of tests: with 20, a win needs p &lt; 0.0025. That keeps the chance of <i>any</i> false win under 5%, the <i>family-wise error rate</i>. It's simple and safe, but strict: with 50 tests, a real effect that one test alone would catch 85% of the time is caught well under half the time.</p>
+  <p><b>Benjamini–Hochberg (BH).</b> Sort the p-values. The smallest must beat α/m, the second 2α/m, and so on up a rising line. Find the last p-value under the line, and everything before it wins. This controls the <i>false discovery rate</i>: on average, at most 5% of your wins are flukes. You accept the odd false win in exchange for finding many more real ones, which suits screening many candidates for follow-up.</p>
+  <p><b>Which to use.</b> When one false claim is costly (a drug approval, a headline result), control the family-wise rate. When you're picking candidates to test again, control the false discovery rate. Either way, decide how many tests you're running before you look, and report all of them. A correction can't count tests you didn't admit to.</p>
+  <p class="caveat">Simplified: tests are independent z-tests and every real effect is the same size. Benjamini–Hochberg also holds for positively correlated tests; Holm's method is a uniformly stronger version of Bonferroni.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { simulate, decide, score, threshold, longRun } from "./multiple-testing.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const NAMES = { none: "No correction", bonferroni: "Bonferroni", bh: "Benjamini–Hochberg" };
+let method = "none", seed = 1, tests;
+tabs($("#method"), { none: "None", bonferroni: "Bonferroni", bh: "BH" }, method, k => { method = k; draw(); });
+const pct = v => Math.round(v * 100) + "%";
+
+function rerun() {
+  const m = +$("#m").value, realShare = +$("#real").value / 100;
+  $("#mv").textContent = m; $("#realv").textContent = $("#real").value + "%";
+  tests = simulate({ m, realShare, rnd: mulberry(seed) }); draw(); $("#table").innerHTML = "";
+}
+function draw() {
+  const m = tests.length, wins = decide(tests.map(t => t.p), method), s = score(tests, wins);
+  const order = tests.map((t, i) => i).sort((a, b) => tests[a].p - tests[b].p);
+  const L = 44, R = 590, T = 10, B = 215, lo = -6, X = r => L + (R - L) * (m === 1 ? 0.5 : r / (m - 1)), Y = p => T + (B - T) * Math.log10(Math.max(p, 10 ** lo)) / lo;
+  const svg = $("#chart"); svg.replaceChildren();
+  for (let e = 0; e >= lo; e -= 2) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(10 ** e), y2: Y(10 ** e), stroke: "var(--border)" }), svgEl("text", { x: L - 6, y: Y(10 ** e) + 4, "text-anchor": "end" }, e === 0 ? "1" : `10${"⁻"}${"⁰¹²³⁴⁵⁶"[-e]}`));
+  svg.append(svgEl("polyline", { points: order.map((_, r) => `${X(r)},${Y(threshold(method, r + 1, m))}`).join(" ") + (m === 1 ? ` ${R},${Y(threshold(method, 1, 1))}` : ""), fill: "none", stroke: "var(--accent)", "stroke-width": 2 }));
+  order.forEach((i, r) => { const t = tests[i], w = wins[i], c = t.real ? "var(--green)" : w ? "var(--red)" : "var(--muted)";
+    const dot = svgEl("circle", { cx: X(r), cy: Y(t.p), r: m > 60 ? 3.5 : 4.5, fill: w ? c : "none", stroke: c, "stroke-width": 1.6 });
+    dot.append(svgEl("title", {}, `p = ${t.p.toPrecision(2)}, ${t.real ? "real effect" : "no effect"}`)); svg.append(dot); });
+  svg.append(svgEl("text", { x: L, y: B + 18 }, "smallest p"), svgEl("text", { x: R, y: B + 18, "text-anchor": "end" }, "largest p"));
+  $("#stats").innerHTML = [[s.wins, "wins"], [s.falseWins, "false wins"], [s.real ? `${s.trueWins} of ${s.real}` : "–", "real effects found"]].map(statTile).join("");
+}
+function runLong() {
+  const r = longRun({ m: +$("#m").value, realShare: +$("#real").value / 100, runs: 1000, rnd: mulberry(seed + 99) });
+  $("#table").innerHTML = `<tr><th></th><th>Any false win</th><th>Wins that are false</th><th>Real effects found</th></tr>` +
+    Object.entries(NAMES).map(([k, n]) => `<tr><td>${n}</td><td class="num">${pct(r[k].fwer)}</td><td class="num">${pct(r[k].fdr)}</td><td class="num">${+$("#real").value ? pct(r[k].power) : "–"}</td></tr>`).join("");
+}
+$("#m").oninput = $("#real").oninput = rerun;
+$("#again").onclick = () => { seed++; rerun(); };
+$("#long").onclick = runLong;
+rerun();
+</script>
+</body>
+</html>

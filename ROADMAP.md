@@ -1,6 +1,6 @@
 # Roadmap
 
-Plan for the next explainers, plus the working notes a new session needs. 102 explainers exist today, in 9 areas, 27 topics and 11 learning paths, each with free further reading.
+Plan for the next explainers, plus the working notes a new session needs. 105 explainers exist today, in 9 areas, 27 topics and 11 learning paths, each with free further reading.
 
 ## Where the gaps are
 
@@ -84,9 +84,13 @@ All eight shipped (zero-knowledge and dependency-resolution last). Also added: `
 | `zero-knowledge` | Zero-knowledge proofs | security / deep (signatures) | three-colouring proof: commit (hash) to a shuffled colouring, the verifier opens one edge; cheating chance falls as rounds increase |
 | `dependency-resolution` | Dependency resolution | tools / core (build-systems) | semver ranges, a solver with backtracking, diamond conflicts, lockfiles |
 
+## Batch 6 ✅ done
+
+Three gaps from the table: `multiple-testing` (statistics deep dive: Bonferroni vs Benjamini–Hochberg on a sorted p-value plot), `nat` (networking: translation table, filtering, hole punching easy vs symmetric NAT), `normalization` (databases intro: update, deletion and insertion anomalies side by side with three linked tables). Each joined a learning path. Next: WebSockets or HTTP/2 (networking is still thinnest), regression (statistics), balanced trees.
+
 ## How to work (read before starting)
 
-**Start:** run `npm test` and expect all tests passing (373 at the time of writing). The local preview config is `.claude/launch.json`, name `under-the-hood`, port 8766; it's git-ignored, so recreate it if missing. Or run `npm start` (port 8765).
+**Start:** run `npm test` and expect all tests passing (485 at the time of writing). The local preview config is `.claude/launch.json`, name `under-the-hood`, port 8766; it's git-ignored, so recreate it if missing. Or run `npm start` (port 8765).
 
 **For each explainer:**
 1. `npm run new -- <id> "<Title>" <area> <level>`. This creates `explainers/<id>/` (page, logic, test) and the catalog entry, and refuses to overwrite. Never hand-create files in `shared/` without checking they don't exist: an earlier session overwrote the RSA module (used by the signatures and TLS pages) this way.
