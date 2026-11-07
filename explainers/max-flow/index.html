@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maximum flow</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #net { width: 100%; max-width: 620px; height: auto; display: block; margin: 8px auto 0; }
+  #net text { font-size: 12px; fill: var(--text); } #net text.cap { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Maximum flow</h1>
+  <p class="lede">Water from a reservoir to a city through pipes of different sizes, or data through links of different speeds: how much can get through at once? Keep finding a route with room to spare and pushing more along it. When none is left, a set of full pipes shows exactly where the limit is.</p>
+
+  <div class="panel">
+    <div class="row"><button id="step" class="primary">Push along a path</button><button id="all">Run to the end</button><button id="reset">Reset</button></div>
+    <div class="row" style="margin-top:6px"><b>Double a pipe</b><div class="seg" id="widen"></div></div>
+    <svg id="net" viewBox="0 0 500 250" role="img" aria-label="A network from source s to sink t, with each pipe's flow and capacity"></svg>
+    <ul class="legend"><li><i style="--c:var(--accent)"></i>this path</li><li><i style="--c:var(--blue)"></i>carrying flow</li><li><i style="--c:var(--red)"></i>minimum cut</li></ul>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Augmenting paths.</b> Find any route from source to sink where every pipe has spare capacity, push as much as the tightest pipe allows, and repeat. Each push is an <i>augmenting path</i>. Edmonds–Karp always picks the path with the fewest pipes, found by breadth-first search, which guarantees it finishes after at most a few times nodes × edges pushes.</p>
+  <p><b>Undo.</b> A path may also run <i>backwards</i> along a pipe that's carrying flow, which cancels some of that flow and reroutes it. Without this, an early bad choice could block a better arrangement forever. The spare capacity forwards, plus the flow that could be undone backwards, is called the residual network, and when it has no path from s to t, the flow is maximal.</p>
+  <div class="note"><b>Try it.</b> Run to the end and note the red pipes. Then double a pipe that isn't red, then one that is.</div>
+  <p><b>The cut.</b> At the end, split the nodes into those still reachable from s in the residual network and the rest. Every pipe crossing from the first group to the second is full. Those pipes form a <i>cut</i>: remove them and nothing can get through. The max-flow min-cut theorem says the largest flow always equals the smallest cut. So the red pipes are the bottleneck, and widening any other pipe changes nothing.</p>
+  <p><b>Uses.</b> Beyond pipes and networks, max flow solves matching problems (assign workers to jobs, students to schools: a pipe of capacity 1 for each allowed pair), image segmentation (the cut separates foreground from background), and finding how many links must fail to split a network in two.</p>
+  <p class="caveat">Simplified: the six-node network from the CLRS textbook, integer capacities, and one source and sink. Faster algorithms (push-relabel, and recent near-linear-time ones) are used on large graphs.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { maxFlow, NETWORK } from "./max-flow.js";
+chrome();
+
+const POS = { s: [30, 125], a: [170, 50], b: [170, 200], c: [330, 50], d: [330, 200], t: [470, 125] };
+let widen = "none", shown = 0;
+tabs($("#widen"), { none: "None", "s>a": "s→a", "a>c": "a→c", "d>t": "d→t" }, widen, k => { widen = k; shown = 0; render(); });
+const net = () => NETWORK.map(e => (`${e.from}>${e.to}` === widen ? { ...e, cap: e.cap * 2 } : e));
+function render() {
+  const edges = net(), full = maxFlow(edges, "s", "t"), done = shown >= full.paths.length;
+  const on = shown ? full.paths[shown - 1].on : Object.fromEntries(edges.map(e => [`${e.from}>${e.to}`, 0]));
+  const cur = shown ? full.paths[shown - 1] : null, onPath = (f, t) => cur && cur.nodes.some((n, i) => (n === f && cur.nodes[i + 1] === t) || (n === t && cur.nodes[i + 1] === f));
+  const cut = new Set(done ? full.cut.edges.map(e => `${e.from}>${e.to}`) : []), svg = $("#net"); svg.replaceChildren();
+  const defs = svgEl("defs"), mk = svgEl("marker", { id: "ah", viewBox: "0 0 8 8", refX: 8, refY: 4, markerWidth: 5, markerHeight: 5, orient: "auto" });
+  mk.append(svgEl("path", { d: "M0,0 L8,4 L0,8 z", fill: "var(--muted)" })); defs.append(mk); svg.append(defs);
+  for (const e of edges) { const k = `${e.from}>${e.to}`, [x1, y1] = POS[e.from], [x2, y2] = POS[e.to], dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
+    const bend = (e.from === "b" && e.to === "a") || (e.from === "c" && e.to === "b") ? 14 : 0, mx = (x1 + x2) / 2 - uy * bend, my = (y1 + y2) / 2 + ux * bend;
+    const col = cut.has(k) ? "var(--red)" : onPath(e.from, e.to) ? "var(--accent)" : on[k] ? "var(--blue)" : "var(--control-border)";
+    svg.append(svgEl("path", { d: `M${x1 + ux * 20},${y1 + uy * 20} Q${mx},${my} ${x2 - ux * 22},${y2 - uy * 22}`, fill: "none", stroke: col, "stroke-width": 1.5 + 4 * on[k] / 20, "marker-end": "url(#ah)", "stroke-dasharray": cut.has(k) ? "6 3" : "" }),
+      svgEl("text", { x: mx - uy * 12, y: my + ux * 12 + 4, "text-anchor": "middle", class: "cap" }, `${on[k]}/${e.cap}`)); }
+  for (const [n, [x, y]] of Object.entries(POS)) svg.append(svgEl("circle", { cx: x, cy: y, r: 18, fill: "var(--surface)", stroke: "var(--text)", "stroke-width": 1.5 }), svgEl("text", { x, y: y + 4, "text-anchor": "middle" }, n));
+  const flow = edges.filter(e => e.from === "s").reduce((a, e) => a + on[`${e.from}>${e.to}`], 0);
+  $("#stats").innerHTML = [[flow, "flow so far"], [`${shown} of ${full.paths.length}`, "augmenting paths"], [done ? full.cut.capacity : "–", "smallest cut"]].map(statTile).join("");
+  $("#step").disabled = $("#all").disabled = done;
+}
+$("#step").onclick = () => { shown++; render(); };
+$("#all").onclick = () => { shown = maxFlow(net(), "s", "t").paths.length; render(); };
+$("#reset").onclick = () => { shown = 0; render(); };
+render();
+</script>
+</body>
+</html>

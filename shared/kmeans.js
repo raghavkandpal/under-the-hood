@@ -1,5 +1,5 @@
 // k-means (Lloyd's algorithm) with random or k-means++ initialisation. No DOM.
-import { mulberry } from "../../shared/random.js";
+import { mulberry } from "./random.js";
 
 const gauss = r => Math.sqrt(-2 * Math.log(r() || 1e-12)) * Math.cos(2 * Math.PI * r());
 const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;

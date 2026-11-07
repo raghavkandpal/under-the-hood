@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { lcsTable, diff, apply, stats, hunks } from "./diff.js";
-import { mulberry } from "../../shared/random.js";
+import { mulberry } from "./random.js";
 
 test("LCS lengths", () => {
   assert.equal(lcsTable([..."ABCBDAB"], [..."BDCABA"])[0][0], 4);
