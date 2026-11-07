@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leases and fencing tokens</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  ol.events { margin: 8px 0 0; padding-left: 22px; font-size: 14px; }
+  ol.events li.bad { color: var(--red); }
+  .verdict { margin-top: 8px; font-weight: 600; } .verdict.bad { color: var(--red); } .verdict.good { color: var(--green); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Leases and fencing tokens</h1>
+  <p class="lede">A lock service grants a lease for ten seconds. The client holding it stalls for fifteen (a garbage-collection pause, a swapped-out VM), wakes up, and writes as if nothing happened. Meanwhile someone else has held the lock and written too.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Pause <input type="range" id="pause" min="0" max="20" value="15"> <b id="pv"></b></label>
+      <label class="inline"><input type="checkbox" id="fence"> Fencing tokens</label>
+    </div>
+    <svg class="chart" id="chart" viewBox="0 0 600 170" role="img" aria-label="Timeline of both clients' leases, the pause, and their writes to storage"></svg>
+    <ul class="legend"><li><i style="--c:var(--accent)"></i>holds the lease</li><li><i style="--c:var(--border)"></i>paused</li><li><i style="--c:var(--green)"></i>write accepted</li><li><i style="--c:var(--red)"></i>rejected</li></ul>
+    <ol class="events" id="events"></ol>
+    <div class="verdict" id="verdict" role="status"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Leases.</b> A distributed lock can't wait forever for a holder that may have crashed, so it hands out <i>leases</i>: “the lock is yours for ten seconds; renew it or lose it”. If the holder dies, the lock frees itself. ZooKeeper, etcd and Consul all work this way, and so does leader election in <a href="../raft/">Raft</a>-based systems.</p>
+  <p><b>The paused client.</b> A lease only means something if the holder notices when it runs out, and a process can't notice anything while it's frozen. Garbage-collection pauses of several seconds, a VM being migrated, a laptop lid closing, or a network delay on the write itself all look the same: the client checks “do I still hold the lease?”, gets yes, stalls, and then acts on an answer that went stale while it slept. No amount of checking closes the gap, because the pause can come right after the check.</p>
+  <div class="note"><b>Try it.</b> Slide the pause up past the point where the lease runs out, then turn on fencing tokens.</div>
+  <p><b>Fencing tokens.</b> The fix is to let the storage decide. Each time the lock service grants the lease it hands out a number one higher than last time: the <i>fencing token</i>. Every write carries its token, and storage remembers the highest one it has accepted. A write with an older token is rejected, however confident its sender is. The zombie client's write bounces, and the data stays consistent.</p>
+  <p><b>Where it applies.</b> This only works if the storage can check tokens, so it needs cooperation from the database or service being protected. Many systems use the same idea under other names: Raft's term numbers, Kafka's leader epochs, and generation numbers in leader-elected services. A lock without fencing is a hint, not a guarantee.</p>
+  <p class="caveat">Simplified: one write per client, and clocks that agree. Leases also assume the lock service's clock and the client's run at about the same rate; a client whose clock runs slow can believe its lease lasts longer than it does.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, escapeHtml } from "../../shared/common.js";
+import { simulate } from "./fencing-tokens.js";
+chrome();
+
+const TTL = 10, PAUSE_AT = 2, SPAN = 24;
+function render() {
+  const pauseLen = +$("#pause").value, fencing = $("#fence").checked, r = simulate({ ttl: TTL, pauseAt: PAUSE_AT, pauseLen, fencing });
+  $("#pv").textContent = pauseLen + " s";
+  const L = 70, R = 590, X = t => L + (R - L) * t / SPAN, lane = { A: 30, B: 80, S: 130 }, svg = $("#chart"); svg.replaceChildren();
+  for (const [k, y] of Object.entries(lane)) svg.append(svgEl("text", { x: L - 8, y: y + 4, "text-anchor": "end" }, k === "S" ? "storage" : `client ${k}`), svgEl("line", { x1: L, x2: R, y1: y, y2: y, stroke: "var(--border)" }));
+  const aEnd = r.stale ? TTL : PAUSE_AT + pauseLen + 1, bStart = aEnd;
+  svg.append(svgEl("rect", { x: X(0), y: lane.A - 8, width: X(aEnd) - X(0), height: 16, rx: 3, fill: "var(--accent-soft)", stroke: "var(--accent)" }));
+  if (pauseLen) svg.append(svgEl("rect", { x: X(PAUSE_AT), y: lane.A - 5, width: X(PAUSE_AT + pauseLen) - X(PAUSE_AT), height: 10, fill: "var(--border)" }));
+  svg.append(svgEl("rect", { x: X(bStart), y: lane.B - 8, width: X(Math.min(SPAN, bStart + TTL)) - X(bStart), height: 16, rx: 3, fill: "var(--accent-soft)", stroke: "var(--accent)" }));
+  svg.append(svgEl("line", { x1: X(TTL), x2: X(TTL), y1: 12, y2: 150, stroke: "var(--muted)", "stroke-dasharray": "4 4" }), svgEl("text", { x: X(TTL), y: 162, "text-anchor": "middle" }, "A's lease ends"));
+  for (const w of r.storage.writes) { const y = lane[w.who], col = w.ok ? "var(--green)" : "var(--red)";
+    svg.append(svgEl("line", { x1: X(w.t), x2: X(w.t), y1: y, y2: lane.S, stroke: col, "stroke-width": 2 }), svgEl("circle", { cx: X(w.t), cy: lane.S, r: 6, fill: col }),
+      svgEl("text", { x: X(w.t) + 8, y: lane.S + 4, style: `fill:${col}` }, `${w.who} #${w.token}`)); }
+  $("#events").innerHTML = r.events.map(e => `<li class="${/rejected/.test(e.what) ? "bad" : ""}">${e.t} s: ${escapeHtml(e.who === "lock" ? e.what : `${e.who} ${e.what}`)}</li>`).join("");
+  $("#verdict").className = "verdict " + (r.safe ? "good" : "bad");
+  $("#verdict").textContent = r.safe ? `Storage holds ${r.storage.value}: consistent.` : `Storage holds A's update, written after B's with an expired lease. B's work is lost.`;
+}
+$("#pause").oninput = render; $("#fence").onchange = render;
+render();
+</script>
+</body>
+</html>

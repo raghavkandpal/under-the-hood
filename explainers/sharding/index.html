@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sharding</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sharding</h1>
+  <p class="lede">When a table outgrows one machine, you split its rows across several. The rule that decides which row goes where looks like a detail, but it decides which queries stay fast, which machine melts, and how painful it is to add one more.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="scheme"></div><div class="seg" id="work"></div></div>
+    <div class="row" style="margin-top:6px"><label class="inline">Shards <input type="range" id="n" min="2" max="8" value="4"> <b id="nv"></b></label></div>
+    <svg class="chart" id="chart" viewBox="0 0 600 180" role="img" aria-label="Share of the workload each shard handles"></svg>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>By range.</b> Give each shard a slice of the key space: users 0 to 24,999 on the first, the next 25,000 on the second, and so on. Neighbouring keys live together, so “all orders from last Tuesday” or “users 4,000 to 4,500” is answered by one machine reading one contiguous run. Bigtable, HBase and CockroachDB split data this way.</p>
+  <p><b>The hot spot.</b> Keys that grow over time, like auto-increment ids or timestamps, all land at the end of the key space. Every new signup goes to the last range shard while the others sit idle, so adding machines doesn't add write capacity. Range systems fight this by splitting busy ranges as they grow, or by prefixing keys so they don't sort in arrival order.</p>
+  <div class="note"><b>Try it.</b> Pick new signups under each scheme, then a range scan under each.</div>
+  <p><b>By hash.</b> Hash the key and take it modulo the number of shards. Similar keys scatter evenly, so sequential inserts spread across every machine. The price is locality: a range scan now has to ask every shard and merge the answers, and one slow shard slows every such query.</p>
+  <p><b>Adding a shard.</b> With hash mod <i>n</i>, changing <i>n</i> moves almost every key: going from 4 to 5 shards moves about 80% of the data across the network. Range sharding only splits one slice. <a href="../consistent-hashing/">Consistent hashing</a> fixes the hash case: a new shard takes over a fair share of keys and nothing else moves. Many systems also create many more small shards than machines up front, so growing means moving whole shards, not rehashing rows.</p>
+  <p class="caveat">Simplified: 100,000 user ids, equal-sized ranges, and every operation costs the same. Real systems also have to rebalance while serving traffic and route each query to the right shard.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { workload, load, moved } from "./sharding.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const maxKey = 100000;
+let scheme = "range", work = "inserts";
+tabs($("#scheme"), { range: "By range", hash: "By hash" }, scheme, k => { scheme = k; render(); });
+tabs($("#work"), { inserts: "New signups", reads: "Random reads", scan: "Range scan" }, work, k => { work = k; render(); });
+function render() {
+  const n = +$("#n").value, opts = { scheme, n, maxKey }, r = load(workload(work, { maxKey, rnd: mulberry(7) }), opts);
+  $("#nv").textContent = n;
+  const L = 40, R = 590, T = 10, B = 150, bw = (R - L) / n, svg = $("#chart"), total = r.per.reduce((a, b) => a + b, 0); svg.replaceChildren();
+  for (const v of [0, 0.5, 1]) svg.append(svgEl("line", { x1: L, x2: R, y1: B - (B - T) * v, y2: B - (B - T) * v, stroke: "var(--border)" }), svgEl("text", { x: L - 6, y: B - (B - T) * v + 4, "text-anchor": "end" }, v * 100 + "%"));
+  r.per.forEach((c, i) => { const h = (B - T) * c / total;
+    svg.append(svgEl("rect", { x: L + i * bw + 6, y: B - h, width: bw - 12, height: h, rx: 3, fill: c / total > 1.5 / n ? "var(--red)" : "var(--accent)" }),
+      svgEl("text", { x: L + i * bw + bw / 2, y: B + 16, "text-anchor": "middle" }, scheme === "range" ? `${Math.round(i * maxKey / n / 1000)}k–${Math.round((i + 1) * maxKey / n / 1000)}k` : `shard ${i + 1}`)); });
+  $("#stats").innerHTML = [[Math.round(r.hottest * 100) + "%", "on the busiest shard"], [`${r.touched} of ${n}`, "shards involved"], [Math.round(moved(opts) * 100) + "%", `of rows move when shard ${n + 1} is added`]].map(statTile).join("");
+}
+$("#n").oninput = render;
+render();
+</script>
+</body>
+</html>

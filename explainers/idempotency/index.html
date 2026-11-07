@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Idempotency keys</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  ol.story { margin: 8px 0 0; padding-left: 22px; font-size: 14px; }
+  ol.story li.lost { color: var(--muted); } ol.story li.charge { font-weight: 600; } ol.story li.again { color: var(--red); font-weight: 700; } ol.story li.ok { color: var(--green); }
+  .stat.bad b { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Idempotency keys</h1>
+  <p class="lede">You tap Pay, the spinner spins, and the app says the network timed out. Did the payment go through? The app can't know either. If it simply tries again, some customers get charged twice.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Requests lost <input type="range" id="req" min="0" max="40" value="10"> <b id="reqv"></b></label>
+      <label class="inline">Responses lost <input type="range" id="resp" min="0" max="40" value="10"> <b id="respv"></b></label>
+      <label class="inline"><input type="checkbox" id="keys"> Idempotency keys</label>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="row" style="margin-top:12px"><b>One payment</b><button id="again">Another</button></div>
+    <ol class="story" id="story"></ol>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The two failures look the same.</b> If a request is lost on the way, the server never saw it, and retrying is exactly right. If the <i>response</i> is lost, the server already charged the card, and retrying charges it again. The client sees a timeout either way. Timeouts, dropped mobile connections, load balancers closing idle sockets and crashed clients all produce this, and <a href="../retries/">automatic retries</a> make it routine.</p>
+  <p><b>Idempotent operations.</b> An operation is idempotent if doing it twice has the same effect as doing it once. “Set the email to x” is; “add $20” isn't. HTTP's PUT and DELETE are meant to be idempotent and POST isn't, which is why browsers warn before resubmitting a form.</p>
+  <p><b>Keys.</b> To make a non-idempotent operation safe to retry, the client generates a unique key for each <i>intended</i> payment, and sends the same key with every retry. The server records each key with its result in the same database transaction as the charge. When a key arrives that it has seen, it skips the work and returns the stored result. Stripe's API and most payment systems work this way, through an <code>Idempotency-Key</code> header.</p>
+  <div class="note"><b>Try it.</b> Set request loss to zero and only lose responses, with and without keys. Then lose only requests.</div>
+  <p><b>The details that matter.</b> Two retries can arrive at the same moment, so the key needs a unique constraint or a lock, not a check-then-insert. Keys expire eventually (Stripe keeps them for 24 hours). And a retry that comes back with a different amount under the same key should be refused, not replayed.</p>
+  <p class="caveat">Simplified: each attempt independently loses its request or response, the client retries up to three times, and the server never crashes between charging and recording the key, which is why both go in one transaction.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, escapeHtml } from "../../shared/common.js";
+import { pay, many } from "./idempotency.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+let seed = 1;
+function render() {
+  const lossReq = +$("#req").value / 100, lossResp = +$("#resp").value / 100, keys = $("#keys").checked;
+  $("#reqv").textContent = $("#req").value + "%"; $("#respv").textContent = $("#resp").value + "%";
+  const r = many({ n: 1000, lossReq, lossResp, keys, rnd: mulberry(42) });
+  $("#stats").innerHTML = [[r.once, "charged once"], [r.twice, "charged more than once"], [r.never, "never charged"], [r.unconfirmed, "client never heard back"]].map(statTile).join("");
+  $("#stats").children[1].classList.toggle("bad", r.twice > 0);
+  const p = pay({ lossReq, lossResp, keys, rnd: mulberry(seed) });
+  $("#story").innerHTML = p.log.map(l => `<li class="${/lost|gives up/.test(l.what) ? "lost" : /again/.test(l.what) ? "again" : /charges/.test(l.what) ? "charge" : /confirmation/.test(l.what) ? "ok" : ""}">${l.attempt ? `Retry ${l.attempt}: ` : ""}${escapeHtml(l.what)}</li>`).join("");
+}
+$("#req").oninput = $("#resp").oninput = render; $("#keys").onchange = render;
+$("#again").onclick = () => { seed++; render(); };
+render();
+</script>
+</body>
+</html>

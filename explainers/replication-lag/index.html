@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Replication lag</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  .legend i.dot { border-radius: 50%; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Replication lag</h1>
+  <p class="lede">You change your display name, the page reloads, and the old name is back. Refresh again and it's the new one; once more and it's old again. Nothing is broken: your reads are landing on copies of the database that haven't caught up yet.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="routing"></div><button id="again">Another user</button></div>
+    <div class="row" style="margin-top:6px">
+      <label class="inline">Follower 2 lag <input type="range" id="lag" min="0" max="1000" step="20" value="400"> <b id="lagv"></b></label>
+      <label class="inline">Leader for <input type="range" id="win" min="0" max="1500" step="50" value="1000"> <b id="winv"></b></label>
+    </div>
+    <svg class="chart" id="chart" viewBox="0 0 600 190" role="img" aria-label="Which version each replica holds over time, and what each of the user's reads saw"></svg>
+    <ul class="legend"><li><i class="dot" style="--c:var(--green)"></i>up to date</li><li><i class="dot" style="--c:var(--accent)"></i>stale</li><li><i class="dot" style="--c:var(--red)"></i>older than before</li></ul>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Leader and followers.</b> Most databases scale reads by copying every write from one leader to several followers, and serving reads from the followers. Copying is usually <i>asynchronous</i>: the leader confirms your write as soon as it has it, and the followers apply it a little later. Normally that's milliseconds, but under load, after a network hiccup or during a big migration it can be seconds or minutes.</p>
+  <p><b>Reading your own writes.</b> If your next read goes to a follower that hasn't applied your write, your change seems to vanish. The usual fix is to route a user's reads to the leader for a while after they write, or to remember the position of their last write and only read from a follower that has reached it. The window has to be longer than the lag, or the problem comes back.</p>
+  <div class="note"><b>Try it.</b> Choose “Leader after writing”, then shrink the leader window below the follower's lag.</div>
+  <p><b>Monotonic reads.</b> Reading from a random follower each time can be worse than stale: one read sees the new name from a fast follower, the next sees the old name from a slow one, and time appears to run backwards. Pinning each user to one follower (for example by hashing their user id) stops that: you may be behind, but never further behind than last time.</p>
+  <p><b>The trade-off.</b> These are session guarantees, weaker than the strong consistency of synchronous replication or a <a href="../quorum/">quorum</a> read, and much cheaper. Sending reads to the leader costs leader capacity; pinning users makes load uneven and fails over when that follower dies. Many apps mix them: pin by default, use the leader just after a write.</p>
+  <p class="caveat">Simplified: one user, three writes and eight reads after each, two followers whose lag varies by up to ±50%, and no failovers.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { simulate } from "./replication-lag.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+let routing = "any", seed = 3;
+tabs($("#routing"), { any: "Any follower", ryw: "Leader after writing", sticky: "Same follower" }, routing, k => { routing = k; render(); });
+function render() {
+  const lags = [40, +$("#lag").value], window = +$("#win").value, opts = { lags, routing, window };
+  $("#lagv").textContent = lags[1] + " ms"; $("#winv").textContent = window + " ms";
+  const one = simulate({ ...opts, rnd: mulberry(seed) }), span = 3 * 9 * 150, L = 80, R = 590, X = t => L + (R - L) * t / span, svg = $("#chart"); svg.replaceChildren();
+  const lanes = { leader: 60, 0: 100, 1: 140 };
+  for (const [k, y] of Object.entries(lanes)) svg.append(svgEl("text", { x: L - 8, y: y + 4, "text-anchor": "end" }, k === "leader" ? "leader" : `follower ${+k + 1}`), svgEl("line", { x1: L, x2: R, y1: y, y2: y, stroke: "var(--border)" }));
+  for (let w = 0; w < 3; w++) { const t = w * 9 * 150; svg.append(svgEl("line", { x1: X(t), x2: X(t), y1: 20, y2: 150, stroke: "var(--muted)", "stroke-dasharray": "3 3" }), svgEl("text", { x: X(t) + 3, y: 170 }, `write ${w + 1}`)); }
+  one.reads.forEach(r => { const y = lanes[r.replica], col = r.backwards ? "var(--red)" : r.stale ? "var(--accent)" : "var(--green)";
+    svg.append(svgEl("line", { x1: X(r.at), x2: X(r.at), y1: 26, y2: y, stroke: col, opacity: 0.5 }), svgEl("circle", { cx: X(r.at), cy: 26, r: 5, fill: col }), svgEl("text", { x: X(r.at), y: 14, "text-anchor": "middle", style: `fill:${col}` }, "v" + r.seen)); });
+  let s = 0, b = 0, l = 0, n = 0; for (let i = 0; i < 200; i++) { const x = simulate({ ...opts, rnd: mulberry(i) }); s += x.stale; b += x.backwards; l += x.leaderReads; n += x.reads.length; }
+  const pct = v => Math.round(v / n * 100) + "%";
+  $("#stats").innerHTML = [[pct(s), "reads miss the latest write"], [pct(b), "reads go back in time"], [pct(l), "reads hit the leader"]].map(statTile).join("");
+}
+$("#lag").oninput = $("#win").oninput = render;
+$("#again").onclick = () => { seed++; render(); };
+render();
+</script>
+</body>
+</html>

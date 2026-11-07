@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multi-version concurrency control</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .txs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+  .tx { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .tx .row button { padding: 4px 10px; }
+  table.data td { font-family: var(--mono); } table.data td.yes { color: var(--green); font-weight: 700; } table.data td.no { color: var(--muted); }
+  table.data tr.dead td { text-decoration: line-through; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Multi-version concurrency control</h1>
+  <p class="lede">In most databases, a long report and a stream of updates can run on the same table at once, and neither waits for the other. The trick is that an update never overwrites a row. It writes a new version, and each transaction reads the versions that existed when it began.</p>
+
+  <div class="panel">
+    <div class="txs" id="txs"></div>
+    <div class="row" style="margin-top:10px"><b>Row versions</b><button id="vacuum">Vacuum</button><button id="reset">Reset</button></div>
+    <div class="scroll-x"><table class="data" id="versions"></table></div>
+    <p class="status" id="log"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Versions, not overwrites.</b> Every version of a row is stamped with the transaction that created it and, once it's replaced or deleted, the transaction that did that. PostgreSQL calls these <code>xmin</code> and <code>xmax</code>. An update writes a new version and sets the old one's <code>xmax</code>; the old version stays on disk for anyone who still needs it.</p>
+  <p><b>Snapshots.</b> When a transaction begins, it notes which transactions have committed so far. A version is visible to it if its creator is in that list (or is itself) and its replacer isn't. That single rule gives each transaction a frozen picture of the database: changes committed later, or still in progress, are invisible to it. Readers never take locks, so they never block writers, and writers never block readers.</p>
+  <div class="note"><b>Try it.</b> Begin both, have A write and commit, and read in B. Begin a fresh transaction to see the new value. Then try writing in both.</div>
+  <p><b>Write conflicts.</b> If two transactions both change the same row, the second one finds that the version it can see has already been replaced by someone else. Under snapshot isolation, it must abort and retry; otherwise one update would silently overwrite the other (the lost update from <a href="../isolation/">isolation levels</a>). PostgreSQL reports this as “could not serialize access due to concurrent update”.</p>
+  <p><b>Aborts are free, cleanup isn't.</b> Aborting just marks the transaction aborted: its versions become invisible and nothing needs undoing. But replaced versions pile up. <i>Vacuum</i> removes the ones no running transaction can still see. A transaction left open for hours keeps every version since it began alive, which is how one forgotten session can bloat a busy table.</p>
+  <p class="caveat">Simplified: one row, one value, and only write-write conflicts are checked. Real snapshots are a range of transaction ids rather than a list, and full serializable isolation also tracks reads.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml } from "../../shared/common.js";
+import { init, begin, read, write, end, vacuum, visible } from "./mvcc.js";
+chrome();
+
+const TX = { A: 50, B: -30 };
+let db, seen = {}, gone = [];
+function reset() { db = init(100); seen = {}; gone = []; $("#log").textContent = ""; render(); }
+function render() {
+  $("#txs").innerHTML = Object.entries(TX).map(([n, d]) => { const t = db.txs[n];
+    return `<div class="tx"><b>Transaction ${n}</b>${t ? ` <span class="status">id ${t.id}</span>` : ""}
+      <div class="row" style="margin-top:6px">${t ? `<button data-n="${n}" data-a="read">Read</button><button data-n="${n}" data-a="write">Balance ${d > 0 ? "+" : "−"}${Math.abs(d)}</button><button data-n="${n}" data-a="commit">Commit</button><button data-n="${n}" data-a="abort">Abort</button>`
+      : `<button data-n="${n}" data-a="begin" class="primary">Begin</button>`}</div>
+      <p class="status" style="margin:6px 0 0">${seen[n] !== undefined ? `Read: ${seen[n]}` : ""}</p></div>`; }).join("");
+  const names = Object.keys(db.txs);
+  $("#versions").innerHTML = `<tr><th>Value</th><th>Created by</th><th>Replaced by</th>${names.map(n => `<th>Seen by ${n}</th>`).join("")}</tr>` +
+    db.versions.map(v => `<tr><td>${v.value}</td><td>${v.xmin} (${db.status[v.xmin]})</td><td>${v.xmax === null ? "–" : `${v.xmax} (${db.status[v.xmax]})`}</td>${names.map(n => visible(db, v, n) ? `<td class="yes">✓</td>` : `<td class="no">–</td>`).join("")}</tr>`).join("") +
+    gone.map(v => `<tr class="dead"><td>${v.value}</td><td>${v.xmin}</td><td>${v.xmax ?? "–"}</td>${names.map(() => "<td></td>").join("")}</tr>`).join("");
+}
+const say = s => ($("#log").textContent = s);
+$("#txs").onclick = e => {
+  const b = e.target.closest("button[data-a]"); if (!b) return; const n = b.dataset.n, a = b.dataset.a;
+  if (a === "begin") { db = begin(db, n); delete seen[n]; say(`${n} begins as transaction ${db.txs[n].id}.`); }
+  if (a === "read") { seen[n] = read(db, n); say(`${n} reads ${seen[n]}.`); }
+  if (a === "write") { const r = write(db, n, read(db, n) + TX[n]); if (r.error) say(`${n}: ${r.error}. It should abort and retry.`); else { db = r.db; seen[n] = read(db, n); say(`${n} writes ${seen[n]} as a new version.`); } }
+  if (a === "commit" || a === "abort") { const id = db.txs[n].id; db = end(db, n, a === "commit" ? "committed" : "aborted"); delete seen[n]; say(`Transaction ${id} ${a === "commit" ? "commits" : "aborts"}.`); }
+  render();
+};
+$("#vacuum").onclick = () => { const before = db.versions, r = vacuum(db); db = r.db; gone = before.filter(v => !db.versions.some(w => w.xmin === v.xmin)); say(`Vacuum removed ${r.removed} version${r.removed === 1 ? "" : "s"}.`); render(); };
+$("#reset").onclick = reset;
+reset();
+</script>
+</body>
+</html>
