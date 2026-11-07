@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JSON Web Tokens</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .token { font-family: var(--mono); font-size: 13px; word-break: break-all; background: var(--surface-2); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
+  .token .h { color: var(--red); } .token .p { color: var(--accent); } .token .s { color: var(--blue); }
+  pre.json { font-family: var(--mono); font-size: 13px; background: var(--surface-2); border-radius: 8px; padding: 8px 12px; margin: 8px 0 0; overflow-x: auto; }
+  .verdict { margin-top: 10px; font-weight: 600; } .verdict.bad { color: var(--red); } .verdict.good { color: var(--green); }
+</style>
+</head>
+<body>
+<main>
+  <h1>JSON Web Tokens</h1>
+  <p class="lede">After you log in, many APIs hand you a long string with two dots in it. It says who you are, anyone can read it, and the server never has to look anything up to trust it. One signature does all that work, and a few famous mistakes undo it.</p>
+
+  <div class="panel">
+    <div class="row"><button data-act="sign" class="primary">Log in as ada</button><button data-act="tamper">Edit role to admin</button><button data-act="none">Forge with alg none</button></div>
+    <div class="token" id="token" aria-label="The token"></div>
+    <ul class="legend"><li><i style="--c:var(--red)"></i>header</li><li><i style="--c:var(--accent)"></i>payload</li><li><i style="--c:var(--blue)"></i>signature</li></ul>
+    <pre class="json" id="decoded" aria-label="What the token says, decoded"></pre>
+    <div class="row" style="margin-top:8px">
+      <label class="inline">Time <input type="range" id="now" min="0" max="7200" step="60" value="600"> <b id="nowv"></b></label>
+      <label class="inline"><input type="checkbox" id="trust"> Server trusts the token's alg</label>
+    </div>
+    <div class="verdict" id="verdict" role="status"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Three parts.</b> A JWT is a header, a payload and a signature, each base64url-encoded and joined with dots. The header names the algorithm. The payload holds <i>claims</i>: who the user is (<code>sub</code>), their role, when the token expires (<code>exp</code>). Base64 is an encoding, not encryption, so anyone holding the token can read every claim. Never put secrets in one.</p>
+  <p><b>The signature.</b> With HS256 the server computes an HMAC-SHA256 of the first two parts using a key only it knows, and appends the result. To check a token, it recomputes the HMAC and compares. Change one character of the payload and the HMAC no longer matches; making a new one needs the key. So the server can trust the claims without a database lookup, which is why JWTs are popular between services. Asymmetric versions (RS256, ES256) sign with a private key, so other services can verify with the public key without being able to mint tokens; see <a href="../signatures/">digital signatures</a>.</p>
+  <div class="note"><b>Try it.</b> Log in, then edit the role. Then forge a token with alg none, first with the checkbox off, then on.</div>
+  <p><b>alg: none.</b> The standard allows an unsigned token whose header says <code>"alg": "none"</code>. Libraries that let the token's own header choose the algorithm accepted these forgeries as valid, a bug found in many of them in 2015. The fix is for the server to decide which algorithm it expects, and reject everything else.</p>
+  <p><b>You can't take one back.</b> A signed token stays valid until it expires, even if the user logs out, changes their password or is banned, because nothing is looked up. So access tokens are kept short (minutes), paired with a refresh token the server can revoke, or checked against a deny-list, which brings back the lookup JWTs were meant to avoid.</p>
+  <p class="caveat">Simplified: HS256 only, times in seconds from an arbitrary start, and the signature check is a plain string compare. Real code should compare in constant time; see <a href="../timing-attacks/">timing attacks</a>.</p>
+</main>
+<script type="module">
+import { chrome, $, escapeHtml } from "../../shared/common.js";
+import { sign, verify, decode, part } from "./jwt.js";
+chrome();
+
+const KEY = "server-only-secret", CLAIMS = { sub: "ada", role: "user", iat: 0, exp: 3600 };
+let token = "";
+const ACT = {
+  sign: () => sign(CLAIMS, KEY),
+  tamper: () => { const [h, , s] = token.split("."); return `${h}.${part({ ...decode(token).payload, role: "admin" })}.${s}`; },
+  none: () => sign({ ...CLAIMS, role: "admin" }, "", { alg: "none", typ: "JWT" }),
+};
+async function render() {
+  const now = +$("#now").value; $("#nowv").textContent = `${Math.floor(now / 60)} min`;
+  const [h, p, s] = token.split(".");
+  $("#token").innerHTML = `<span class="h">${h}</span>.<span class="p">${p}</span>.<span class="s">${s || ""}</span>`;
+  const d = decode(token); $("#decoded").textContent = d ? `${JSON.stringify(d.header)}\n${JSON.stringify(d.payload, null, 1).replace(/\n\s*/g, " ")}` : "";
+  const r = await verify(token, KEY, { now, trustHeader: $("#trust").checked });
+  $("#verdict").className = "verdict " + (r.error ? "bad" : d.payload.role === "admin" ? "bad" : "good");
+  $("#verdict").textContent = r.error ? `Rejected: ${r.error}.` : `Accepted: ${r.claims.sub} as ${r.claims.role}${r.claims.role === "admin" ? " (a forgery got through)" : ""}.`;
+}
+document.querySelectorAll("[data-act]").forEach(b => (b.onclick = async () => { token = await ACT[b.dataset.act](); render(); }));
+$("#now").oninput = render; $("#trust").onchange = render;
+sign(CLAIMS, KEY).then(t => { token = t; render(); });
+</script>
+</body>
+</html>

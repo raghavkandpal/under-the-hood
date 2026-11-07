@@ -1,6 +1,6 @@
 # Roadmap
 
-Plan for the next explainers, plus the working notes a new session needs. 135 explainers exist today, in 9 areas, 29 topics and 11 learning paths, each with free further reading.
+Plan for the next explainers, plus the working notes a new session needs. 145 explainers exist today, in 9 areas, 29 topics and 11 learning paths, each with free further reading.
 
 ## Where the gaps are
 
@@ -97,9 +97,17 @@ Thirty explainers, one PR per batch, each stacked on the one before:
 - **10, databases and distributed:** mvcc, sharding, fencing-tokens, idempotency, inverted-index, replication-lag.
 - **11, ML and statistics:** linear-regression, data-leakage, lora, beam-search, markov-chains, birthday-paradox.
 
+## Batch 12 ✅ done
+
+Ten from the gap table, built test-first with the `tdd` skill and reviewed with `code-review` and `ponytail-review`: bisect and three-way-merge (tools intro), failure-detection (distributed intro), jwt, timing-attacks, bgp (networking deep dive), max-flow, vector-search, logistic-regression, power-analysis. `diff`, `subnets` and `kmeans` moved to `shared/` as second users appeared, and `shared/normal.js` holds the normal CDF and quantile.
+
+## Next batch (not started)
+
+Ten picked from the gap table for the next session: quic (networking deep dive), passkeys (security), paxos (distributed), mixture-of-experts and rlhf (ML), tries-vs-suffix-arrays (algorithms), simd (systems), debuggers (tools), survival-curves (statistics), what-is-an-index (databases intro). Same flow as batch 12: `tdd` per module, `code-review` plus `ponytail-review` before the PR, `pr` for the body.
+
 ## How to work (read before starting)
 
-**Start:** run `npm test` and expect all tests passing (600 at the time of writing). The local preview config is `.claude/launch.json`, name `under-the-hood`, port 8766; it's git-ignored, so recreate it if missing. Or run `npm start` (port 8765).
+**Start:** run `npm test` and expect all tests passing (636 at the time of writing). The local preview config is `.claude/launch.json`, name `under-the-hood`, port 8766; it's git-ignored, so recreate it if missing. Or run `npm start` (port 8765).
 
 **For each explainer:**
 1. `npm run new -- <id> "<Title>" <area> <level>`. This creates `explainers/<id>/` (page, logic, test) and the catalog entry, and refuses to overwrite. Never hand-create files in `shared/` without checking they don't exist: an earlier session overwrote the RSA module (used by the signatures and TLS pages) this way.

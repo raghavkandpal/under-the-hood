@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statistical power</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  .legend i.dot { border-radius: 50%; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Statistical power</h1>
+  <p class="lede">Your new checkout really is better, by two points of conversion. Run the A/B test on a thousand users each and it will usually say “no significant difference”. Power is the chance a test notices an effect that's really there, and it's decided before you collect a single click.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Baseline <input type="range" id="p" min="0.02" max="0.5" step="0.01" value="0.1"> <b id="pv"></b></label>
+      <label class="inline">True lift <input type="range" id="lift" min="0.005" max="0.08" step="0.005" value="0.02"> <b id="lv"></b></label>
+      <label class="inline">Users per group <input type="range" id="n" min="2" max="4.6" step="0.05" value="3"> <b id="nv"></b></label>
+    </div>
+    <svg class="chart" id="curve" viewBox="0 0 600 180" role="img" aria-label="Power against users per group, with the 80% line and the current size"></svg>
+    <svg class="chart" id="runs" viewBox="0 0 600 120" role="img" aria-label="The lift measured by 200 simulated experiments, with the significant ones marked"></svg>
+    <ul class="legend"><li><i class="dot" style="--c:var(--accent)"></i>significant</li><li><i class="dot" style="--c:var(--muted)"></i>not significant</li><li><i style="--c:var(--text)"></i>true lift</li></ul>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Two ways to be wrong.</b> An <a href="../abtest/">A/B test</a> controls false alarms with its significance level: at 5%, a change that does nothing is declared a win 1 time in 20. The other mistake is missing a real effect. Power is one minus that miss rate, and the convention is to plan for 80%: a real effect of the size you care about is detected 4 times in 5.</p>
+  <p><b>What sets it.</b> Each group's conversion rate is measured with noise that shrinks like 1/√n. A test detects the lift when the lift is big compared with that noise. So power rises with more users, a bigger true effect, and a baseline rate where conversions are less noisy. Halving the lift you want to detect quadruples the users needed, which is why tiny improvements need enormous tests.</p>
+  <div class="note"><b>Try it.</b> Find the users per group that reaches 80% for a two-point lift, then halve the lift. Then go back to 1,000 users and look at where the significant results sit.</div>
+  <p><b>The winner's curse.</b> An underpowered test that does come out significant only got there by luck: it happened to see a bigger lift than the real one. So in small tests, the wins overstate the effect: at 1,000 users a group they report nearly double the true two points, and at 500 more than double, and the next test, or the launch, disappoints. A significant result from a well-powered test is much closer to the truth.</p>
+  <p><b>Plan first.</b> Choose the smallest lift worth acting on, compute the sample size, and run to that size without peeking. Stopping as soon as it looks good, or testing many metrics and reporting the one that won, brings back the false alarms the significance level was meant to prevent (see <a href="../multiple-testing/">multiple testing</a>).</p>
+  <p class="caveat">Simplified: two conversion rates, a two-sided z-test at 5%, and the normal approximation. Simulated experiments draw each group's conversions from a normal approximation of the binomial.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { power, sampleSize, simulate } from "./power-analysis.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const pct = v => (v * 100).toFixed(v < 0.1 ? 1 : 0) + "%";
+function render() {
+  const p = +$("#p").value, lift = +$("#lift").value, ln = +$("#n").value, n = Math.round(10 ** ln);
+  $("#pv").textContent = pct(p); $("#lv").textContent = "+" + (lift * 100).toFixed(1) + " pts"; $("#nv").textContent = n.toLocaleString();
+  const L = 40, R = 590, T = 10, B = 150, X = l => L + (R - L) * (l - 2) / 2.6, Y = v => B - (B - T) * v, svg = $("#curve"); svg.replaceChildren();
+  for (const v of [0, 0.5, 0.8, 1]) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(v), y2: Y(v), stroke: v === 0.8 ? "var(--muted)" : "var(--border)", "stroke-dasharray": v === 0.8 ? "4 4" : "" }), svgEl("text", { x: L - 6, y: Y(v) + 4, "text-anchor": "end" }, v * 100 + "%"));
+  for (const l of [2, 3, 4]) svg.append(svgEl("text", { x: X(l), y: B + 16, "text-anchor": "middle" }, (10 ** l).toLocaleString()));
+  const pts = []; for (let l = 2; l <= 4.6; l += 0.02) pts.push(`${X(l)},${Y(power({ p, lift, n: 10 ** l }))}`);
+  const pw = power({ p, lift, n });
+  svg.append(svgEl("polyline", { points: pts.join(" "), fill: "none", stroke: "var(--accent)", "stroke-width": 2.2 }), svgEl("circle", { cx: X(ln), cy: Y(pw), r: 5, fill: "var(--accent)" }));
+  const s = simulate({ p, lift, n, runs: 200, rnd: mulberry(7) }), rs = $("#runs"), span = Math.max(lift * 3, 0.02), Xr = v => 300 + 280 * v / span; rs.replaceChildren();
+  rs.append(svgEl("line", { x1: 10, x2: 590, y1: 90, y2: 90, stroke: "var(--border)" }), svgEl("line", { x1: Xr(lift), x2: Xr(lift), y1: 5, y2: 95, stroke: "var(--text)", "stroke-width": 1.5 }), svgEl("line", { x1: Xr(0), x2: Xr(0), y1: 5, y2: 95, stroke: "var(--border)", "stroke-dasharray": "3 3" }));
+  s.observed.forEach((o, i) => rs.append(svgEl("circle", { cx: Math.max(6, Math.min(594, Xr(o.lift))), cy: 12 + (i % 20) * 3.9, r: 3, fill: o.sig && o.lift > 0 ? "var(--accent)" : "var(--muted)", opacity: o.sig ? 0.95 : 0.45 })));
+  rs.append(svgEl("text", { x: Xr(0), y: 110, "text-anchor": "middle" }, "no lift"), svgEl("text", { x: Xr(lift), y: 110, "text-anchor": "middle" }, "true lift"));
+  $("#stats").innerHTML = [[pct(pw), "power at this size"], [sampleSize({ p, lift }).toLocaleString(), "users per group for 80%"], [s.liftWhenSignificant ? "+" + (s.liftWhenSignificant * 100).toFixed(1) + " pts" : "–", "average lift the winners report"]].map(statTile).join("");
+}
+["#p", "#lift", "#n"].forEach(id => ($(id).oninput = render));
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git bisect</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  ol.log { margin: 8px 0 0; padding-left: 22px; font-size: 14px; font-family: var(--mono); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Git bisect</h1>
+  <p class="lede">The tests passed last month and fail today, and a thousand commits landed in between. Checking them one by one could take a thousand test runs. Bisecting takes ten.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Commits <input type="range" id="n" min="3" max="10" value="7"> <b id="nv"></b></label>
+      <label class="inline"><input type="checkbox" id="skips"> Some don't build</label>
+    </div>
+    <div class="row" style="margin-top:6px"><button id="step" class="primary">Test the middle</button><button id="all">Run to the end</button><button id="new">New bug</button></div>
+    <svg class="chart" id="strip" viewBox="0 0 600 70" role="img" aria-label="The history from the good commit to the bad one, with the range still in doubt"></svg>
+    <ul class="legend"><li><i style="--c:var(--green)"></i>good</li><li><i style="--c:var(--red)"></i>bad</li><li><i style="--c:var(--accent)"></i>still in doubt</li><li><i style="--c:var(--muted)"></i>can't test</li></ul>
+    <div class="stats" id="stats"></div>
+    <ol class="log" id="log"></ol>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Halving.</b> You know one commit that's good and one that's bad, and the bug arrived at some commit in between. Test the one in the middle. If it's bad, the culprit is in the first half; if good, the second. Either way, half the suspects are cleared with one test. After <i>k</i> tests, 2<sup><i>k</i></sup> commits have been narrowed to one, so 1,024 commits take 10 tests and a million take 20. It's <a href="../big-o/">binary search</a> over time.</p>
+  <p><b>In git.</b> <code>git bisect start</code>, mark the ends with <code>git bisect bad</code> and <code>git bisect good &lt;commit&gt;</code>, and git checks out the middle. Test, and answer good or bad. Better, hand it a script: <code>git bisect run npm test</code> does the whole search unattended, using the script's exit code as the answer.</p>
+  <div class="note"><b>Try it.</b> Run a search on 1,024 commits and count the tests. Then tick “Some don't build” and see what changes.</div>
+  <p><b>Commits you can't test.</b> Some commits in the middle won't build, or fail for an unrelated reason. <code>git bisect skip</code> sets one aside and tries a neighbour. If the skipped commits sit right next to the culprit, bisect can only say the bug arrived somewhere in a short range, and you read those commits yourself.</p>
+  <p><b>What it needs.</b> The test has to be reliable: a flaky test that sometimes fails on good commits sends the search the wrong way, and it never recovers. And the bug must have one arrival point, the classic “it worked, then it didn't”. Small, self-contained commits make the final answer more useful, since a giant merge commit as the culprit tells you little. <a href="../git/">Git's</a> history of snapshots is what makes checking out any point cheap.</p>
+  <p class="caveat">Simplified: history is a straight line. In real git, merges make it a graph, and bisect picks commits that split the remaining suspects in half by count.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, escapeHtml } from "../../shared/common.js";
+import { bisect } from "./bisect.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+let seed = 1, culprit, run, shown;
+const N = () => 2 ** +$("#n").value;
+const untestable = i => $("#skips").checked && i % 7 === 3;
+function reset() { const n = N(), r = mulberry(seed); culprit = 1 + Math.floor(r() * (n - 1)); run = bisect(n, i => (untestable(i) ? "skip" : i >= culprit)); shown = 0; render(); }
+function render() {
+  const n = N(); $("#nv").textContent = n.toLocaleString();
+  const st = run.steps.slice(0, shown), last = st.at(-1), done = shown === run.steps.length;
+  let good = 0, bad = n - 1; for (const s of st) { if (s.result === "good") good = s.test; if (s.result === "bad") bad = s.test; }
+  const X = i => 10 + 580 * i / (n - 1), svg = $("#strip"), skipped = st.filter(s => s.result === "skip").map(s => s.test);
+  svg.replaceChildren(svgEl("rect", { x: X(0), y: 18, width: 580, height: 20, rx: 3, fill: "var(--surface-2)" }),
+    svgEl("rect", { x: X(0), y: 18, width: X(good) - X(0) + 1, height: 20, rx: 3, fill: "var(--green)", opacity: 0.7 }),
+    svgEl("rect", { x: X(bad), y: 18, width: X(n - 1) - X(bad) + 1, height: 20, rx: 3, fill: "var(--red)", opacity: 0.7 }),
+    svgEl("rect", { x: X(good), y: 18, width: Math.max(2, X(bad) - X(good)), height: 20, fill: "var(--accent)", opacity: 0.85 }));
+  for (const i of skipped) svg.append(svgEl("rect", { x: X(i) - 1, y: 14, width: 3, height: 28, fill: "var(--muted)" }));
+  if (last) svg.append(svgEl("path", { d: `M${X(last.test)},12 l-5,-8 h10 z`, fill: "var(--text)" }));
+  svg.append(svgEl("text", { x: X(0), y: 58 }, "last known good"), svgEl("text", { x: X(n - 1), y: 58, "text-anchor": "end" }, "today (bad)"));
+  if (done) svg.append(svgEl("text", { x: X(culprit), y: 58, "text-anchor": "middle", style: "fill:var(--red);font-weight:700" }, run.found !== null ? `#${run.found}` : "range"));
+  $("#stats").innerHTML = [[st.length, "tests so far"], [Math.max(1, bad - good).toLocaleString(), "commits still in doubt"], [Math.ceil(Math.log2(n)), "tests at most (log₂ n)"], [(n - 1).toLocaleString(), "tests one by one, worst case"]].map(statTile).join("");
+  $("#log").innerHTML = st.map(s => `<li>commit ${s.test}: ${s.result}</li>`).join("") +
+    (done ? `<li>${run.found !== null ? `first bad commit: ${run.found}` : escapeHtml(`first bad commit is one of ${run.candidates.join(", ")}`)}</li>` : "");
+  $("#step").disabled = $("#all").disabled = done;
+}
+$("#step").onclick = () => { shown++; render(); };
+$("#all").onclick = () => { shown = run.steps.length; render(); };
+$("#new").onclick = () => { seed++; reset(); };
+$("#n").oninput = $("#skips").onchange = reset;
+reset();
+</script>
+</body>
+</html>

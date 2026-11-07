@@ -1,12 +1,8 @@
 // Multiple testing: run many tests at p < 0.05 and some "wins" are pure luck. No DOM.
 
+import { phi } from "../../shared/normal.js";
+
 const gauss = rnd => { let u = 0; while (!u) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
-/** Standard normal CDF (Abramowitz & Stegun 7.1.26, error < 2e-7). */
-export function phi(z) {
-  const x = Math.abs(z) / Math.SQRT2, t = 1 / (1 + 0.3275911 * x);
-  const erf = 1 - t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429)))) * Math.exp(-x * x);
-  return z >= 0 ? (1 + erf) / 2 : (1 - erf) / 2;
-}
 /** Two-sided p-value of a z statistic. */
 export const pValue = z => 2 * (1 - phi(Math.abs(z)));
 

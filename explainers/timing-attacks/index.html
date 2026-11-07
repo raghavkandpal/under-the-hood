@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timing attacks</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); font-family: var(--mono); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Timing attacks</h1>
+  <p class="lede">A server checks your API key with <code>key === secret</code>. That comparison stops at the first wrong character, so a key with the right first character is rejected a few nanoseconds later than one without. Measure carefully enough and the server tells you its secret, one character at a time.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="kind"></div></div>
+    <div class="row" style="margin-top:6px">
+      <label class="inline">Timings per guess <input type="range" id="samples" min="0" max="2.5" step="0.1" value="2"> <b id="sv"></b></label>
+      <label class="inline">Noise <input type="range" id="noise" min="0" max="5" step="0.5" value="2"> <b id="nv"></b></label>
+      <button id="again">Attack again</button>
+    </div>
+    <svg class="chart" id="chart" viewBox="0 0 600 230" role="img" aria-label="For each position of the secret, the average time of all 16 guesses, with the one picked"></svg>
+    <ul class="legend"><li><i style="--c:var(--green)"></i>picked, right</li><li><i style="--c:var(--red)"></i>picked, wrong</li><li><i style="--c:var(--border)"></i>other guesses</li></ul>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The leak.</b> An ordinary string comparison checks characters from the left and returns as soon as two differ. So its running time depends on how many leading characters of your guess are right. The difference is tiny, a few nanoseconds per character, but it's there on every request.</p>
+  <p><b>The attack.</b> Try all 16 possible first characters, sending each many times and averaging the response times to cancel out network noise. The slowest one is probably right. Fix it, and repeat for the second character. Each position costs 16 × samples requests, so an 8-character hex key falls in 12,800 requests at 100 timings per guess, instead of the 4.3 billion that guessing whole keys would take. The last character is different: right or wrong, the comparison takes the same time, but there are only 16 candidates and one of them logs in.</p>
+  <div class="note"><b>Try it.</b> Lower the timings per guess until the attack starts failing, then switch to the constant-time compare.</div>
+  <p><b>Noise only slows it down.</b> Network jitter is far bigger than the leak, but it's random and the leak isn't, so averaging enough samples always wins: the noise shrinks with the square root of the sample count. Attacks like this have been shown across a local network and against cloud servers in the same data centre.</p>
+  <p><b>The fix.</b> Compare secrets in constant time: look at every character whatever happens, and combine the differences so there's no early exit. Use the library function (<code>crypto.timingSafeEqual</code> in Node, <code>hmac.compare_digest</code> in Python) rather than writing your own, because compilers can turn a careful loop back into an early exit. Comparing hashes of the two values, or HMACs as <a href="../jwt/">JWT</a> libraries should, also removes the signal. The same leak shows up wherever timing depends on secret data: <a href="../password-hashing/">password checks</a>, crypto code, even cache behaviour.</p>
+  <p class="caveat">Simplified: one comparison per character costs one time unit and noise is normally distributed. Real leaks are nanoseconds against milliseconds of jitter, so real attacks need thousands of samples per guess.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { attack } from "./timing-attacks.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const SECRET = "c0ffee42", HEX = "0123456789abcdef";
+let kind = "early", seed = 1;
+tabs($("#kind"), { early: "Early-exit compare", constant: "Constant-time compare" }, kind, k => { kind = k; render(); });
+function render() {
+  const samples = Math.round(10 ** +$("#samples").value), noise = +$("#noise").value;
+  $("#sv").textContent = samples; $("#nv").textContent = noise.toFixed(1);
+  const r = attack({ secret: SECRET, kind, noise, samples, rnd: mulberry(seed) }), svg = $("#chart"), rowH = 27, L = 70, cw = (590 - L) / 16;
+  svg.replaceChildren();
+  r.rounds.forEach((round, p) => {
+    const y = 6 + p * rowH, lo = Math.min(...round.avg), hi = Math.max(...round.avg) || 1, scale = v => 4 + 18 * (v - lo) / (hi - lo || 1);
+    svg.append(svgEl("text", { x: 8, y: y + 16 }, `#${p + 1} ${round.pick}${round.byLogin ? " login" : ""}`));
+    round.avg.forEach((v, c) => { const picked = HEX[c] === round.pick, h = scale(v);
+      svg.append(svgEl("rect", { x: L + c * cw + 1, y: y + 22 - h, width: cw - 2, height: h, rx: 1.5, fill: picked ? (round.pick === round.right ? "var(--green)" : "var(--red)") : "var(--border)" })); });
+  });
+  $("#stats").innerHTML = [[r.recovered, "recovered secret"], [r.recovered === SECRET ? "yes" : "no", "correct?"], [r.requests.toLocaleString(), "requests sent"], ["4,294,967,296", "keys to brute-force"]].map(statTile).join("");
+}
+$("#samples").oninput = $("#noise").oninput = render;
+$("#again").onclick = () => { seed++; render(); };
+render();
+</script>
+</body>
+</html>

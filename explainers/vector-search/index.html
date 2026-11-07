@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vector search</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #plot { width: 100%; max-width: 440px; aspect-ratio: 1; height: auto; display: block; margin: 8px auto 0; cursor: crosshair; touch-action: manipulation; background: var(--surface-2); border-radius: 8px; }
+  .legend i.ring { background: none; border: 2px solid var(--c); border-radius: 50%; }
+  table.data td.num { font-family: var(--mono); text-align: right; } table.data tr.sel td { background: var(--accent-soft); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Vector search</h1>
+  <p class="lede">Semantic search and RAG store every document as a vector and look for the ones nearest a question. Checking all of them is exact but slow at a billion. An index that groups nearby vectors looks in a few groups instead, and is almost always right.</p>
+
+  <div class="panel">
+    <div class="row"><label class="inline">Clusters probed <input type="range" id="probes" min="1" max="32" value="1"> <b id="pv"></b></label></div>
+    <svg id="plot" viewBox="0 0 400 400" role="img" aria-label="2,000 vectors in 32 clusters. Click to move the query."></svg>
+    <ul class="legend"><li><i style="--c:var(--accent)"></i>scanned</li><li><i class="ring" style="--c:var(--green)"></i>true 10 nearest</li><li><i style="--c:var(--red)"></i>missed</li></ul>
+    <div class="stats" id="stats"></div>
+    <div class="scroll-x"><table class="data" id="table"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Vectors.</b> An <a href="../embeddings/">embedding</a> model turns text or images into points in a space with hundreds of dimensions, where similar meanings land close together. Finding relevant documents becomes finding the points nearest the query's vector: <a href="../knn/">nearest neighbours</a>. Here the space has two dimensions so it can be drawn, but the method is the same.</p>
+  <p><b>Exact search is a full scan.</b> Comparing the query with every stored vector always gives the right answer, and costs one distance per vector. That's fine for a few thousand and far too slow for a billion vectors queried a thousand times a second.</p>
+  <p><b>An inverted-file index.</b> Ahead of time, group the vectors with <a href="../kmeans/">k-means</a> into clusters and keep a list of the members of each. At query time, find the few cluster centres nearest the query, and scan only their lists. With 32 clusters, probing one scans about 4% of the data. The catch: a true neighbour sitting just over a cluster border isn't in the list you scanned. Probing more clusters trades speed back for <i>recall</i>, the share of the true nearest neighbours you find.</p>
+  <div class="note"><b>Try it.</b> Click near the border between two clusters with one probe, then raise the probes until nothing is missed.</div>
+  <p><b>In practice.</b> Vector databases (pgvector, FAISS, and the hosted ones) offer this IVF index alongside graph-based ones like HNSW, which hop between neighbouring points instead. Both are tuned the same way: a recall target, say 95%, against latency. They're also why a RAG system can occasionally miss a document that an exact search would have found.</p>
+  <p class="caveat">Simplified: 2,000 points in two dimensions and plain Euclidean distance. Real indexes also compress the vectors (product quantization) so millions fit in memory.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { buildIndex, search, exact, points, recall } from "./vector-search.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const data = points(2000, mulberry(1)), index = buildIndex(data, 32), label = new Array(data.length);
+index.lists.forEach((l, j) => l.forEach(i => (label[i] = j)));
+let q = [0.5, 0.5];
+const X = v => 400 * v;
+function render() {
+  const probes = +$("#probes").value, r = search(index, q, 10, probes), truth = exact(data, q, 10), probed = new Set(r.probed), found = new Set(r.ids);
+  $("#pv").textContent = probes;
+  const svg = $("#plot"); svg.replaceChildren();
+  data.forEach((p, i) => svg.append(svgEl("circle", { cx: X(p[0]), cy: X(1 - p[1]), r: 1.8, fill: probed.has(label[i]) ? "var(--accent)" : "var(--muted)", opacity: probed.has(label[i]) ? 0.75 : 0.3 })));
+  for (const c of index.centres) svg.append(svgEl("path", { d: `M${X(c[0]) - 4},${X(1 - c[1])} h8 M${X(c[0])},${X(1 - c[1]) - 4} v8`, stroke: "var(--text)", "stroke-width": 1.2, opacity: 0.5 }));
+  for (const i of truth) svg.append(svgEl("circle", { cx: X(data[i][0]), cy: X(1 - data[i][1]), r: 5, fill: found.has(i) ? "none" : "var(--red)", stroke: found.has(i) ? "var(--green)" : "var(--red)", "stroke-width": 2 }));
+  svg.append(svgEl("path", { d: `M${X(q[0])},${X(1 - q[1]) - 8} l7,14 h-14 z`, fill: "var(--text)" }));
+  $("#stats").innerHTML = [[Math.round(recall(r.ids, truth) * 100) + "%", "of the true 10 found"], [r.scanned.toLocaleString(), "vectors scanned"], [Math.round(r.scanned / data.length * 100) + "%", "of the data"]].map(statTile).join("");
+}
+const rnd = mulberry(9), queries = Array.from({ length: 200 }, () => { const x = data[Math.floor(rnd() * data.length)].map(v => v + (rnd() - 0.5) * 0.02); return { x, truth: exact(data, x, 10) }; });
+const ROWS = [1, 2, 4, 8, 32].map(p => { let rc = 0, sc = 0; for (const { x, truth } of queries) { const s = search(index, x, 10, p); rc += recall(s.ids, truth); sc += s.scanned; } return { p, recall: rc / queries.length, scanned: sc / queries.length }; });
+function table() {
+  $("#table").innerHTML = `<tr><th>Probes</th><th>Average recall</th><th>Scanned</th></tr>` + ROWS.map(r =>
+    `<tr class="${r.p === +$("#probes").value ? "sel" : ""}"><td class="num">${r.p}</td><td class="num">${(r.recall * 100).toFixed(1)}%</td><td class="num">${Math.round(r.scanned).toLocaleString()}</td></tr>`).join("");
+}
+$("#plot").onclick = e => { const b = $("#plot").getBoundingClientRect(); q = [(e.clientX - b.left) / b.width, 1 - (e.clientY - b.top) / b.height]; render(); };
+$("#probes").oninput = () => { render(); table(); };
+render(); table();
+</script>
+</body>
+</html>

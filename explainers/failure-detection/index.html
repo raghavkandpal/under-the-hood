@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Failure detection</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Failure detection</h1>
+  <p class="lede">A server stops answering. Has it crashed, or is the network just slow for a moment? From the outside the two look exactly the same, so every failure detector is a bet between noticing crashes fast and crying wolf.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="kind"></div></div>
+    <div class="row" style="margin-top:6px">
+      <label class="inline" id="tl">Timeout <input type="range" id="timeout" min="1.1" max="5" step="0.1" value="1.5"> <b id="tv"></b></label>
+      <label class="inline" id="pl" hidden>Phi <input type="range" id="phi" min="1" max="12" step="0.5" value="8"> <b id="pv"></b></label>
+      <label class="inline">Jitter <input type="range" id="jitter" min="0.05" max="1" step="0.05" value="0.15"> <b id="jv"></b></label>
+    </div>
+    <svg class="chart" id="chart" viewBox="0 0 600 120" role="img" aria-label="The last minute before the crash: heartbeats, false alarms, the crash and when it was noticed"></svg>
+    <ul class="legend"><li><i style="--c:var(--muted)"></i>heartbeat</li><li><i style="--c:var(--accent)"></i>false alarm</li><li><i style="--c:var(--red)"></i>crash, then noticed</li></ul>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Heartbeats.</b> The usual way to watch a server is to have it send a small “still here” message every second and treat a long silence as death. Load balancers, clusters and <a href="../raft/">consensus</a> systems all do this. The question is how long a silence counts as long.</p>
+  <p><b>The trade-off.</b> Heartbeats don't arrive exactly a second apart: they queue behind other traffic, and some get lost. A short timeout notices a real crash quickly, but every slow or dropped heartbeat becomes a false alarm, and each one can trigger a failover, a leader election or a page to whoever's on call. A long timeout is calm, but a dead server keeps receiving traffic for longer. No setting is right for every network.</p>
+  <div class="note"><b>Try it.</b> With the fixed timeout, raise the jitter and watch the false alarms. Then switch to phi and do the same.</div>
+  <p><b>Phi accrual.</b> Instead of a fixed number, the detector remembers how far apart recent heartbeats really were, and turns the current silence into a suspicion level, phi: how unlikely a gap this long would be on this network. Phi = 8 means a one-in-100-million gap. On a steady network the typical gap is tight, so suspicion rises quickly; on a jittery one the same phi waits longer. Cassandra and Akka use this.</p>
+  <p><b>Why it can't be perfect.</b> In an asynchronous network there's no upper bound on delay, so no detector can be both always right and always eventually sure. That's a theorem, and it's why systems pair detectors with mechanisms that stay safe when a “dead” node turns out to be alive, like <a href="../fencing-tokens/">fencing tokens</a> and quorum writes.</p>
+  <p class="caveat">Simplified: a heartbeat a second, delays that only ever add to it, and phi computed from the last 100 gaps as if they were normally distributed. Real detectors also gossip suspicions between nodes.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { simulate } from "./failure-detection.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+let kind = "timeout";
+tabs($("#kind"), { timeout: "Fixed timeout", phi: "Phi accrual" }, kind, k => { kind = k; $("#tl").hidden = k !== "timeout"; $("#pl").hidden = k !== "phi"; render(); });
+function render() {
+  const jitter = +$("#jitter").value, opt = kind === "timeout" ? { timeout: +$("#timeout").value } : { phi: +$("#phi").value };
+  $("#tv").textContent = (+$("#timeout").value).toFixed(1) + " s"; $("#pv").textContent = $("#phi").value; $("#jv").textContent = jitter.toFixed(2) + " s";
+  const r = simulate({ ...opt, jitter, rnd: mulberry(4) }), from = r.crashAt - 60, to = r.crashAt + 6, X = t => 10 + 580 * (t - from) / (to - from), svg = $("#chart");
+  svg.replaceChildren(svgEl("line", { x1: 10, x2: 590, y1: 60, y2: 60, stroke: "var(--border)" }));
+  for (const t of r.heartbeats) if (t >= from) svg.append(svgEl("line", { x1: X(t), x2: X(t), y1: 48, y2: 72, stroke: "var(--muted)", "stroke-width": 1.5 }));
+  for (const t of r.alarms) if (t >= from) svg.append(svgEl("circle", { cx: X(t), cy: 36, r: 5, fill: "var(--accent)" }));
+  svg.append(svgEl("line", { x1: X(r.crashAt), x2: X(r.crashAt), y1: 20, y2: 90, stroke: "var(--red)", "stroke-width": 2 }),
+    svgEl("rect", { x: X(r.crashAt), y: 54, width: Math.max(2, X(r.declared) - X(r.crashAt)), height: 12, fill: "var(--red)", opacity: 0.35 }),
+    svgEl("text", { x: X(r.crashAt) - 4, y: 16, "text-anchor": "end" }, "crash"));
+  for (const s of [-60, -30, 0]) svg.append(svgEl("text", { x: X(r.crashAt + s), y: 108, "text-anchor": "middle" }, s ? `${s} s` : "0"));
+  $("#stats").innerHTML = [[r.falseAlarms, "false alarms in 10 minutes"], [r.detectAfter.toFixed(1) + " s", "to notice the crash"]].map(statTile).join("");
+}
+["#timeout", "#phi", "#jitter"].forEach(s => ($(s).oninput = render));
+render();
+</script>
+</body>
+</html>

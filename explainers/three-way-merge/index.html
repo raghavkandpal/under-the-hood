@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Three-way merge</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .three { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-top: 8px; }
+  .three label { font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+  .three textarea { font-family: var(--mono); font-size: 13px; min-height: 9.5em; resize: vertical; width: 100%; box-sizing: border-box; }
+  pre.merged { font-family: var(--mono); font-size: 13px; background: var(--surface-2); border-radius: 8px; padding: 8px 0; margin: 10px 0 0; overflow-x: auto; }
+  pre.merged span { display: block; padding: 0 12px; border-left: 3px solid transparent; }
+  pre.merged .ours { border-color: var(--blue); background: var(--blue-soft); } pre.merged .theirs { border-color: var(--green); background: var(--green-soft); }
+  pre.merged .both { border-color: var(--accent); background: var(--accent-soft); }
+  pre.merged .conflict { border-color: var(--red); background: var(--red-soft); } pre.merged .marker { color: var(--red); font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Three-way merge</h1>
+  <p class="lede">You and a teammate both edited the same file. Comparing your two versions alone can't tell who added a line and who deleted one. Git also looks at the version you both started from, and that's what lets most merges happen without asking you anything.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="preset"></div></div>
+    <div class="three">
+      <label>Ancestor <textarea id="base" spellcheck="false"></textarea></label>
+      <label>Ours <textarea id="ours" spellcheck="false"></textarea></label>
+      <label>Theirs <textarea id="theirs" spellcheck="false"></textarea></label>
+    </div>
+    <pre class="merged" id="out" aria-label="The merged file"></pre>
+    <ul class="legend"><li><i style="--c:var(--blue)"></i>from ours</li><li><i style="--c:var(--green)"></i>from theirs</li><li><i style="--c:var(--accent)"></i>same on both</li><li><i style="--c:var(--red)"></i>conflict</li></ul>
+    <p class="status" id="status"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Why two versions aren't enough.</b> Suppose your copy has a line that theirs lacks. Did you add it, or did they delete it? Comparing the two can't say, so a two-way merge would have to ask about every difference. The common ancestor, the commit both branches started from, answers it: if the ancestor had the line, they deleted it; if not, you added it.</p>
+  <p><b>The algorithm.</b> <a href="../diff/">Diff</a> the ancestor against each side separately, which turns each side into a list of changes to particular ancestor lines. Walk the ancestor from top to bottom. Lines neither side touched are kept. A stretch only one side changed takes that side's version. A stretch both changed the same way is taken once. Only when both sides changed the same lines <i>differently</i> is there a real conflict, and git writes both versions between <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code>=======</code> and <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code> markers for you to resolve.</p>
+  <div class="note"><b>Try it.</b> In the clean preset, delete a line in ours and add one at the end of theirs. Then change the same line differently in both.</div>
+  <p><b>Finding the ancestor.</b> <a href="../git/">Git</a> finds it automatically: the merge base is the most recent commit reachable from both branches. That's why merging often stays painless: each merge records a new common point, so the next merge only compares changes since then. A long-lived branch drifts further from its base, and more of its changes overlap.</p>
+  <p><b>What it can't know.</b> The merge works line by line and knows nothing about meaning. Two clean changes can still break the program together: one side renames a function while the other adds a new call to the old name. No conflict appears, and the tests are what catch it.</p>
+  <p class="caveat">Simplified: git also marks a conflict when the two sides' changes are next to each other without overlapping, and offers smarter strategies (patience and histogram diffs, renames, recursive merge bases) on top of this core.</p>
+</main>
+<script type="module">
+import { chrome, $, tabs, escapeHtml } from "../../shared/common.js";
+import { merge3 } from "./three-way-merge.js";
+chrome();
+
+const BASE = "name = demo\nport = 8080\nlog = info\ncache = on\ntimeout = 30";
+const PRESETS = {
+  clean: [BASE, "name = demo\nport = 9090\nlog = info\ncache = on\ntimeout = 30", "name = demo\nport = 8080\nlog = info\ncache = on\ntimeout = 60"],
+  conflict: [BASE, "name = demo\nport = 9090\nlog = info\ncache = on\ntimeout = 30", "name = demo\nport = 3000\nlog = info\ncache = on\ntimeout = 30"],
+  delete: [BASE, "name = demo\nport = 8080\nlog = info\ntimeout = 30", "name = demo\nport = 8080\nlog = debug\ncache = on\ntimeout = 30\nretries = 3"],
+};
+const pick = tabs($("#preset"), { clean: "Different lines", conflict: "Same line", delete: "Delete and add" }, "clean", k => { load(k); render(); });
+const load = k => { [$("#base").value, $("#ours").value, $("#theirs").value] = PRESETS[k]; };
+const lines = id => $(id).value.split("\n");
+function render() {
+  const r = merge3(lines("#base"), lines("#ours"), lines("#theirs")), row = (t, c) => `<span class="${c}">${escapeHtml(t) || " "}</span>`;
+  $("#out").innerHTML = r.regions.map(g => g.kind === "conflict"
+    ? [row("<<<<<<< ours", "conflict marker"), ...g.ours.map(l => row(l, "conflict")), row("=======", "conflict marker"), ...g.theirs.map(l => row(l, "conflict")), row(">>>>>>> theirs", "conflict marker")].join("")
+    : g.lines.map(l => row(l, g.kind === "same" ? "" : g.kind)).join("")).join("");
+  $("#status").textContent = r.conflicts ? `${r.conflicts} conflict${r.conflicts > 1 ? "s" : ""} to resolve by hand.` : "Merged cleanly.";
+}
+["#base", "#ours", "#theirs"].forEach(s => ($(s).oninput = () => { pick(null); render(); }));
+load("clean"); render();
+</script>
+</body>
+</html>

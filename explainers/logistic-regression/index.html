@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logistic regression</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #plot { width: 100%; max-width: 420px; aspect-ratio: 1; height: auto; display: block; margin: 8px auto 0; cursor: crosshair; touch-action: manipulation; }
+  #plot text { font-size: 11px; fill: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Logistic regression</h1>
+  <p class="lede">Will this student pass? A straight line through the data can't answer with a probability: it happily predicts 130% or −20%. Logistic regression bends the line's output through an S-curve, so every answer lands between 0 and 1, and fitting it is a few hundred small steps downhill.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Overlap <input type="range" id="noise" min="0" max="1" step="0.05" value="0.35"> <b id="nv"></b></label>
+      <div class="seg" id="add"></div><button id="new">New students</button>
+    </div>
+    <svg id="plot" viewBox="0 0 400 400" role="img" aria-label="Students by hours studied and hours slept, coloured by result, over the model's predicted chance of passing. Click to add a student."></svg>
+    <ul class="legend"><li><i style="--c:var(--blue)"></i>passed</li><li><i style="--c:var(--red)"></i>failed</li><li><i style="--c:var(--accent)"></i>50% line</li></ul>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>A score, then a squash.</b> The model computes a weighted sum, z = w₁ × hours studied + w₂ × hours slept + b, just like <a href="../linear-regression/">linear regression</a>. Then it passes z through the sigmoid, 1 / (1 + e<sup>−z</sup>), which maps any number to between 0 and 1: z = 0 gives 50%, large positive z approaches 100%, large negative approaches 0%. The 50% line is where z = 0, a straight boundary; the shading shows the probability rising across it.</p>
+  <p><b>Log loss.</b> A prediction is scored by how surprised it was by the truth: −log of the probability it gave the actual outcome. Saying 90% and being right costs 0.1; saying 99% and being wrong costs 4.6. Averaged over the data, this rewards being confident only when it's justified. Fitting means finding the weights with the lowest average loss.</p>
+  <p><b>Gradient descent.</b> There's no formula for the best weights, but the slope of the loss is simple: for each student, (prediction − label) × their inputs. Step the weights a little against it and repeat. The loss is bowl-shaped for this model, with no false valleys, so <a href="../gradient-descent/">gradient descent</a> always heads to the lowest point (when the groups overlap; see below for when they don't).</p>
+  <div class="note"><b>Try it.</b> Drag the overlap to zero and watch the shading sharpen, then add one failing student deep in the passing side.</div>
+  <p><b>Probabilities you can use.</b> When the classes overlap, the output is calibrated: of the students it gives 70%, about 70% pass. That's what makes it useful for decisions, and why you pick the threshold separately (see <a href="../roc/">ROC curves</a>). When the groups separate perfectly, the loss keeps falling as the weights grow towards infinity, and the model becomes absurdly sure. A small penalty on large weights (L2 regularisation, on in this page) stops that. A single neuron in a <a href="../neural-net/">neural network</a> is exactly this model.</p>
+  <p class="caveat">Simplified: two inputs, made-up students, and plain batch gradient descent for 1,500 steps. Real libraries use faster second-order optimisers.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { train, predict, logLoss, sigmoid } from "./logistic-regression.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+let pts, seed = 1, addLabel = 1;
+tabs($("#add"), { 1: "Add pass", 0: "Add fail" }, "1", k => (addLabel = +k));
+function reset() { const r = mulberry(seed), noise = +$("#noise").value;
+  pts = Array.from({ length: 120 }, () => { const x = r(), y = r(), z = (x * 1.2 + y * 0.8 - 1) / Math.max(noise * 0.25, 0.005); return { x, y, label: r() < sigmoid(z) ? 1 : 0 }; }); render(); }
+function render() {
+  $("#nv").textContent = (+$("#noise").value).toFixed(2);
+  const m = train(pts, { steps: 1500, lr: 2, l2: 0.001 }), svg = $("#plot"), P = v => 400 * v, cell = 20; svg.replaceChildren();
+  for (let i = 0; i < cell; i++) for (let j = 0; j < cell; j++) { const q = predict(m, (i + 0.5) / cell, 1 - (j + 0.5) / cell);
+    svg.append(svgEl("rect", { x: P(i / cell), y: P(j / cell), width: 400 / cell + 0.5, height: 400 / cell + 0.5, fill: q > 0.5 ? "var(--blue)" : "var(--red)", opacity: 0.05 + 0.25 * Math.abs(q - 0.5) * 2 })); }
+  // The 50% line: w0 x + w1 y + b = 0.
+  const [w0, w1] = m.w, yAt = x => -(w0 * x + m.b) / w1;
+  if (Math.abs(w1) > 1e-9) svg.append(svgEl("line", { x1: 0, y1: P(1 - yAt(0)), x2: 400, y2: P(1 - yAt(1)), stroke: "var(--accent)", "stroke-width": 2.5 }));
+  for (const p of pts) svg.append(svgEl("circle", { cx: P(p.x), cy: P(1 - p.y), r: 4.5, fill: p.label ? "var(--blue)" : "var(--red)", stroke: "var(--surface)", "stroke-width": 1 }));
+  svg.append(svgEl("text", { x: 396, y: 392, "text-anchor": "end" }, "hours studied →"), svgEl("text", { x: 6, y: 14 }, "↑ hours slept"));
+  const acc = pts.filter(p => (predict(m, p.x, p.y) > 0.5 ? 1 : 0) === p.label).length / pts.length;
+  $("#stats").innerHTML = [[Math.round(acc * 100) + "%", "classified right"], [logLoss(m, pts).toFixed(3), "log loss"], [`${w0.toFixed(1)}, ${w1.toFixed(1)}`, "weights"]].map(statTile).join("");
+}
+$("#plot").onclick = e => { const b = $("#plot").getBoundingClientRect(); pts.push({ x: (e.clientX - b.left) / b.width, y: 1 - (e.clientY - b.top) / b.height, label: addLabel }); render(); };
+$("#noise").onchange = reset; $("#noise").oninput = () => ($("#nv").textContent = (+$("#noise").value).toFixed(2));
+$("#new").onclick = () => { seed++; reset(); };
+reset();
+</script>
+</body>
+</html>

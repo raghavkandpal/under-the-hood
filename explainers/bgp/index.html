@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BGP and route hijacks</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #net { width: 100%; max-width: 560px; height: auto; display: block; margin: 8px auto 0; }
+  #net text { font-size: 12px; fill: var(--text); }
+  table.data td { font-family: var(--mono); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>BGP and route hijacks</h1>
+  <p class="lede">The internet is about 75,000 independent networks that agree on routes by telling each other what they can reach. Nobody checks most of those claims. So when one network announces an address block that isn't its own, traffic for that block can quietly flow to it.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="scenario"></div></div>
+    <div class="row" style="margin-top:6px">
+      <label class="inline"><input type="checkbox" id="rov"> Route origin validation</label>
+      <label class="inline"><input type="checkbox" id="partial"> Only AS 3 checks</label>
+    </div>
+    <svg id="net" viewBox="0 0 400 260" role="img" aria-label="Eight networks and the path each one uses to reach the bank's addresses"></svg>
+    <ul class="legend"><li><i style="--c:var(--green)"></i>reaches the bank (AS 1)</li><li><i style="--c:var(--red)"></i>reaches the attacker (AS 8)</li></ul>
+    <div class="stats" id="stats"></div>
+    <div class="scroll-x"><table class="data" id="routes"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Autonomous systems.</b> Each ISP, cloud and large company runs an autonomous system (AS) with a number, and announces the <a href="../subnets/">address blocks</a> it owns: “203.0.112.0/22 is reachable through me.” Neighbours pass the announcement on, each adding its own number to the front of the path. So every network learns, for every block, a list of ASes leading to it, and picks one, usually the shortest.</p>
+  <p><b>Path vectors.</b> Carrying the whole path, rather than just a distance as <a href="../routing/">distance-vector routing</a> does, gives loop prevention for free: a network that sees its own number in a path ignores it. It also gives operators a policy lever, since they can prefer or refuse routes through particular networks for business reasons, which is most of what real BGP configuration does.</p>
+  <p><b>Hijacks.</b> Nothing in the protocol checks that the origin really owns the block. If AS 8 announces the bank's /22, networks for which AS 8 is closer believe it. If it announces a more specific /24 inside the bank's /22, every router prefers it, because forwarding always uses the longest matching prefix. Real incidents have sent YouTube, cryptocurrency exchanges and large parts of the internet to the wrong place, sometimes by typo.</p>
+  <div class="note"><b>Try it.</b> Compare the two hijacks, then turn on origin validation, first everywhere and then only in AS 3.</div>
+  <p><b>RPKI.</b> Address owners can now publish signed Route Origin Authorizations: “only AS 1 may originate 203.0.112.0/22”. Networks that do route origin validation drop announcements that contradict one. It only protects traffic through networks that check, which is why adoption matters, and it checks the origin only: an attacker who fakes a path ending in the right origin needs BGPsec or ASPA, which are still rolling out.</p>
+  <p class="caveat">Simplified: eight networks, shortest path wins, and no business policy. A ROA here also covers more-specific prefixes from the same origin, as if its maximum length allowed them.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { propagate, destination, routeFor, LINKS } from "./bgp.js";
+chrome();
+
+const POS = { 1: [40, 130], 2: [130, 50], 3: [130, 210], 4: [230, 50], 5: [230, 140], 6: [320, 90], 7: [230, 230], 8: [360, 200] };
+const BANK = { prefix: "203.0.112.0/22", origin: 1 }, IP = "203.0.113.5";
+const SCEN = { normal: [BANK], same: [BANK, { prefix: "203.0.112.0/22", origin: 8 }], specific: [BANK, { prefix: "203.0.113.0/24", origin: 8 }] };
+let scen = "same";
+tabs($("#scenario"), { normal: "Normal", same: "Same prefix hijack", specific: "More-specific hijack" }, scen, k => { scen = k; render(); });
+function render() {
+  const rov = $("#rov").checked ? ($("#partial").checked ? [3] : [1, 2, 3, 4, 5, 6, 7]) : [];
+  $("#partial").disabled = !$("#rov").checked;
+  const t = propagate(LINKS, SCEN[scen], { roas: { "203.0.112.0/22": 1 }, rov }), svg = $("#net"); svg.replaceChildren();
+  const best = as => routeFor(t, as, IP);
+  for (const [a, b] of LINKS) svg.append(svgEl("line", { x1: POS[a][0], y1: POS[a][1], x2: POS[b][0], y2: POS[b][1], stroke: "var(--border)", "stroke-width": 1.5 }));
+  for (const as of Object.keys(POS).map(Number)) { const r = best(as); if (!r || r.path.length < 2) continue; const [x1, y1] = POS[as], [x2, y2] = POS[r.path[1]], bad = destination(t, as, IP) === 8;
+    svg.append(svgEl("line", { x1, y1, x2: x1 + (x2 - x1) * 0.8, y2: y1 + (y2 - y1) * 0.8, stroke: bad ? "var(--red)" : "var(--green)", "stroke-width": 3.5, "stroke-linecap": "round", opacity: 0.85 })); }
+  for (const [as, [x, y]] of Object.entries(POS)) { const d = destination(t, +as, IP), col = d === 8 ? "var(--red)" : d === 1 ? "var(--green)" : "var(--muted)";
+    svg.append(svgEl("circle", { cx: x, cy: y, r: 19, fill: "var(--surface)", stroke: col, "stroke-width": +as === 1 || +as === 8 ? 3.5 : 2 }), svgEl("text", { x, y: y + 4, "text-anchor": "middle" }, `AS ${as}`)); }
+  const victims = [2, 3, 4, 5, 6, 7].filter(a => destination(t, a, IP) === 8).length;
+  $("#stats").innerHTML = [[`${victims} of 6`, "networks send the bank's traffic to AS 8"]].map(statTile).join("");
+  $("#routes").innerHTML = `<tr><th>AS</th><th>Route used for ${IP}</th></tr>` + [2, 3, 4, 5, 6, 7].map(a => { const r = best(a); return `<tr><td>${a}</td><td>${r ? `${r.prefix} via ${r.path.join(" → ")}` : "–"}</td></tr>`; }).join("");
+}
+$("#rov").onchange = $("#partial").onchange = render;
+render();
+</script>
+</body>
+</html>
