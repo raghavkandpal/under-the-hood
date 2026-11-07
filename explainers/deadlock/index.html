@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deadlock</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #table { width: 100%; max-width: 360px; height: auto; display: block; margin: 8px auto 0; }
+  #table text { font-size: 12px; fill: var(--text); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Deadlock</h1>
+  <p class="lede">Five philosophers sit round a table with one fork between each pair, and each needs both neighbouring forks to eat. If they all pick up their left fork at once, nobody can ever pick up a right one.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="strategy"></div></div>
+    <div class="row" style="margin-top:6px"><button id="run" class="primary">Run</button><button id="step">Step</button><button id="reset">Reset</button></div>
+    <svg id="table" viewBox="0 0 300 300" role="img" aria-label="Philosophers round a table, the forks they hold, and who is waiting for whom"></svg>
+    <ul class="legend"><li><i style="--c:var(--green)"></i>eating</li><li><i style="--c:var(--accent)"></i>holds one fork</li><li><i style="--c:var(--red)"></i>waits for</li></ul>
+    <div class="stats" id="stats"></div>
+    <p class="status" id="status"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Four conditions.</b> A deadlock needs all four at once: resources that only one holder can use (a fork, a lock), holders who keep what they have while waiting for more, no way to take a resource away, and a cycle of waiting: A waits for B, who waits for C, who waits for A. Remove any one and deadlock becomes impossible.</p>
+  <p><b>The naive rule.</b> “Take your left fork, then your right” looks fair, and usually works for a few rounds. But a scheduler interleaves threads in whatever order it likes, and sooner or later every philosopher grabs a left fork at the same moment. In these runs that took a median of 14 steps. Real systems hit the same bug as two threads locking two accounts in opposite orders during a transfer: rare, timing-dependent, and gone when you add logging. See <a href="../race-conditions/">race conditions</a> for why.</p>
+  <div class="note"><b>Try it.</b> Run the naive rule several times and note when it sticks. Then run the other two for as long as you like.</div>
+  <p><b>Lock ordering.</b> Number the forks, and always take the lower-numbered one first. Philosopher 4 now reaches for fork 0 before fork 4, against everyone else's direction, and a cycle can't close. This is the most common fix in real code: pick a global order for your locks (by account id, by address) and always acquire them in that order.</p>
+  <p><b>A waiter.</b> Let at most four of the five reach for forks at once. With one seat empty, someone always has both neighbouring forks free eventually. This breaks the cycle by limiting how many can wait, like a semaphore in front of a pool of connections.</p>
+  <p><b>Other ways out.</b> Databases detect the cycle instead: they track who waits for whom and abort one transaction to free its locks. Timeouts with “try the lock, back off, retry” also work, but can turn into livelock, where everyone politely backs off forever.</p>
+  <p class="caveat">Simplified: each step one random philosopher picks up a fork or eats and puts both down, and philosophers are always hungry. Real threads also think, and run truly at the same time.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs, sleep } from "../../shared/common.js";
+import { STRATEGIES, start, actions, apply, waitsFor } from "./deadlock.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const N = 5, NAMES = { naive: "Left then right", ordered: "Lowest fork first", waiter: "At most 4 reach" };
+let strategy = "naive", s, step, rnd, gen = 0, runs = 0;
+tabs($("#strategy"), Object.fromEntries(STRATEGIES.map(k => [k, NAMES[k]])), strategy, k => { strategy = k; reset(); });
+const P = i => { const a = -Math.PI / 2 + i * 2 * Math.PI / N; return [150 + 105 * Math.cos(a), 150 + 105 * Math.sin(a)]; };
+const F = i => { const a = -Math.PI / 2 + (i - 0.5) * 2 * Math.PI / N; return [150 + 62 * Math.cos(a), 150 + 62 * Math.sin(a)]; };
+function reset() { gen++; s = start(N); step = 0; rnd = mulberry(++runs); render(); }
+function advance() { const acts = actions(s, strategy); if (!acts.length) return false; s = apply(s, acts[Math.floor(rnd() * acts.length)]); step++; return true; }
+function render() {
+  const svg = $("#table"), stuck = !actions(s, strategy).length, wf = waitsFor(s, strategy), eaten = s.meals.reduce((a, b) => a + b, 0);
+  svg.replaceChildren(svgEl("circle", { cx: 150, cy: 150, r: 80, fill: "var(--surface-2)", stroke: "var(--border)" }));
+  if (stuck) wf.forEach((o, i) => { if (o === null) return; const [x1, y1] = P(i), [x2, y2] = P(o);
+    svg.append(svgEl("path", { d: `M${x1},${y1} Q150,150 ${x2},${y2}`, fill: "none", stroke: "var(--red)", "stroke-width": 2, "stroke-dasharray": "5 4" })); });
+  for (let f = 0; f < N; f++) { const o = s.owner[f], [x, y] = o === null ? F(f) : (() => { const [px, py] = P(o), [fx, fy] = F(f); return [px + (fx - px) * 0.45, py + (fy - py) * 0.45]; })();
+    svg.append(svgEl("rect", { x: x - 3, y: y - 11, width: 6, height: 22, rx: 3, fill: o === null ? "var(--muted)" : "var(--text)", transform: `rotate(${f * 72 - 36} ${x} ${y})` })); }
+  for (let i = 0; i < N; i++) { const [x, y] = P(i), h = s.held[i].length;
+    svg.append(svgEl("circle", { cx: x, cy: y, r: 20, fill: h === 2 ? "var(--green-soft)" : "var(--surface)", stroke: h === 2 ? "var(--green)" : h ? "var(--accent)" : "var(--control-border)", "stroke-width": h ? 2.5 : 1 }),
+      svgEl("text", { x, y: y + 4, "text-anchor": "middle" }, `P${i}`), svgEl("text", { x, y: y + (y > 150 ? 34 : -26), "text-anchor": "middle", style: "fill:var(--muted);font-size:11px" }, `${s.meals[i]} meals`)); }
+  $("#stats").innerHTML = [[step, "steps"], [eaten, "meals"], [stuck ? "yes" : "no", "deadlocked"]].map(statTile).join("");
+  $("#status").textContent = stuck ? `Stuck after ${step} steps: everyone holds one fork and waits for a neighbour's.` : "";
+  $("#run").disabled = $("#step").disabled = stuck;
+}
+$("#step").onclick = () => { advance(); render(); };
+$("#run").onclick = async () => { const g = ++gen; for (let k = 0; k < 300 && g === gen; k++) { if (!advance()) break; render(); await sleep(60); } render(); };
+$("#reset").onclick = reset;
+reset();
+</script>
+</body>
+</html>

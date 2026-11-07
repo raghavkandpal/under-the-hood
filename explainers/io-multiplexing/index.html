@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Serving 10,000 connections</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  .legend i.line { height: 3px; border-radius: 2px; }
+  table.data td.num { font-family: var(--mono); text-align: right; } table.data td.bad { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Serving 10,000 connections</h1>
+  <p class="lede">A chat server holds thousands of connections that are almost always silent. How it waits for the few that speak decides whether it needs one core or a hundred: one thread per connection, one loop asking every connection, or one loop the kernel tells.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Connections <input type="range" id="c" min="1" max="5" step="0.1" value="4"> <b id="cv"></b></label>
+      <label class="inline">Requests each <input type="range" id="r" min="-2" max="1" step="0.1" value="0"> <b id="rv"></b></label>
+    </div>
+    <svg class="chart" id="chart" viewBox="0 0 600 220" role="img" aria-label="CPU used by each design as the number of connections grows"></svg>
+    <ul class="legend">
+      <li><i class="line" style="--c:var(--blue)"></i>thread each</li>
+      <li><i class="line" style="--c:var(--red)"></i>poll loop</li>
+      <li><i class="line" style="--c:var(--green)"></i>epoll loop</li>
+    </ul>
+    <div class="scroll-x"><table class="data" id="table"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>A thread each.</b> The simplest server gives every connection its own thread, which blocks in <code>read()</code> until data arrives. The code is straightforward, and CPU use is fine. The cost is memory: each thread needs a stack and kernel bookkeeping, tens of kilobytes even when idle, so 10,000 connections hold most of a gigabyte. Every request also costs two context switches, and at a hundred thousand threads those alone eat the machine.</p>
+  <p><b>One loop with poll.</b> Instead, one thread can ask the kernel “which of these connections have data?” with <code>select()</code> or <code>poll()</code>, then handle just those. Memory per connection drops to a buffer. But every call passes the whole list in, and the kernel checks every descriptor, ready or not. With 10,000 mostly idle connections, almost all the CPU goes on asking. Under load the loop handles many ready connections per call, which stretches each pass to over a millisecond, but it still can't keep up with more.</p>
+  <div class="note"><b>Try it.</b> Hold the requests at one a second and slide the connections from 100 to 100,000. Find where each line hits the top.</div>
+  <p><b>One loop with epoll.</b> Linux's <code>epoll</code> (kqueue on BSD and macOS, IOCP on Windows) turns it around. You register each connection once, and the kernel keeps a list of the ones that became ready. Each <code>epoll_wait()</code> returns only those, so the cost tracks the traffic, not the number of idle connections. That's what let a single server hold 10,000 connections around 2000 (the “C10k problem”), and millions today. Node.js, nginx and Redis are all built on such a loop; see <a href="../event-loop/">the event loop</a>.</p>
+  <p class="caveat">Simplified: a cost model, not a benchmark. The constants (20 µs a request, 3 µs a context switch, 0.1 µs per descriptor checked, 80 KB a thread) are rough, and real servers add worker threads to use more than one core.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl } from "../../shared/common.js";
+import { model, KINDS } from "./io-multiplexing.js";
+chrome();
+
+const NAMES = { threads: "Thread each", poll: "poll loop", epoll: "epoll loop" }, COLORS = { threads: "var(--blue)", poll: "var(--red)", epoll: "var(--green)" };
+const fmt = n => (n >= 1000 ? Math.round(n).toLocaleString() : +n.toPrecision(2) + "");
+const bytes = b => (b >= 2 ** 30 ? (b / 2 ** 30).toFixed(1) + " GB" : b >= 2 ** 20 ? Math.round(b / 2 ** 20) + " MB" : Math.round(b / 1024) + " KB");
+const time = s => (!isFinite(s) ? "–" : s >= 1e-3 ? (s * 1e3).toFixed(1) + " ms" : Math.round(s * 1e6) + " µs");
+function render() {
+  const lc = +$("#c").value, C = Math.round(10 ** lc), r = 10 ** +$("#r").value;
+  $("#cv").textContent = C.toLocaleString(); $("#rv").textContent = fmt(r) + "/s";
+  const L = 44, R = 590, T = 10, B = 190, X = l => L + (R - L) * (l - 1) / 4, Y = v => B - (B - T) * v, svg = $("#chart"); svg.replaceChildren();
+  for (const v of [0, 0.5, 1]) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(v), y2: Y(v), stroke: "var(--border)" }), svgEl("text", { x: L - 6, y: Y(v) + 4, "text-anchor": "end" }, v * 100 + "%"));
+  for (let l = 1; l <= 5; l++) svg.append(svgEl("text", { x: X(l), y: B + 16, "text-anchor": "middle" }, (10 ** l).toLocaleString()));
+  for (const k of KINDS) { const pts = []; for (let l = 1; l <= 5.001; l += 0.05) pts.push(`${X(l)},${Y(model(k, 10 ** l, r).cpu)}`);
+    svg.append(svgEl("polyline", { points: pts.join(" "), fill: "none", stroke: COLORS[k], "stroke-width": 2.2 })); }
+  svg.append(svgEl("line", { x1: X(lc), x2: X(lc), y1: T, y2: B, stroke: "var(--text)", "stroke-dasharray": "4 4" }));
+  $("#table").innerHTML = `<tr><th></th><th>CPU</th><th>On overhead</th><th>Loop period</th><th>Memory</th></tr>` + KINDS.map(k => { const m = model(k, C, r);
+    return `<tr><td>${NAMES[k]}</td><td class="num ${m.cpu >= 1 ? "bad" : ""}">${m.overloaded ? "overloaded" : Math.round(m.cpu * 100) + "%"}</td><td class="num">${isNaN(m.overhead) ? "–" : Math.round(m.overhead * 100) + "%"}</td><td class="num">${time(m.latency)}</td><td class="num">${bytes(m.memory)}</td></tr>`; }).join("");
+}
+$("#c").oninput = $("#r").oninput = render;
+render();
+</script>
+</body>
+</html>
