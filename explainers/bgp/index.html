@@ -39,7 +39,7 @@
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
-import { propagate, destination, LINKS } from "./bgp.js";
+import { propagate, destination, routeFor, LINKS } from "./bgp.js";
 chrome();
 
 const POS = { 1: [40, 130], 2: [130, 50], 3: [130, 210], 4: [230, 50], 5: [230, 140], 6: [320, 90], 7: [230, 230], 8: [360, 200] };
@@ -51,7 +51,7 @@ function render() {
   const rov = $("#rov").checked ? ($("#partial").checked ? [3] : [1, 2, 3, 4, 5, 6, 7]) : [];
   $("#partial").disabled = !$("#rov").checked;
   const t = propagate(LINKS, SCEN[scen], { roas: { "203.0.112.0/22": 1 }, rov }), svg = $("#net"); svg.replaceChildren();
-  const best = as => { let b = null; for (const [p, path] of Object.entries(t[as])) { const l = +p.split("/")[1]; if (!b || l > b.l) b = { l, path, p }; } return b; };
+  const best = as => routeFor(t, as, IP);
   for (const [a, b] of LINKS) svg.append(svgEl("line", { x1: POS[a][0], y1: POS[a][1], x2: POS[b][0], y2: POS[b][1], stroke: "var(--border)", "stroke-width": 1.5 }));
   for (const as of Object.keys(POS).map(Number)) { const r = best(as); if (!r || r.path.length < 2) continue; const [x1, y1] = POS[as], [x2, y2] = POS[r.path[1]], bad = destination(t, as, IP) === 8;
     svg.append(svgEl("line", { x1, y1, x2: x1 + (x2 - x1) * 0.8, y2: y1 + (y2 - y1) * 0.8, stroke: bad ? "var(--red)" : "var(--green)", "stroke-width": 3.5, "stroke-linecap": "round", opacity: 0.85 })); }
@@ -59,7 +59,7 @@ function render() {
     svg.append(svgEl("circle", { cx: x, cy: y, r: 19, fill: "var(--surface)", stroke: col, "stroke-width": +as === 1 || +as === 8 ? 3.5 : 2 }), svgEl("text", { x, y: y + 4, "text-anchor": "middle" }, `AS ${as}`)); }
   const victims = [2, 3, 4, 5, 6, 7].filter(a => destination(t, a, IP) === 8).length;
   $("#stats").innerHTML = [[`${victims} of 6`, "networks send the bank's traffic to AS 8"]].map(statTile).join("");
-  $("#routes").innerHTML = `<tr><th>AS</th><th>Route used for ${IP}</th></tr>` + [2, 3, 4, 5, 6, 7].map(a => { const r = best(a); return `<tr><td>${a}</td><td>${r ? `${r.p} via ${r.path.join(" → ")}` : "–"}</td></tr>`; }).join("");
+  $("#routes").innerHTML = `<tr><th>AS</th><th>Route used for ${IP}</th></tr>` + [2, 3, 4, 5, 6, 7].map(a => { const r = best(a); return `<tr><td>${a}</td><td>${r ? `${r.prefix} via ${r.path.join(" → ")}` : "–"}</td></tr>`; }).join("");
 }
 $("#rov").onchange = $("#partial").onchange = render;
 render();

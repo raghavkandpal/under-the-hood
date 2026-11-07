@@ -53,11 +53,11 @@ function render() {
   svg.append(svgEl("path", { d: `M${X(q[0])},${X(1 - q[1]) - 8} l7,14 h-14 z`, fill: "var(--text)" }));
   $("#stats").innerHTML = [[Math.round(recall(r.ids, truth) * 100) + "%", "of the true 10 found"], [r.scanned.toLocaleString(), "vectors scanned"], [Math.round(r.scanned / data.length * 100) + "%", "of the data"]].map(statTile).join("");
 }
+const rnd = mulberry(9), queries = Array.from({ length: 200 }, () => { const x = data[Math.floor(rnd() * data.length)].map(v => v + (rnd() - 0.5) * 0.02); return { x, truth: exact(data, x, 10) }; });
+const ROWS = [1, 2, 4, 8, 32].map(p => { let rc = 0, sc = 0; for (const { x, truth } of queries) { const s = search(index, x, 10, p); rc += recall(s.ids, truth); sc += s.scanned; } return { p, recall: rc / queries.length, scanned: sc / queries.length }; });
 function table() {
-  const rnd = mulberry(9), qs = Array.from({ length: 200 }, () => data[Math.floor(rnd() * data.length)].map(v => v + (rnd() - 0.5) * 0.02));
-  $("#table").innerHTML = `<tr><th>Probes</th><th>Average recall</th><th>Scanned</th></tr>` + [1, 2, 4, 8, 32].map(p => { let rc = 0, sc = 0;
-    for (const x of qs) { const s = search(index, x, 10, p); rc += recall(s.ids, exact(data, x, 10)); sc += s.scanned; }
-    return `<tr class="${p === +$("#probes").value ? "sel" : ""}"><td class="num">${p}</td><td class="num">${(rc / 2).toFixed(1)}%</td><td class="num">${Math.round(sc / 200).toLocaleString()}</td></tr>`; }).join("");
+  $("#table").innerHTML = `<tr><th>Probes</th><th>Average recall</th><th>Scanned</th></tr>` + ROWS.map(r =>
+    `<tr class="${r.p === +$("#probes").value ? "sel" : ""}"><td class="num">${r.p}</td><td class="num">${(r.recall * 100).toFixed(1)}%</td><td class="num">${Math.round(r.scanned).toLocaleString()}</td></tr>`).join("");
 }
 $("#plot").onclick = e => { const b = $("#plot").getBoundingClientRect(); q = [(e.clientX - b.left) / b.width, 1 - (e.clientY - b.top) / b.height]; render(); };
 $("#probes").oninput = () => { render(); table(); };

@@ -32,9 +32,11 @@ function covered(prefix, origin, roas) {
   return !Object.entries(roas).some(([p, o]) => { const [n, l] = p.split("/"); return +l < +len && contains(parse(n), +l, parse(net)) && o !== origin; });
 }
 
-/** Where traffic from `as` to `ip` ends up: its most specific matching route, followed to that route's origin. */
-export function destination(table, as, ip) {
+/** The route `as` uses for `ip`: its most specific matching prefix, with the AS path. */
+export function routeFor(table, as, ip) {
   const addr = parse(ip); let best = null;
-  for (const [prefix, path] of Object.entries(table[as])) { const [n, l] = prefix.split("/"); if (contains(parse(n), +l, addr) && (!best || +l > best.len)) best = { len: +l, path }; }
-  return best ? best.path.at(-1) : null;
+  for (const [prefix, path] of Object.entries(table[as])) { const [n, l] = prefix.split("/"); if (contains(parse(n), +l, addr) && (!best || +l > best.len)) best = { len: +l, prefix, path }; }
+  return best;
 }
+/** Where traffic from `as` to `ip` ends up: the origin at the end of that route. */
+export const destination = (table, as, ip) => routeFor(table, as, ip)?.path.at(-1) ?? null;
