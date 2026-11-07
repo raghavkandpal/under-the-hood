@@ -5,9 +5,10 @@ Interactive explainers; a static site with no build step. [README.md](README.md)
 ## Workflow
 
 - **New explainer:** `npm run new -- <id> "<Title>" <area> <level> [topic]`. Write the logic and its tests first (`/tdd`): the tests pin down every fact the page will claim. Then the page, the catalog entry, 2+ sources, and `npm run text-budget -- --update`.
-- **Smallest diff:** reuse `shared/` helpers and the shared CSS classes before writing anything new. Logic moves to `shared/` only once a second explainer needs it.
+- **Smallest diff:** the `ponytail` plugin runs in every session at level `full`: take the first rung that works (reuse, platform, one line, then the minimum), and never cut validation, accessibility or the tests that pin a page's claims. Here, reuse means `shared/` helpers and the shared CSS classes. Logic moves to `shared/` only once a second explainer needs it.
 - **Before committing:** `npm test`, `npm run check-sources` when `sources.js` changed, and the browser sweep in ROADMAP.md.
-- **Before a PR:** review the branch against the README rules with the plugin's code review (`/mattpocock-skills:code-review`, since the built-in `/code-review` shares the name), then write the body with `/pr`. One branch and one PR per batch.
+- **Before a PR:** review the branch against the README rules with the plugin's code review (`/mattpocock-skills:code-review`, since the built-in `/code-review` shares the name), and run `/ponytail-review` for what can be cut and what the change breaks in files it touches. Then write the body with `/pr`. One branch and one PR per batch.
+- **A whole-repo simplification pass:** `/ponytail-audit`, only when asked for.
 - **A simulation gives wrong numbers:** `/diagnosing-bugs`.
 - **Work bigger than one session:** `/to-spec` then `/to-tickets` into GitHub issues, or `/wayfinder` for a long open-ended stretch.
 - **After a batch:** `/retro`, and fold anything durable into ROADMAP.md's lessons.
