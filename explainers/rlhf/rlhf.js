@@ -3,7 +3,7 @@ import { mulberry } from "../../shared/random.js";
 
 const words = t => t.split(/\s+/).length;
 // One prompt, "What is a mutex?". `q` is the hidden true quality (0..1); the reward model never sees it, only `cue`,
-// a noisy proxy for it. The second feature is length in words (/ 30).
+// a noisy proxy for it. The second feature is length in words (/ 50).
 const RAW = [
   ["A lock.", 0.1, 0.2],
   ["A mutex lets one thread at a time enter a critical section; the rest wait.", 0.9, 0.85],
