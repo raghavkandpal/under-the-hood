@@ -352,6 +352,8 @@ export const CATALOG = [
     blurb: "A key pair per site instead of a password: why a stolen table is useless, a phishing relay fails, and what the counter catches.", prereqs: ["signatures", "totp"] },
   { id: "paxos", title: "Paxos", area: "distributed", topic: "agreement", level: "deep", tags: ["consensus", "paxos", "ballots", "quorum", "multi-paxos", "fault tolerance"],
     blurb: "Prepare, promise, accept: why a later proposer always finds a chosen value, and what two duelling proposers do to each other.", prereqs: ["quorum", "raft"] },
+  { id: "mixture-of-experts", title: "Mixture of experts", area: "ml", topic: "language-models", level: "deep", tags: ["moe", "routing", "sparse", "top-k", "load balancing", "switch transformer", "capacity factor"],
+    blurb: "Many experts, few used per token: how a router picks them, why parameters outgrow compute, and the loss that stops it overloading one expert.", prereqs: ["attention"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -372,7 +374,7 @@ export const PATHS = [
     audience: "Anyone who writes SQL and wants to know why some queries are instant and others crawl.",
     outcomes: ["Compare B-trees and LSM trees and when each wins", "Explain isolation levels and the anomalies they prevent", "Describe how a write-ahead log survives a crash", "Read a query plan and spot a bad estimate"] },
   { id: "llms", title: "How LLMs work", blurb: "From gradient descent to chatbots that cite your documents.",
-    steps: ["gradient-descent", "neural-net", "huffman", "tokenization", "embeddings", "attention", "sampling", "beam-search", "kv-cache", "quantization", "lora", "speculative-decoding", "knn", "vector-search", "rag"],
+    steps: ["gradient-descent", "neural-net", "huffman", "tokenization", "embeddings", "attention", "sampling", "beam-search", "kv-cache", "mixture-of-experts", "quantization", "lora", "speculative-decoding", "knn", "vector-search", "rag"],
     intro: "Large language models look like magic, but they're built from a handful of ideas you can watch work. This path goes from how a network learns, through how text becomes numbers and how attention mixes context, to the engineering that makes models fast and cheap enough to serve and lets them answer from your own documents.",
     audience: "Developers and curious readers who use chatbots and want a real mental model of what's inside.",
     outcomes: ["Explain gradient descent and backpropagation in plain terms", "Describe tokens, embeddings and attention, and how they fit together", "Say how a model picks each next word, and what temperature changes", "Explain the KV cache, quantization, speculative decoding and RAG"] },

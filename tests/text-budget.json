@@ -77,7 +77,7 @@
 "memory-allocator":{"helper":17,"caveat":43},
 "merkle":{"helper":1,"caveat":40},
 "minimax":{"helper":27,"caveat":22},
-"mixture-of-experts":{"helper":1,"caveat":9},
+"mixture-of-experts":{"helper":35,"caveat":43},
 "monte-carlo":{"helper":20,"caveat":33},
 "multiple-testing":{"helper":41,"caveat":30},
 "mvcc":{"helper":28,"caveat":30},
