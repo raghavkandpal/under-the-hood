@@ -111,7 +111,7 @@ Ten from the gap table, built test-first with the `tdd` skill and reviewed with 
 - **Not started:** simd, debuggers, survival-curves, what-is-an-index.
 - **Before the PR:** squash-merge. Intermediate commits a811fd5 and 5a4c5c4 fail tests on their own, because concurrent agents shared one working tree. Update the gap table and "145 explainers", and drop the stale line "No explainer imports from another explainer's folder" (quic's test imports http-versions). Then run code-review, ponytail-review and the final sweep.
 - **After this batch merges:** deploy on GitHub Pages (from `main`, as before). No other host.
-- **Lessons for the generator prompt:** run builds one at a time, or use worktrees, so commits don't absorb each other's hunks. Pin the page's own seed and control values, not only seed averages. Never tune a model until a claim holds and then state the claim as general.
+- **Lessons for the generator prompt:** give each generator its own worktree, as CLAUDE.md now says, so commits don't absorb each other's changes. Pin the page's own seed and control values, not only seed averages. Never tune a model until a claim holds and then state the claim as general.
 
 
 Ten picked from the gap table for the next session: quic (networking deep dive), passkeys (security), paxos (distributed), mixture-of-experts and rlhf (ML), tries-vs-suffix-arrays (algorithms), simd (systems), debuggers (tools), survival-curves (statistics), what-is-an-index (databases intro). Same flow as batch 12: `tdd` per module, `code-review` plus `ponytail-review` before the PR, `pr` for the body.
