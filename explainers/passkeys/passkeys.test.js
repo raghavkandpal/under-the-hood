@@ -22,6 +22,11 @@ test("phishing relay: a TOTP code is accepted within 30 s, the passkey assertion
   assert.equal(relayTotp(secret, 1000, 10), true);
   assert.equal(relayTotp(secret, 1000, 29), true);
   assert.equal(relayTotp(secret, 1000, 200), false); // too slow
+  // a code stays valid 30 to 60 s: shown at a step start (990) it lasts 59 s, at a step end (1019) 30 s
+  assert.equal(relayTotp(secret, 990, 59), true);
+  assert.equal(relayTotp(secret, 990, 60), false);
+  assert.equal(relayTotp(secret, 1019, 30), true);
+  assert.equal(relayTotp(secret, 1019, 31), false);
   const { s, a } = setup();
   const r = check(s, sign(a, challenge(s), FAKE));
   assert.equal(r.ok, false);
