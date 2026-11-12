@@ -1,11 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { radixNodes } from "../../shared/trie.js";
-import { TEXTS, suffixArray, lcpArray, distinctSubstrings, suffixTrie, suffixTrieNodes, find, maxComparisons, longestRepeated, randomText, wordTrie } from "./tries-vs-suffix-arrays.js";
+import { TEXTS, SIZES, SEED, suffixArray, lcpArray, distinctSubstrings, suffixTrie, suffixTrieNodes, find, maxComparisons, longestRepeated, randomText, wordTrie } from "./tries-vs-suffix-arrays.js";
 
 const build = t => { const sa = suffixArray(t), lcp = lcpArray(t, sa); return { sa, lcp }; };
-// The page's own random lengths and seed.
-const SIZES = [10, 50, 100, 300, 1000], SEED = 7;
 
 test("banana: suffix array and LCP array", () => {
   const { sa, lcp } = build("banana");
@@ -29,7 +27,6 @@ test("banana: 15 distinct substrings, 16-node suffix trie, 23 with $, 11 as a su
   const withEnd = suffixTrie("banana$");
   assert.equal(withEnd.nodes, 23);
   assert.equal(radixNodes(withEnd), 11);
-  assert.ok(radixNodes(withEnd) <= 2 * 7);
   assert.equal(radixNodes(suffixTrie("banana")), 7); // the page's bars: no marker
 });
 
@@ -71,10 +68,10 @@ test("a lookup takes at most 2*ceil(log2(n+1)) comparisons: 20 for n = 1000", ()
   }
 });
 
-test("space: n = 1000 random 4-letter text has more than 400,000 trie nodes against 1,000 entries", () => {
-  const t = randomText(SEED, 1000), { sa, lcp } = build(t);
-  assert.equal(sa.length, 1000);
-  assert.ok(suffixTrieNodes(t, lcp) > 400000);
+test("space: the page's n = 1000 random text has about 496,000 trie nodes, roughly 500 per array entry", () => {
+  const t = randomText(SEED, 1000), { lcp } = build(t), nodes = suffixTrieNodes(t, lcp);
+  assert.equal(Math.round(nodes / 1000), 496);
+  assert.equal(Math.round(nodes / t.length / 100) * 100, 500);
   assert.equal(suffixTrieNodes(t, lcp), suffixTrie(t).nodes); // the formula is the real build
 });
 
@@ -91,5 +88,13 @@ test("longest repeated substring is the longest LCP: ana in banana", () => {
   const t = randomText(SEED, 300), b = build(t), r = longestRepeated(t, b.sa, b.lcp);
   assert.ok(t.indexOf(r) !== t.lastIndexOf(r));
   assert.equal(r.length, Math.max(...b.lcp));
-  assert.equal(longestRepeated("abc", ...[suffixArray("abc"), lcpArray("abc", suffixArray("abc"))]), "");
+  const abc = build("abc");
+  assert.equal(longestRepeated("abc", abc.sa, abc.lcp), "");
+});
+
+test("the suffix tree has fewer than 2n nodes on every text the page builds it for, and is a small fraction of the trie", () => {
+  const texts = ["banana", "banana$", TEXTS.terms, ...SIZES.filter(n => n <= 100).map(n => randomText(SEED, n))];
+  for (const t of texts) assert.ok(radixNodes(suffixTrie(t)) < 2 * t.length, t);
+  const t = randomText(SEED, 100), trie = suffixTrie(t);
+  assert.ok(radixNodes(trie) * 10 < trie.nodes, "most trie nodes are one-child chains");
 });

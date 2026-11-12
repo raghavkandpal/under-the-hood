@@ -3,6 +3,8 @@ import { Trie } from "../../shared/trie.js";
 import { mulberry } from "../../shared/random.js";
 
 export const TEXTS = { banana: "banana", terms: "database metadata update" };
+/** The page's random-text lengths and seed, and each text's starting pattern. */
+export const SIZES = [10, 50, 100, 300, 1000], SEED = 7, DEFAULTS = { banana: "ana", terms: "data", random: "abc" };
 
 /** Start offsets of all suffixes in sorted order (plain sort: fine for the page's short texts). */
 export const suffixArray = t => Array.from({ length: t.length }, (_, i) => i).sort((a, b) => (t.slice(a) < t.slice(b) ? -1 : 1));
