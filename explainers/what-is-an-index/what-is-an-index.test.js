@@ -74,7 +74,7 @@ test("fact 3: the index answers last and last+first like a full scan, for every 
 test("a name that is not in the table finds nothing in a few steps", () => {
   const r = lookup(rows, index, { last: "Nobody" });
   assert.deepEqual(r.matches, []);
-  assert.ok(r.compares <= Math.ceil(Math.log2(rows.length + 1)));
+  assert.ok(r.compares <= maxCompares(rows.length));
 });
 
 test("trend: a 16x bigger table costs the scan 16x and the search about 4 more comparisons", () => {
@@ -83,7 +83,8 @@ test("trend: a 16x bigger table costs the scan 16x and the search about 4 more c
     return { scan: lookup(t, i, { first: p.first }).steps, search: lookup(t, i, { last: p.last, first: p.first }).compares };
   };
   const small = cost(1000), big = cost(16000);
-  assert.ok(big.search - small.search <= 4 && big.search <= Math.ceil(Math.log2(16001)));
+  assert.equal(big.scan, 16 * small.scan);
+  assert.ok(big.search - small.search <= 4 && big.search <= maxCompares(16000));
 });
 
 test("fact 4: an insert writes 1 + k structures and keeps every index sorted", () => {
