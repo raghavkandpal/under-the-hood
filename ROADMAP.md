@@ -110,7 +110,7 @@ Ten from the gap table, built test-first with the `tdd` skill and reviewed with 
 - **tries-vs-suffix-arrays:** built (120914b), not yet evaluated. In the browser the `n` slider still shows on the banana and terms texts, because `hidden` on a `label.inline` gets overridden by its display rule.
 - **Not started:** simd, debuggers, survival-curves, what-is-an-index.
 - **Before the PR:** squash-merge. Intermediate commits a811fd5 and 5a4c5c4 fail tests on their own, because concurrent agents shared one working tree. Update the gap table and "145 explainers", and drop the stale line "No explainer imports from another explainer's folder" (quic's test imports http-versions). Then run code-review, ponytail-review and the final sweep.
-- **Next session, also: deploy to Vercel (free Hobby tier).** It is a static site with no build step, so import the repo with the "Other" preset, no build command, and the repo root as the output directory. Decide whether it replaces GitHub Pages (the README's live-at line was removed this session), whether PRs get preview deployments, and whether `.nojekyll` and the Pages mention in README stay. Check the Hobby tier's current limits and terms first (it is for non-commercial use). Connecting the account and the repo is the user's step.
+- **After this batch merges:** deploy on GitHub Pages (from `main`, as before). No other host.
 - **Lessons for the generator prompt:** run builds one at a time, or use worktrees, so commits don't absorb each other's hunks. Pin the page's own seed and control values, not only seed averages. Never tune a model until a claim holds and then state the claim as general.
 
 
