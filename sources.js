@@ -15,7 +15,7 @@ export const TRUSTED = [
   "git-scm.com", "postgresql.org", "sqlite.org", "github.com", "docs.docker.com", "man7.org", "gnu.org", "nodejs.org", "semver.org", "docs.npmjs.com", "doc.rust-lang.org", "research.swtch.com", "swtch.com",
   "parquet.apache.org", "scikit-learn.org", "huggingface.co", "v8.dev", "code.visualstudio.com", "ftp.cs.ucla.edu", "postgis.net", "3blue1brown.com", "llvm.org", "cheatsheetseries.owasp.org", "owasp.org", "community.owasp.org", "builder.aws.com", "oauth.net", "tls13.xargs.org", "letsencrypt.org",
   "redblobgames.com", "norvig.com", "use-the-index-luke.com", "jepsen.io", "jakearchibald.com", "evanmiller.org", "lilianweng.github.io", "jalammar.github.io", "betterexplained.com",
-  "utf8everywhere.org", "floating-point-gui.de", "docs.oracle.com", "joelonsoftware.com", "blog.cryptographyengineering.com", "itu.int", "bazel.build", "kernel.org",
+  "utf8everywhere.org", "floating-point-gui.de", "docs.oracle.com", "joelonsoftware.com", "blog.cryptographyengineering.com", "itu.int", "bazel.build", "kernel.org", "http3-explained.haxx.se",
 ];
 
 export const SOURCES = {
@@ -82,6 +82,10 @@ export const SOURCES = {
   "http-versions": [["RFC 9113: HTTP/2", "https://www.rfc-editor.org/rfc/rfc9113.html", "standard", "IETF"],
     ["RFC 9114: HTTP/3", "https://www.rfc-editor.org/rfc/rfc9114.html", "standard", "IETF"],
     ["Evolution of HTTP", "https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Evolution_of_HTTP", "docs", "MDN"]],
+  "quic": [["RFC 9000: QUIC, a UDP-based multiplexed and secure transport", "https://www.rfc-editor.org/rfc/rfc9000.html", "standard", "IETF"],
+    ["RFC 9002: QUIC loss detection and congestion control", "https://www.rfc-editor.org/rfc/rfc9002.html", "standard", "IETF"],
+    ["RFC 9001: Using TLS to secure QUIC", "https://www.rfc-editor.org/rfc/rfc9001.html", "standard", "IETF"],
+    ["HTTP/3 explained", "https://http3-explained.haxx.se/", "article", "Daniel Stenberg"]],
   "websockets": [["RFC 6455: The WebSocket Protocol", "https://www.rfc-editor.org/rfc/rfc6455.html", "standard", "IETF"],
     ["The WebSocket API", "https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API", "docs", "MDN"],
     ["Using server-sent events", "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events", "docs", "MDN"]],

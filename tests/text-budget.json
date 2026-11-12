@@ -98,6 +98,7 @@
 "quantization":{"helper":39,"caveat":34},
 "query-planner":{"helper":16,"caveat":52},
 "queues":{"helper":22,"caveat":33},
+"quic":{"helper":21,"caveat":27},
 "quorum":{"helper":21,"caveat":35},
 "race-conditions":{"helper":2,"caveat":33},
 "raft":{"helper":100,"caveat":21},

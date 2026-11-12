@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QUIC in depth</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .bar { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .bar b { width: 110px; font-size: 14px; }
+  .bar i { display: block; height: 18px; background: var(--accent); border-radius: 3px; }
+  .bar i.blocked { background: var(--red); }
+  .view[hidden] { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>QUIC in depth</h1>
+  <p class="lede">QUIC rebuilds TCP and TLS on top of UDP so a connection can start in fewer round trips, survive a change of network, and measure delay more cleanly. Each of those has a catch.</p>
+
+  <div class="panel">
+    <div class="tabs" id="mode"></div>
+
+    <div class="view" id="v-start">
+      <div id="bars"></div>
+    </div>
+
+    <div class="view" id="v-size" hidden>
+      <div class="row"><label class="inline">Server flight <input type="range" id="bytes" min="1000" max="9000" step="100" value="6000"> <b id="bytesv"></b></label></div>
+      <div id="sizebars"></div>
+      <div class="stats" id="sizestats"></div>
+    </div>
+
+    <div class="view" id="v-move" hidden>
+      <div id="movebars"></div>
+    </div>
+
+    <div class="view" id="v-rtt" hidden>
+      <div class="row"><label class="inline">Loss <input type="range" id="loss" min="0" max="20" value="5"> <b id="lossv"></b></label>
+        <button id="again">New run</button></div>
+      <div class="stats" id="rttstats"></div>
+    </div>
+
+    <div class="view" id="v-replay" hidden>
+      <div class="row"><div class="seg" id="method"></div><div class="seg" id="policy"></div></div>
+      <div class="stats" id="replaystats"></div>
+    </div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Fewer round trips.</b> TCP finishes its handshake, then <a href="../tls/">TLS 1.3</a> adds one more: two round trips before the request goes out, three before the first response byte arrives. QUIC carries the TLS handshake inside its own, so the request leaves after one round trip and the first byte arrives at two. A client that has talked to the server before can send the request in its very first packet ("0-RTT"), and the first byte arrives after one. These counts match the <a href="../http-versions/">HTTP versions</a> page, which also shows how QUIC stops one lost packet holding up other streams.</p>
+  <p><b>The amplification limit.</b> UDP lets anyone forge a sender's address, so a server that answers freely could be used to flood a victim. Until the client's address is validated, a QUIC server may send at most three times the bytes it has received (RFC 9000 §8). The client pads its first packet to 1200 bytes, so the server's first flight is capped at 3600. A flight that fits finishes in one round trip. A longer one, such as a long certificate chain, is cut off, and the rest waits for the client's next packet to prove the address: one round trip more.</p>
+  <div class="note"><b>Try it.</b> Move the flight from 3600 to 3700 bytes and watch the handshake take twice as long.</div>
+  <p><b>Migration.</b> A TCP connection is named by its addresses and ports, so when a phone leaves Wi-Fi for mobile data the connection is gone, and the next request pays a new two-round-trip handshake before its own round trip. A QUIC connection is named by a connection ID that the new address can keep using, so the request goes out at once. The server still checks that the new address is real, with a PATH_CHALLENGE answered by a PATH_RESPONSE, one round trip that runs alongside the data (RFC 9000 §8.2, §9).</p>
+  <p><b>Cleaner delay samples.</b> TCP retransmits a lost segment under the same sequence number, so an acknowledgement is ambiguous: it could answer the original or the copy. Karn's rule throws those samples away. QUIC gives every packet, retransmissions included, a new, ever-increasing packet number (RFC 9002 §4.2), so every acknowledged packet yields a sample. The more loss, the bigger the gap.</p>
+  <p><b>0-RTT replay.</b> The data in a 0-RTT flight is sent before the server has proved it is live, so an attacker who captured it can send it again, and the server cannot tell the copies apart (RFC 9001 §9.2). A <code>POST /pay</code> replayed three times runs four times. Servers therefore accept 0-RTT only for requests that are safe to repeat, such as <code>GET</code>. A refused request is simply resent by the client once the handshake finishes, so it runs once.</p>
+  <p class="caveat">Simplified: time is counted in whole round trips, the congestion window is ignored, and the server flight is a single number. Real packet loss and delay vary.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs } from "../../shared/common.js";
+import { firstByte, handshake, migrate, rttSamples, replay, LIMIT } from "./quic.js";
+import { mulberry } from "../../shared/random.js";
+chrome();
+
+const bar = (label, rtt, max, cls = "") => `<div class="bar"><b>${label}</b><i class="${cls}" style="width:${rtt / max * 70}%"></i><span>${rtt} RTT</span></div>`;
+let view = "start", seed = 1, method = "POST", policy = "all";
+const VIEWS = { start: "Start", size: "Flight", move: "Move", rtt: "Samples", replay: "0-RTT" };
+
+function render() {
+  for (const k of Object.keys(VIEWS)) $(`#v-${k}`).hidden = k !== view;
+  $("#bars").innerHTML = [["TCP + TLS 1.3", "tcp"], ["QUIC", "quic"], ["QUIC 0-RTT", "zero"]].map(([n, k]) => bar(n, firstByte(k), 3)).join("");
+
+  const bytes = +$("#bytes").value, h = handshake(bytes);
+  $("#bytesv").textContent = bytes + " B";
+  $("#sizebars").innerHTML = bar("Handshake", h.rtt, 3) + bar("First byte", h.rtt + 1, 3);
+  $("#sizestats").innerHTML = [[h.first, "sent at once"], [h.blocked, "held back"], [LIMIT, "limit"]].map(statTile).join("");
+
+  const m = migrate();
+  $("#movebars").innerHTML = bar("TCP", m.tcp.answeredAt, 3, "blocked") + bar("QUIC", m.quic.answeredAt, 3) + bar("Path check", m.quic.validationRtt, 3);
+
+  $("#lossv").textContent = $("#loss").value + "%";
+  const r = rttSamples(100, +$("#loss").value / 100, mulberry(seed));
+  $("#rttstats").innerHTML = [[r.quic, "QUIC samples"], [r.tcp, "TCP samples"], [r.retransmitted, "retransmitted"]].map(statTile).join("");
+
+  const p = replay(method, policy);
+  $("#replaystats").innerHTML = [[p.runs, "times it runs"], [p.accepted ? "yes" : "no", "0-RTT accepted"]].map(statTile).join("");
+}
+tabs($("#mode"), VIEWS, view, k => { view = k; render(); });
+tabs($("#method"), { POST: "POST /pay", GET: "GET /" }, method, k => { method = k; render(); });
+tabs($("#policy"), { all: "Accept all", "get-only": "GET only" }, policy, k => { policy = k; render(); });
+$("#bytes").oninput = $("#loss").oninput = render;
+$("#again").onclick = () => { seed++; render(); };
+render();
+</script>
+</body>
+</html>
