@@ -4,6 +4,9 @@ Interactive explainers; a static site with no build step. [README.md](README.md)
 
 ## Workflow
 
+- **Session start:** `make context` (fetch, branch vs `origin/main`, the planned batch). `make test [TEST=<file>]`; `make check` adds `git diff --check`.
+- **Agents in `.claude/agents/`:** `planner` writes the next batch into ROADMAP.md, `generator` builds one explainer and commits, `evaluator` returns PASS or FAIL with a bug list; on FAIL, `generator` fixes and `evaluator` runs again.
+- **Safety:** `.claude/settings.json` asks before push, installs and network fetches, and denies `rm -rf`, force-push and secret files; `.claude/hooks/block-dangerous.sh` catches what the deny rules miss.
 - **New explainer:** `npm run new -- <id> "<Title>" <area> <level> [topic]`. Write the logic and its tests first (`/tdd`): the tests pin down every fact the page will claim. Then the page, the catalog entry, 2+ sources, and `npm run text-budget -- --update`.
 - **Smallest diff:** the `ponytail` plugin runs in every session at level `full`: take the first rung that works (reuse, platform, one line, then the minimum), and never cut validation, accessibility or the tests that pin a page's claims. Here, reuse means `shared/` helpers and the shared CSS classes. Logic moves to `shared/` only once a second explainer needs it.
 - **Before committing:** `npm test`, `npm run check-sources` when `sources.js` changed, and the browser sweep in ROADMAP.md.
