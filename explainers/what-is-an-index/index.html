@@ -42,18 +42,18 @@
   </div>
 
   <h2>How it works</h2>
-  <p><b>The problem.</b> A table is rows, like a spreadsheet of people with a last name and a first name. To find every <code>Ortiz</code>, the database has no choice but a <i>full scan</i>: read every row and check it. The cost grows in step with the table. Databases store rows in fixed-size blocks called <i>pages</i>, and reading pages is the slow part.</p>
+  <p><b>The problem.</b> A table is rows, like a spreadsheet of people with a last name and a first name. To find every <code>Ortiz</code> (in SQL, a <code>WHERE</code> clause says which rows you want), the database has no choice but a <i>full scan</i>: read every row and check it. The cost grows in step with the table. Databases store rows in fixed-size blocks called <i>pages</i>, and reading pages is the slow part.</p>
   <p><b>The index.</b> An index is a second, sorted copy of some columns, each entry pointing back to its row. Because it is sorted, the database can use <i>binary search</i>: look at the middle, discard the half that cannot hold the answer, repeat. A million sorted keys need at most 20 comparisons, since 2<sup>20</sup> is just over a million. Doubling the table adds at most one comparison.</p>
-  <p><b>On disk.</b> Real indexes are stored as a <a href="../btree/">B-tree</a>: each page holds about 100 keys, so each step down the tree narrows the search 100-fold. For 1,000,000 rows at 100 rows per page, a scan reads 10,000 pages. The index walks 4 levels of tree (three levels reach only 1,000,000 keys, one short) and then fetches 1 table page: 5 pages, 2,000 times fewer.</p>
-  <p><b>Column order.</b> This index is on (last name, first name): sorted by last name, and by first name within each last name, like a phone book. A search by last name jumps straight in, and last plus first narrows further. A search by first name alone cannot use it, because matching entries are scattered through the whole index, so the database falls back to a full scan. <a href="https://www.sqlite.org/queryplanner.html">SQLite</a> and <a href="https://www.postgresql.org/docs/current/indexes-multicolumn.html">PostgreSQL</a> both work this way: the leftmost column comes first.</p>
+  <p><b>On disk.</b> Real indexes are stored as a <a href="../btree/">B-tree</a>: each page holds about 100 keys, so each step down the tree narrows the search 100-fold. For 1,000,000 rows at 100 rows per page, a scan reads 10,000 pages. The index walks 4 levels of tree (three levels hold at most 999,999 keys, one short of a million) and then fetches 1 table page: 5 pages, 2,000 times fewer.</p>
+  <p><b>Column order.</b> This index is on (last name, first name): sorted by last name, and by first name within each last name, like a phone book. A search by last name jumps straight in, and last plus first narrows further. A search by first name alone can't jump in, because matching entries are scattered through the whole index, so this toy scans every row. Both <a href="https://www.sqlite.org/queryplanner.html">SQLite</a> and <a href="https://www.postgresql.org/docs/current/indexes-multicolumn.html">PostgreSQL</a> sort this way: the leftmost column comes first.</p>
   <p><b>Many matches.</b> The search finds the first match, then reads along the sorted entries. A last name shared by dozens of people costs dozens of steps more than a full name that appears once. An index pays off when the answer is a small part of the table. When it is a large share, a scan can win, and <a href="../query-planner/">query planners</a> make that call.</p>
   <p><b>The price.</b> Every index is another structure to keep sorted. Inserting one row writes the table and each of its indexes: with 3 indexes, 4 structures. Indexes speed up reads at the cost of slower writes and more space, so add them for the queries you run, not for every column.</p>
-  <p class="note"><b>Try it.</b> Look up a person by last name, then by first name alone. The index bar shrinks to a sliver, then the full bar returns.</p>
-  <p class="caveat">Real indexes live on disk pages, and costs here are rows read and comparisons, not time. The 2,000 names are made up.</p>
+  <p class="note"><b>Try it.</b> Look up a person by last name, then by first name alone. The index bar shrinks to a sliver.</p>
+  <p class="caveat">Real planners may scan the whole index or skip-scan when the leading column is missing. The 2,000 names are made up.</p>
 </main>
 <script type="module">
 import { chrome, $, statTile, tabs, escapeHtml } from "../../shared/common.js";
-import { DEFAULTS, SHAPES, makeTable, buildIndex, lookup, scanPages, indexPages } from "./what-is-an-index.js";
+import { DEFAULTS, SHAPES, structuresPerInsert, maxCompares, makeTable, buildIndex, lookup, scanPages, indexPages } from "./what-is-an-index.js";
 chrome();
 
 const rows = makeTable(), index = buildIndex(rows), N = rows.length;
@@ -79,14 +79,14 @@ function render() {
 $("#person").oninput = render;
 
 const pp = DEFAULTS.perPage, bigScan = scanPages(1e6, pp), bigIndex = indexPages(1e6, pp);
-$("#big").innerHTML = [[fmt(bigScan), "pages, full scan"], [bigIndex, "pages, index"], [fmt(bigScan / bigIndex) + "×", "fewer pages"], [Math.ceil(Math.log2(1e6 + 1)), "comparisons, binary search"]].map(statTile).join("");
+$("#big").innerHTML = [[fmt(bigScan), "pages, full scan"], [bigIndex, "pages, index"], [fmt(bigScan / bigIndex) + "×", "fewer pages"], [maxCompares(1e6), "comparisons, binary search"]].map(statTile).join("");
 
 function writes() {
   const k = +$("#k").value;
   $("#kv").textContent = k;
   $("#k").setAttribute("aria-label", `Indexes ${k}`);
   $("#chips").innerHTML = `<span class="table">table</span>` + Array.from({ length: k }, (_, i) => `<span>index ${i + 1}</span>`).join("");
-  $("#writeStats").innerHTML = statTile([1 + k, "structures per insert"]);
+  $("#writeStats").innerHTML = statTile([structuresPerInsert(k), "structures per insert"]);
 }
 $("#k").oninput = writes;
 render(); writes();

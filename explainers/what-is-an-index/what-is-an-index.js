@@ -53,10 +53,15 @@ export function lookup(rows, index, filter) {
 export const scanPages = (n, perPage) => Math.ceil(n / perPage);
 export const indexPages = (n, perPage) => heightFor(n, perPage) + 1;
 
+/** Structures one insert writes: the table plus each index. */
+export const structuresPerInsert = k => 1 + k;
+/** Most comparisons a binary search over n sorted keys needs. */
+export const maxCompares = n => Math.ceil(Math.log2(n + 1));
+
 /** Insert a row into the table and, in sorted place, into every index; returns how many structures were written. */
 export function insertRow(table, indexes, row) {
   table.push(row);
   const key = [row.last, row.first];
   for (const ix of indexes) ix.splice(lowerBound(ix, e => cmpPrefix(e.key, key) || e.id - row.id).pos, 0, { key, id: row.id });
-  return 1 + indexes.length;
+  return structuresPerInsert(indexes.length);
 }

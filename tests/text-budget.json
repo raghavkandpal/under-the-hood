@@ -149,7 +149,7 @@
 "vector-search":{"helper":27,"caveat":23},
 "virtual-memory":{"helper":17,"caveat":47},
 "websockets":{"helper":31,"caveat":38},
-"what-is-an-index":{"helper":28,"caveat":22},
+"what-is-an-index":{"helper":23,"caveat":21},
 "write-ahead-log":{"helper":25,"caveat":52},
 "xss":{"helper":25,"caveat":40},
 "zero-knowledge":{"helper":14,"caveat":52}}
