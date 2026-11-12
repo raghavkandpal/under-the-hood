@@ -34,7 +34,7 @@ export function check(server, a, { origin = REAL, rpId = RP } = {}) {
   if (a.authData.split("|")[0] !== rpId) return { ok: false, error: "wrong RP ID" };
   if (!verify(a.authData + "." + a.clientData, a.sig, cred.pub)) return { ok: false, error: "bad signature" };
   const clone = counterFlag(cred.counter, count);
-  cred.counter = count;
+  if (count > cred.counter) cred.counter = count; // a flagged clone must not lower the stored value
   return { ok: true, clone };
 }
 

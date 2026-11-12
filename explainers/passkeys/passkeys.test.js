@@ -61,3 +61,12 @@ test("signature counter: flagged when it fails to rise unless both are 0", () =>
   assert.equal(check(s, sign(synced, challenge(s), REAL)).clone, false);
   assert.equal(check(s, sign(synced, challenge(s), REAL)).clone, false);
 });
+
+test("a flagged clone does not lower the stored counter, so the real phone is not flagged later", () => {
+  const { s, a } = setup();
+  const copy = { ...a };
+  for (let i = 0; i < 3; i++) check(s, sign(a, challenge(s), REAL));
+  assert.equal(check(s, sign(copy, challenge(s), REAL)).clone, true);
+  assert.equal(s.creds.get(a.id).counter, 3);
+  assert.equal(check(s, sign(a, challenge(s), REAL)).clone, false);
+});

@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="../../shared/style.css">
 <script src="../../shared/theme.js"></script>
 <style>
+  .seg { flex-wrap: wrap; }
   .log { font-family: var(--mono); font-size: 13px; background: var(--surface-2); border-radius: 8px; padding: 8px 12px; margin: 10px 0 0; min-height: 3.5em; white-space: pre-wrap; word-break: break-word; }
   .log .bad { color: var(--red); } .log .good { color: var(--green); }
 </style>
@@ -25,12 +26,12 @@
   </div>
 
   <h2>How it works</h2>
-  <p><b>Registration.</b> The device makes a key pair for one site and sends only the public key. When the site's table of users is stolen, the thief gets public keys, which can verify a signature but not make one. An assertion signed with any other key fails against the stored one. There is nothing to crack, reuse or leak (this page uses the toy RSA from <a href="../signatures/">digital signatures</a>; real passkeys use elliptic curves).</p>
+  <p><b>Registration.</b> The device makes a key pair for one site and sends only the public key. When the site's table of users is stolen, the thief gets public keys, which can verify a signature but not make one. An assertion signed with any other key fails against the stored one. There is nothing to crack, reuse or leak (this page uses the toy RSA from <a href="../signatures/">digital signatures</a>; real passkeys usually use elliptic curves).</p>
   <p><b>Logging in.</b> The site sends a random challenge. The device signs it together with the site's origin and a counter, and the site checks the challenge, the origin, the site ID and the signature (Web Authentication §7.2). A challenge is spent the first time it is looked up, so a captured assertion replayed for a second login fails.</p>
-  <div class="note"><b>Try it.</b> Pick the fake site, sign in, and compare the passkey tile with the typed code tile. Then pick the real site, sign in, and press Replay it.</div>
-  <p><b>Phishing.</b> A <a href="../totp/">typed code</a> is only a number. Type it into <code>examp1e.test</code> and the attacker can pass it to the real site within its 30 seconds, and it is accepted. A passkey assertion carries the origin the browser saw, <code>https://examp1e.test</code>, inside the signed data, so the real site rejects it. The browser also never offers the credential there in the first place.</p>
-  <p><b>Which sites get the key.</b> A credential belongs to an RP ID such as <code>example.com</code>. A page may use it when its host equals the RP ID or ends in a dot and the RP ID, so <code>login.example.com</code> is offered the key and <code>example.com.evil.test</code> and <code>examp1e.test</code> are not (§5.11).</p>
-  <p><b>The counter.</b> Each device increases a signature counter on every login. If the site sees a counter that has not risen above the stored one, and either is non-zero, a copy of the key may be in use (§6.1.1). Passkeys synced between devices usually report 0 every time, so 0 and 0 is not flagged and the check cannot catch a clone of those.</p>
+  <div class="note"><b>Try it.</b> Pick <code>examp1e.test</code>, sign in, and compare the passkey tile with the typed code tile. Then pick the real site, sign in, and press Replay it.</div>
+  <p><b>Phishing.</b> A <a href="../totp/">typed code</a> is only a number. Type it into <code>examp1e.test</code> and the attacker can pass it to the real site while it is still valid, a window of roughly 30 to 90 seconds, and it is accepted. A passkey assertion carries the origin the browser saw, <code>https://examp1e.test</code>, inside the signed data, so the real site rejects it. The browser also never offers the credential there in the first place.</p>
+  <p><b>Which sites get the key.</b> A credential belongs to an RP ID such as <code>example.com</code>. A page may use it when its host equals the RP ID or ends in a dot and the RP ID, so <code>login.example.com</code> is offered the key and <code>example.com.evil.test</code> and <code>examp1e.test</code> are not (§4, and the check in §5.1.4).</p>
+  <p><b>The counter.</b> Most devices increase a signature counter on every login. If the site sees a counter that has not risen above the stored one, and either is non-zero, a copy of the key may be in use (§6.1.1). Passkeys synced between devices usually report 0 every time, so 0 and 0 is not flagged and the check cannot catch a clone of those.</p>
   <p class="caveat">Simplified: toy 64-bit RSA, one hash-then-sign message in place of CBOR and COSE, and a suffix match where browsers use the public suffix list so that <code>co.uk</code> can never be an RP ID.</p>
 </main>
 <script type="module">
@@ -39,7 +40,7 @@ import { newServer, register, challenge, assert, check, rpIdAllowed, relayTotp, 
 import { mulberry } from "../../shared/random.js";
 chrome();
 
-const SITES = { "https://example.com": "example.com", "https://login.example.com": "login", "https://example.com.evil.test": "evil.test", "https://examp1e.test": "examp1e" };
+const SITES = { "https://example.com": "example.com", "https://login.example.com": "login.example.com", "https://example.com.evil.test": "example.com.evil.test", "https://examp1e.test": "examp1e.test" };
 const server = newServer(), phone = register(server, "example.com", mulberry(1));
 const devices = { phone, copy: { ...phone }, synced: { ...register(server, "example.com", mulberry(2)), synced: true } };
 const SECRET = textBytes("12345678901234567890");
@@ -48,7 +49,7 @@ const out = (cls, t) => { lines = [`<span class="${cls}">${escapeHtml(t)}</span>
 
 function render() {
   const offered = rpIdAllowed("example.com", site), code = relayTotp(SECRET, 1000, 10);
-  $("#stats").innerHTML = [[offered ? "offered" : "not offered", "passkey"], [code ? "accepted" : "rejected", "typed code"], [server.creds.get(phone.id).counter, "stored counter"]].map(statTile).join("");
+  $("#stats").innerHTML = [[offered ? "offered" : "not offered", "passkey"], [site === REAL ? "genuine" : code ? "relayed, accepted" : "rejected", "typed code"], [server.creds.get(phone.id).counter, "stored counter"]].map(statTile).join("");
 }
 function submit(a) {
   const r = check(server, a, { origin: rpIdAllowed("example.com", site) ? site : REAL });

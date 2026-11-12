@@ -120,7 +120,7 @@ Each spec gives the scaffold line, prereqs, where it goes in `PATHS`, sources (f
 
 ### 2. `passkeys`: Passkeys
 - **Scaffold:** `npm run new -- passkeys "Passkeys" security core protocols`. Prereqs: signatures, totp. Path `security`: after jwt.
-- **Sources:** W3C Web Authentication Level 3, https://www.w3.org/TR/webauthn-3/ (standard; §5.11 RP ID rule, §6.1.1 signature counter, §7.2 assertion checks); MDN Web Authentication API (docs, developer.mozilla.org); Google passkeys developer guide, developers.google.com/identity/passkeys (docs).
+- **Sources:** W3C Web Authentication Level 3, https://www.w3.org/TR/webauthn-3/ (standard; §4 RP ID definition, §5.1.4 get check, §6.1.1 signature counter, §7.2 assertion checks); MDN Web Authentication API (docs, developer.mozilla.org); Google passkeys developer guide, developers.google.com/identity/passkeys (docs).
 - **Reuse:** `keygen`/`sign`/`verify` from `shared/rsa.js` (toy RSA, already shared). For the phishing comparison, `verify` from `explainers/totp/totp.js`; reusing it means moving it to `shared/`, or else state the TOTP result as a fixed scenario.
 - **Facts:**
   1. A breach of the server's table yields only public keys. An assertion signed with any other key pair fails `verify` under the stored public key.
