@@ -15,7 +15,7 @@ export const TRUSTED = [
   "git-scm.com", "postgresql.org", "sqlite.org", "github.com", "docs.docker.com", "man7.org", "gnu.org", "nodejs.org", "semver.org", "docs.npmjs.com", "doc.rust-lang.org", "research.swtch.com", "swtch.com",
   "parquet.apache.org", "scikit-learn.org", "huggingface.co", "v8.dev", "code.visualstudio.com", "ftp.cs.ucla.edu", "postgis.net", "3blue1brown.com", "llvm.org", "cheatsheetseries.owasp.org", "owasp.org", "community.owasp.org", "builder.aws.com", "oauth.net", "tls13.xargs.org", "letsencrypt.org",
   "redblobgames.com", "norvig.com", "use-the-index-luke.com", "jepsen.io", "jakearchibald.com", "evanmiller.org", "lilianweng.github.io", "jalammar.github.io", "betterexplained.com",
-  "utf8everywhere.org", "floating-point-gui.de", "docs.oracle.com", "joelonsoftware.com", "blog.cryptographyengineering.com", "itu.int", "bazel.build", "kernel.org", "http3-explained.haxx.se",
+  "utf8everywhere.org", "floating-point-gui.de", "docs.oracle.com", "joelonsoftware.com", "blog.cryptographyengineering.com", "itu.int", "bazel.build", "kernel.org", "http3-explained.haxx.se", "eli.thegreenplace.net",
 ];
 
 export const SOURCES = {
@@ -362,6 +362,8 @@ export const SOURCES = {
   "profilers": [["Flame Graphs", "https://www.brendangregg.com/flamegraphs.html", "article", "Brendan Gregg"],
     ["pprof documentation", "https://github.com/google/pprof/blob/main/doc/README.md", "docs", "Google"],
     ["Profiling (computer programming)", "https://en.wikipedia.org/wiki/Profiling_(computer_programming)", "encyclopedia", "Wikipedia"]],
+  "debuggers": [["ptrace(2) manual page", "https://man7.org/linux/man-pages/man2/ptrace.2.html", "docs", "Linux man-pages"],
+    ["How debuggers work: Part 2 - Breakpoints", "https://eli.thegreenplace.net/2011/01/27/how-debuggers-work-part-2-breakpoints", "article", "Eli Bendersky"]],
   "fuzzing": [["libFuzzer: a library for coverage-guided fuzz testing", "https://llvm.org/docs/LibFuzzer.html", "docs", "LLVM"],
     ["AFL++", "https://github.com/AFLplusplus/AFLplusplus", "docs", "AFL++ team"],
     ["OSS-Fuzz", "https://github.com/google/oss-fuzz", "docs", "Google"]],

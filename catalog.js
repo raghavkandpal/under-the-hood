@@ -358,6 +358,8 @@ export const CATALOG = [
     blurb: "Learn a reward from human choices, then tune a model towards it: the exact KL-regularised optimum, and how a length-loving reward gets exploited.", prereqs: ["rl", "logistic-regression", "sampling"] },
   { id: "tries-vs-suffix-arrays", title: "Tries vs suffix arrays", area: "algorithms", topic: "data-structures", level: "core", tags: ["suffix array", "suffix tree", "suffix trie", "trie", "lcp", "substring search", "kasai"],
     blurb: "Find a pattern anywhere in a text: a trie of every suffix explodes in size, a sorted array of start positions stays small.", prereqs: ["autocomplete", "string-search"] },
+  { id: "debuggers", title: "How debuggers work", area: "tools", topic: "everyday-tools", level: "core", tags: ["debugger", "breakpoint", "int3", "0xcc", "ptrace", "gdb", "single-step"],
+    blurb: "Set a breakpoint by overwriting one byte with 0xCC, then watch the debugger rewind, restore, single-step and re-insert it to carry on.", prereqs: ["processes", "compiler"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -413,7 +415,7 @@ export const PATHS = [
     audience: "Anyone curious about what ZIP, JPEG and QR codes are actually doing.",
     outcomes: ["Explain how Huffman and LZ77 compress without losing anything", "Describe images and signals as sums of frequencies", "Explain what JPEG throws away and why you rarely notice", "Explain how error-correcting codes fix corrupted bits"] },
   { id: "toolbox", title: "A developer's toolbox", blurb: "What really happens when you run everyday commands.",
-    steps: ["pipes", "text-buffers", "diff", "hashtable", "git", "bisect", "three-way-merge", "build-systems", "dependency-resolution", "containers", "profilers", "fuzzing"],
+    steps: ["pipes", "text-buffers", "diff", "hashtable", "git", "bisect", "three-way-merge", "build-systems", "dependency-resolution", "containers", "profilers", "debuggers", "fuzzing"],
     intro: "The commands developers run every day hide some clever engineering. This path opens up the shell, text editors, diff and git, then the build tools, package managers and containers that get code from your laptop into production.",
     audience: "Developers who use these tools daily and want to understand, and debug, what they do.",
     outcomes: ["Explain how pipes stream data between programs", "Describe how git stores history and how diff finds changes", "Explain incremental builds and dependency resolution", "Say what a container really is, and why layer order matters"] },

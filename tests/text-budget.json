@@ -30,6 +30,7 @@
 "csrf":{"helper":28,"caveat":30},
 "data-leakage":{"helper":21,"caveat":33},
 "deadlock":{"helper":30,"caveat":32},
+"debuggers":{"helper":34,"caveat":33},
 "decision-tree":{"helper":20,"caveat":13},
 "dependency-resolution":{"helper":14,"caveat":31},
 "dh":{"helper":6,"caveat":13},
