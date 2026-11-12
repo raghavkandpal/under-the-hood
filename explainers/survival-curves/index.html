@@ -38,7 +38,7 @@
   <p><b>Kaplan&ndash;Meier.</b> Walk through the months where someone cancelled. At each one, take the share of the people still being watched who cancelled, and multiply the running survival by one minus that share. A censored customer counts as at risk until their last month and then leaves the denominator. On the table the curve drops to 0.9 at month 2 (1 of 10), to 0.8 at month 3 (1 of 9), to 24/35 = 0.69 at month 5 (1 of 7), to 0.41 at month 8 (2 of 5) and to 0.21 at month 12 (1 of 2). With nobody censored it is exactly the share still subscribed.</p>
   <p><b>Two tempting mistakes.</b> Dropping censored rows keeps only the people who left, so everyone looks gone sooner. Counting &ldquo;last seen&rdquo; as &ldquo;cancelled&rdquo; makes the still-subscribed leave on the day we stopped watching. In the default cohort of 2,000 (true survival e<sup>&minus;t/12</sup>, so 37% at month 12, about half still subscribed when watching stopped) Kaplan&ndash;Meier reads 36% at month 12, dropping reads 14%, and counting as cancelled reads 13%. Across the nine cohorts the button reaches and every censoring level from 20% to 70%, Kaplan&ndash;Meier stays within 4 points of the truth and both mistakes are more than 5 points low. The more censoring, the lower they fall, while Kaplan&ndash;Meier stays within those 4 points.</p>
   <div class="note">Censored 0: the three curves coincide. Table, month 6: 69% against 50%.</div>
-  <p><b>The median and the band.</b> The median is the first month where the curve reaches 50% or less: 8 months on the table, and about 8.1 on the default cohort against a true 12&middot;ln 2 = 8.3. The shaded band is Greenwood&rsquo;s 95% interval. On the table it widens as the number at risk falls: 71&ndash;100% at month 2, 0&ndash;54% at month 12 with 2 left.</p>
+  <p><b>The median and the band.</b> The median is the first month where the curve reaches 50% or less: 8 months on the table, and about 8.1 on the default cohort against a true 12&middot;ln 2 = 8.3. The shaded band is Greenwood&rsquo;s 95% interval. On the table it is wider at the end than at the start, as the number at risk falls: 71&ndash;100% at month 2, 0&ndash;54% at month 12 with 2 left.</p>
   <p class="caveat">Simplified: random censoring that doesn&rsquo;t depend on the customer, lifetimes drawn from one exponential, and a plain-scale band clipped to 0&ndash;100%. Real data has customers whose reason for being watched less is also a reason to leave.</p>
 </main>
 <script type="module">
@@ -59,7 +59,7 @@ function render() {
   const table = mode === "table", censored = +$("#cens").value, m = +$("#month").value;
   const rows = table ? CUSTOMERS : cohort({ censored, seed }), km = kaplanMeier(rows);
   $("#cens").disabled = $("#seed").disabled = table;
-  $("#cv").textContent = pct(table ? rows.filter(r => !r.event).length / rows.length : censored);
+  $("#cv").textContent = pct(table ? rows.filter(r => !r.event).length / rows.length : censored); $("#cens").setAttribute("aria-valuetext", pct(censored) + " censored");
   $("#mv").textContent = m; $("#seed").textContent = "🎲 New cohort"; $("#seed").setAttribute("aria-label", "New cohort, now seed " + seed); $("#lt").style.display = table ? "none" : "";
   const svg = $("#curves"); svg.replaceChildren();
   for (const v of [0, 0.5, 1]) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(v), y2: Y(v), stroke: "var(--border)" }), svgEl("text", { x: L - 6, y: Y(v) + 4, "text-anchor": "end" }, pct(v)));

@@ -53,6 +53,8 @@ test("restore, single-step, rewrite, resume: a breakpoint stops once per visit a
     assert.deepEqual(r.out, expected);
     assert.equal(r.status, "halted");
   }
+  // every address inside the loop (from its start to the jump) is visited 10 times
+  for (const a of addrs.filter(a => a >= LOOP_START && a <= disassemble().find(r => r.text.startsWith("JLT")).addr)) assert.equal(visits(a), 10, `address ${a}`);
   const r = debug(PROGRAM, { breakpoints: [LOOP_START] });
   assert.equal(r.stops.length, 10);
   assert.equal(r.traps, 10); // the page's default view
@@ -61,9 +63,11 @@ test("restore, single-step, rewrite, resume: a breakpoint stops once per visit a
 });
 
 test("without the rewrite the breakpoint stops once, but the output is still right", () => {
-  const r = debug(PROGRAM, { breakpoints: [LOOP_START], reinsert: false });
-  assert.equal(r.stops.length, 1);
-  assert.deepEqual(r.out, expected);
+  for (const a of addrs) {
+    const r = debug(PROGRAM, { breakpoints: [a], reinsert: false });
+    assert.equal(r.stops.length, 1, `address ${a}`);
+    assert.deepEqual(r.out, expected);
+  }
 });
 
 test("conditional breakpoint i == 7: 10 traps, 1 stop shown, 20 switches", () => {
