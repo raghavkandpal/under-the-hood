@@ -86,6 +86,7 @@
 "oauth":{"helper":5,"caveat":49},
 "overfitting":{"helper":72,"caveat":30},
 "pagerank":{"helper":13,"caveat":42},
+"passkeys":{"helper":29,"caveat":33},
 "password-hashing":{"helper":6,"caveat":47},
 "pathfinding":{"helper":4,"caveat":24},
 "pca":{"helper":20,"caveat":39},

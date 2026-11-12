@@ -348,6 +348,8 @@ export const CATALOG = [
     blurb: "How many users a test needs to notice a real lift, why halving the lift quadruples it, and the winner's curse.", prereqs: ["abtest"] },
   { id: "quic", title: "QUIC in depth", area: "networking", topic: "how-the-network-works", level: "deep", tags: ["quic", "http/3", "udp", "0-rtt", "connection migration", "amplification limit"],
     blurb: "Fewer round trips, a connection that survives a change of network, and the two catches: an amplification limit and 0-RTT replay.", prereqs: ["http-versions", "tls"] },
+  { id: "passkeys", title: "Passkeys", area: "security", topic: "protocols", level: "core", tags: ["passkeys", "webauthn", "fido2", "phishing", "public key", "authentication"],
+    blurb: "A key pair per site instead of a password: why a stolen table is useless, a phishing relay fails, and what the counter catches.", prereqs: ["signatures", "totp"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -373,7 +375,7 @@ export const PATHS = [
     audience: "Developers and curious readers who use chatbots and want a real mental model of what's inside.",
     outcomes: ["Explain gradient descent and backpropagation in plain terms", "Describe tokens, embeddings and attention, and how they fit together", "Say how a model picks each next word, and what temperature changes", "Explain the KV cache, quantization, speculative decoding and RAG"] },
   { id: "security", title: "Security essentials", blurb: "The crypto and protocols behind every login and padlock.",
-    steps: ["hash-functions", "password-hashing", "timing-attacks", "totp", "cipher-modes", "dh", "signatures", "tls", "oauth", "jwt", "sql-injection", "xss", "csrf", "zero-knowledge"],
+    steps: ["hash-functions", "password-hashing", "timing-attacks", "totp", "cipher-modes", "dh", "signatures", "tls", "oauth", "jwt", "passkeys", "sql-injection", "xss", "csrf", "zero-knowledge"],
     intro: "Every login, padlock and password reset rests on a few cryptographic building blocks and the protocols built from them. This path starts with hashes and keys, builds up to TLS and OAuth, and ends with the attacks that break real systems when those pieces are misused.",
     audience: "Developers who handle logins, secrets or user data, and anyone who wants to know what the padlock means.",
     outcomes: ["Explain hashing, encryption and signatures, and which to use when", "Describe how TLS and “Sign in with…” keep credentials safe", "Store passwords properly and add a second factor", "Spot SQL injection and the misuse of cipher modes"] },
