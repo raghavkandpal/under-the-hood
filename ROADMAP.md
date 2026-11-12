@@ -106,7 +106,7 @@ Ten from the gap table, built test-first with the `tdd` skill and reviewed with 
 **Status (2026-11-12, session ended at its limit):**
 - **Done** (evaluated, fixed, checked in the browser at 360px): quic, passkeys, paxos.
 - **mixture-of-experts:** the re-evaluation found only minor items. Fix next session: say the busiest share "falls much further" with the loss (it also falls with the loss off); pin seed 1's ordering across weights; scale the load bars to the run's maximum load, since step 10 at weight None clips; give `#k`/`#kp` `role="group"`; compute each weight's 30-seed runs once (the test takes 10 s); rename "never drops more".
-- **rlhf:** evaluator FAIL. A fix round was running at the end of the session (honest framing of the length-biased raters, Pairs readout as an 8-seed mean, tighter brackets, a seed-3 test). Check whether it committed, then re-evaluate.
+- **rlhf:** evaluator fixes committed in 7f41289 (honest framing, Pairs readout as an 8-seed mean, tighter brackets, seed-3 test). Next: re-evaluate it and check it in the browser.
 - **tries-vs-suffix-arrays:** built (120914b), not yet evaluated. In the browser the `n` slider still shows on the banana and terms texts, because `hidden` on a `label.inline` gets overridden by its display rule.
 - **Not started:** simd, debuggers, survival-curves, what-is-an-index.
 - **Before the PR:** squash-merge. Intermediate commits a811fd5 and 5a4c5c4 fail tests on their own, because concurrent agents shared one working tree. Update the gap table and "145 explainers", and drop the stale line "No explainer imports from another explainer's folder" (quic's test imports http-versions). Then run code-review, ponytail-review and the final sweep.
