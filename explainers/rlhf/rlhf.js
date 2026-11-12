@@ -14,7 +14,7 @@ const RAW = [
 ];
 export const REPLIES = RAW.map(([text, q, cue]) => ({ text, q, cue, len: words(text) / 50 }));
 export const N = REPLIES.length;
-/** The base model's probabilities over the replies: it mostly says the two-word "A lock." and rarely the best replies. */
+/** The base model's probabilities over the replies: it most often says the two-word "A lock." and rarely the best replies. */
 export const PI_REF = [0.45, 0.1, 0.1, 0.1, 0.15, 0.1];
 
 /** How strongly raters follow true quality, and how much they favour length on top of it. */

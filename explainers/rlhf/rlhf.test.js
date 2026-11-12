@@ -35,7 +35,7 @@ test("seeded pairs are reproducible, never pair a reply with itself, and follow 
   close(mean(sel.map(p => p.win)), bradleyTerry(score(2), score(0)), 0.03);
 });
 
-test("the reward model recovers the rater's ordering from 50 pairs, near the label-noise ceiling", () => {
+test("the reward model reaches near-ceiling accuracy from 50 pairs", () => {
   const rater = REPLIES.map((_, i) => RATER.quality * TRUE[i] + RATER.lengthBias * REPLIES[i].len);
   const held = makePairs(999, 20000);
   const ceiling = held.filter(({ a, b, win }) => (rater[a] > rater[b]) === (win === 1)).length / held.length;
@@ -44,6 +44,16 @@ test("the reward model recovers the rater's ordering from 50 pairs, near the lab
   assert.ok(mean(accs) > 0.84 && mean(accs) < 0.87, `mean ${mean(accs)}`);
   assert.ok(mean(accs) <= ceiling + 1e-9);
   assert.ok(Math.min(...accs) > 0.8);
+});
+
+test("the raters' scores rank the six replies by length exactly", () => {
+  const rater = REPLIES.map(r => RATER.quality * r.q + RATER.lengthBias * r.len);
+  for (let i = 1; i < N; i++) { assert.ok(rater[i] > rater[i - 1]); assert.ok(REPLIES[i].len > REPLIES[i - 1].len); }
+});
+
+test("the page's readout on its 2,000-pair held-out set: 71% at 2 pairs, 77% at 5, 85% from 10 on", () => {
+  const held = makePairs(999, 2000), pct = n => Math.round(100 * mean(SEEDS.map(s => pairAccuracy(trainReward(makePairs(s, n)), held))));
+  assert.deepEqual([2, 5, 10, 20, 50, 200].map(pct), [71, 77, 85, 85, 85, 85]);
 });
 
 test("the reward model improves from 2 to 5 to 10 pairs on average, then levels off near the ceiling", () => {
