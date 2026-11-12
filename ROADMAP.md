@@ -105,6 +105,118 @@ Ten from the gap table, built test-first with the `tdd` skill and reviewed with 
 
 Ten picked from the gap table for the next session: quic (networking deep dive), passkeys (security), paxos (distributed), mixture-of-experts and rlhf (ML), tries-vs-suffix-arrays (algorithms), simd (systems), debuggers (tools), survival-curves (statistics), what-is-an-index (databases intro). Same flow as batch 12: `tdd` per module, `code-review` plus `ponytail-review` before the PR, `pr` for the body.
 
+Each spec gives the scaffold line, prereqs, where it goes in `PATHS`, sources (first one primary; **new domain** marks a host not yet in `TRUSTED`, so add it and run `npm run check-sources`, or use the listed fallback), what to reuse, and the facts. Every fact is a test: write it first, print the numbers across the parameter range, and copy prose numbers from the output. No explainer imports from another explainer's folder today, so reusing a module means moving it to `shared/` first (check the file name is free).
+
+### 1. `quic`: QUIC in depth
+- **Scaffold:** `npm run new -- quic "QUIC in depth" networking deep how-the-network-works`. Prereqs: http-versions, tls. Path `internet`: after http-versions.
+- **Sources:** RFC 9000: QUIC transport (standard, rfc-editor.org; §8 amplification limit, §8.2 path validation, §9 migration); RFC 9002: loss detection (standard; §4.2 monotonically increasing packet numbers); RFC 9001: QUIC-TLS (standard; 0-RTT replay). Optional approachable: "HTTP/3 explained" by Daniel Stenberg, http3-explained.haxx.se (**new domain**).
+- **Reuse:** the handshake counts must agree with `PROTOCOLS` in `explainers/http-versions/` (h2 2 RTT, h3 1 RTT). Don't repeat its head-of-line demo; link to it.
+- **Facts:**
+  1. Fresh connection, first response byte: TCP + TLS 1.3 at 3 RTT, QUIC at 2 RTT, QUIC 0-RTT resumption at 1 RTT.
+  2. Amplification limit: the client's Initial is padded to 1200 bytes, so before the address is validated the server may send at most 3 × 1200 = 3600 bytes. A server first flight of at most 3600 bytes finishes the handshake in 1 RTT, and a 6000-byte one (a long certificate chain) needs one more RTT.
+  3. Migration: when the client's address changes, the TCP connection is gone, and the next request waits 2 RTT for a new handshake. QUIC keeps the connection ID and adds 0 handshake RTT. Path validation (PATH_CHALLENGE then PATH_RESPONSE) takes 1 RTT and runs alongside the data.
+  4. RTT samples on a seeded lossy run: QUIC gives one sample per acknowledged packet, because a retransmission gets a new packet number. TCP with Karn's rule gives (acked − retransmitted) samples.
+  5. 0-RTT replay: an attacker replays a captured first flight 3 times. A `POST /pay` sent as 0-RTT runs 4 times on a server that accepts it. With a server that accepts 0-RTT only for `GET`, it runs once.
+
+### 2. `passkeys`: Passkeys
+- **Scaffold:** `npm run new -- passkeys "Passkeys" security core protocols`. Prereqs: signatures, totp. Path `security`: after jwt.
+- **Sources:** W3C Web Authentication Level 3, https://www.w3.org/TR/webauthn-3/ (standard; §5.11 RP ID rule, §6.1.1 signature counter, §7.2 assertion checks); MDN Web Authentication API (docs, developer.mozilla.org); Google passkeys developer guide, developers.google.com/identity/passkeys (docs).
+- **Reuse:** `keygen`/`sign`/`verify` from `shared/rsa.js` (toy RSA, already shared). For the phishing comparison, `verify` from `explainers/totp/totp.js`; reusing it means moving it to `shared/`, or else state the TOTP result as a fixed scenario.
+- **Facts:**
+  1. A breach of the server's table yields only public keys. An assertion signed with any other key pair fails `verify` under the stored public key.
+  2. Phishing relay: a TOTP code typed into `examp1e.test` and relayed to the real server within 30 s is accepted. The passkey assertion is bound to origin `https://examp1e.test` in clientData, so the real server rejects it.
+  3. RP ID scoping: a credential for `example.com` is offered on `example.com` and `login.example.com`, but not on `example.com.evil.test` or `examp1e.test`. This is a suffix match on a dot boundary. The caveat says real browsers use the public suffix list.
+  4. Challenges are single use: a captured assertion replayed for a second login fails.
+  5. Signature counter: a new count ≤ the stored count, with either value non-zero, is flagged as a possible clone. 0 and 0, as many synced passkeys report, is not flagged.
+
+### 3. `paxos`: Paxos
+- **Scaffold:** `npm run new -- paxos "Paxos" distributed deep agreement`. Prereqs: quorum, raft. Path `distributed`: after raft.
+- **Sources:** Lamport, "Paxos Made Simple", https://lamport.azurewebsites.net/pubs/paxos-simple.pdf (paper); van Renesse & Altinbuken, "Paxos Made Moderately Complex", https://www.cs.cornell.edu/courses/cs7412/2011sp/paxos.pdf (paper; the host answered here). Fallback: Wikipedia "Paxos (computer science)". research.google.com is **not** covered by the `research.google` entry, so don't use Paxos Made Live from there.
+- **Reuse:** nothing. Single-decree Paxos with 5 acceptors, driven by scripted message schedules, plus `mulberry` from `shared/random.js` for backoff.
+- **Facts:**
+  1. A value is chosen once 3 of 5 acceptors accept it in the same ballot. With 2 acceptors down a value is still chosen, and with 3 down none is.
+  2. An acceptor rejects a prepare or accept whose ballot is lower than its promise.
+  3. Safety: v is chosen at ballot 1, then proposer B runs ballot 2 with value w. For each of the 10 possible 3-acceptor quorums B could reach, B learns v in phase 1 and v is chosen again, never w.
+  4. Accepted is not chosen: v is accepted by only 1 acceptor and its proposer crashes. A new proposer whose quorum includes that acceptor gets v chosen, and one whose quorum excludes it gets w chosen.
+  5. Duelling proposers with no backoff choose nothing in 20 rounds. With seeded random backoff a value is chosen. The test bounds the round from the printed run.
+  6. Cost: one decision takes 4 message delays (prepare, promise, accept, accepted). With a stable leader (Multi-Paxos), later slots skip phase 1 and take 2.
+
+### 4. `mixture-of-experts`: Mixture of experts
+- **Scaffold:** `npm run new -- mixture-of-experts "Mixture of experts" ml deep language-models`. Prereqs: attention. Path `llms`: after kv-cache.
+- **Sources:** Fedus, Zoph, Shazeer, "Switch Transformers", arXiv 2101.03961 (paper; aux loss and capacity factor); Shazeer et al., "Outrageously Large Neural Networks", arXiv 1701.06538 (paper); Hugging Face, "Mixture of Experts Explained", https://huggingface.co/blog/moe (article).
+- **Reuse:** `softmax` from `explainers/attention/` is one line, so write it again rather than move it. Toy tokens are seeded 2-D vectors (`shared/random.js`). Don't quote published model sizes unless a source on the page states them.
+- **Facts:**
+  1. Routing: softmax over E expert scores, keep the top k, renormalise. Exactly k weights are non-zero and they sum to 1.
+  2. Parameters vs compute: with E = 8 and k = 2, each token uses 2/8 = 25% of the expert parameters. Total params = shared + E × expert, and active = shared + k × expert (test the formula at the page's slider values).
+  3. Capacity: expert capacity = capacity factor × tokens / E. Dropped tokens = Σ max(0, load − capacity). Uniform load drops 0, and the seeded skewed router drops more than 0.
+  4. Switch aux loss = E · Σ fᵢ·Pᵢ. It equals exactly 1 for uniform routing and E when every token and all the probability go to one expert.
+  5. Training the router with the aux loss on the seeded data lowers the busiest expert's share until nothing is dropped at capacity factor 1.25. Without the loss, tokens are still dropped after the same number of steps.
+
+### 5. `rlhf`: Learning from human feedback
+- **Scaffold:** `npm run new -- rlhf "Learning from human feedback" ml deep language-models`. Prereqs: rl, logistic-regression, sampling. Path `llms`: after lora.
+- **Sources:** Ouyang et al., "Training language models to follow instructions with human feedback" (InstructGPT), arXiv 2203.02155 (paper); Rafailov et al., "Direct Preference Optimization", arXiv 2305.18290 (paper; closed-form KL-regularised optimum); Hugging Face, "Illustrating RLHF", https://huggingface.co/blog/rlhf (article). Optional: Christiano et al., arXiv 1706.03741.
+- **Model:** a policy over 6 self-written canned replies to one prompt. A hidden "true" score produces seeded preference pairs. The reward model is Bradley–Terry (logistic on a reward difference) over 2 features, one of which is length.
+- **Facts:**
+  1. Bradley–Terry: P(A beats B) = σ(r_A − r_B). Equal rewards give 0.5, and a difference of ln 3 gives 0.75.
+  2. The reward model trained on the seeded pairs ranks held-out pairs correctly at a rate the test pins from the printed run.
+  3. KL-regularised optimum, exact on 6 replies: π*(y) ∝ π_ref(y)·exp(r(y)/β). Very large β returns π_ref within 1e-6, very small β puts more than 0.99 on the top-reward reply, and KL(π*‖π_ref) falls as β rises.
+  4. Reward hacking: the reward model over-rewards length, so at small β the policy's proxy reward rises while its true score falls. True score peaks at an intermediate β and beats both β → 0 and π_ref.
+
+### 6. `tries-vs-suffix-arrays`: Tries vs suffix arrays
+- **Scaffold:** `npm run new -- tries-vs-suffix-arrays "Tries vs suffix arrays" algorithms core data-structures`. Prereqs: autocomplete, string-search. Path `algorithms`: after string-search.
+- **Sources:** Sedgewick & Wayne, Algorithms 4th ed., 6.3 Suffix Arrays, https://algs4.cs.princeton.edu/63suffix/ (book; longest repeated substring); cp-algorithms, Suffix Array, https://cp-algorithms.com/string/suffix-array.html (article; binary-search lookup, Kasai LCP, distinct substrings = n(n+1)/2 − ΣLCP).
+- **Reuse:** `Trie` and `radixNodes` from `explainers/autocomplete/trie.js`. Move them to `shared/trie.js` (check the file is free) and update autocomplete's imports. The texts are built in: "banana", a programming-terms line "database metadata update", and a seeded 4-letter random string.
+- **Facts:**
+  1. The suffix array of "banana" is [5, 3, 1, 0, 4, 2], and its LCP array is [1, 3, 0, 0, 2].
+  2. Distinct substrings of "banana" = 21 − 6 = 15, so its suffix trie has 16 nodes. The suffix trie of "banana$" has 23 nodes, and `radixNodes` (the suffix tree) leaves 11, within 2n.
+  3. In "database metadata update", the word trie's prefix search for "data" finds 1 word (database). The suffix array finds 2 occurrences (database, metadata).
+  4. A pattern lookup takes at most 2·⌈log₂(n+1)⌉ suffix comparisons: 20 for n = 1,000.
+  5. Space: for a seeded random 4-letter text of n = 1,000, the suffix trie has more than 400,000 nodes against 1,000 suffix-array entries. The prose quotes the printed ratio.
+  6. The longest repeated substring is the longest LCP: "ana" in "banana".
+
+### 7. `simd`: SIMD vectorisation
+- **Scaffold:** `npm run new -- simd "SIMD vectorisation" systems core the-processor`. Prereqs: branch-prediction, floating-point. Path `machine`: after branch-prediction.
+- **Sources:** LLVM, Auto-Vectorization in LLVM, https://llvm.org/docs/Vectorizers.html (docs; float reductions need reassociation, runtime alias checks); Agner Fog, Optimizing software in C++, https://www.agner.org/optimize/optimizing_cpp.pdf (book); V8, "Fast, parallel applications with WebAssembly SIMD", https://v8.dev/features/simd (article).
+- **Reuse:** `Math.fround` for float32. The scalar branchy side can use `bytes` and `cycles` from `explainers/branch-prediction/`, moved to `shared/` if so.
+- **Facts:**
+  1. Lanes = register bits / element bits: 128-bit holds 4 f32, 2 f64 or 16 i8, and 256-bit holds 8 f32.
+  2. Summing n = 1,003 f32 with 8 lanes takes 125 vector adds, 3 scalar tail adds and 7 lane-combining adds. That is 135 instructions instead of 1,003.
+  3. Eight partial sums of a seeded float32 array differ from the left-to-right sum, while the same done with integers is identical. That is why compilers vectorise float reductions only when reassociation is allowed.
+  4. `if (x >= 128) sum += x` done as compare + mask + add equals the scalar result exactly with 0 branch mispredictions. Its cycle count is the same on sorted and random data, while the scalar loop's is not.
+  5. A carried dependency breaks lane parallelism: `a[i] = a[i−1] + b[i]` computed 8 lanes at a time from old values differs from the scalar result, while `c[i] = a[i] + b[i]` matches.
+
+### 8. `debuggers`: How debuggers work
+- **Scaffold:** `npm run new -- debuggers "How debuggers work" tools core everyday-tools`. Prereqs: processes, compiler. Path `toolbox`: after profilers.
+- **Sources:** ptrace(2), https://man7.org/linux/man-pages/man2/ptrace.2.html (docs; PEEKTEXT/POKETEXT, SINGLESTEP); Eli Bendersky, "How debuggers work: Part 2 – Breakpoints", https://eli.thegreenplace.net/2011/01/27/how-debuggers-work-part-2-breakpoints (article, **new domain**; 0xCC, rewind, restore, single-step, re-insert). Fallback: Wikipedia "INT (x86 instruction)".
+- **Reuse:** none. `explainers/compiler/` has no jumps, so it can't run a loop. Build a toy byte-coded VM with variable-length (1–3 byte) instructions, a `TRAP` = 0xCC opcode and a 10-iteration loop.
+- **Facts:**
+  1. Setting a breakpoint at address A saves the byte and writes 0xCC. Clearing it restores the code bytes exactly.
+  2. A trap stops with pc = A + 1, and the debugger reports A after rewinding. If it skips the rewind, execution resumes mid-instruction and the output differs from the run without a debugger.
+  3. To continue, the debugger restores the byte, single-steps, rewrites 0xCC and resumes. A breakpoint inside the 10-iteration loop stops 10 times, and the program's output equals the run without a debugger.
+  4. Skip the rewrite and the breakpoint stops once.
+  5. Conditional breakpoint `i == 7`: the program traps 10 times, the user sees 1 stop, and the debugger makes 20 stop/resume switches.
+
+### 9. `survival-curves`: Survival curves
+- **Scaffold:** `npm run new -- survival-curves "Survival curves" statistics core experiments-and-inference`. Prereqs: clt. Path `stats`: after bootstrap.
+- **Sources:** lifelines, "Introduction to survival analysis", https://lifelines.readthedocs.io/en/latest/Survival%20Analysis%20intro.html (docs, **new domain**; shows that dropping censored rows underestimates); James, Witten, Hastie, Tibshirani, An Introduction to Statistical Learning, 2nd ed., ch. 11, https://www.statlearning.com/ (free book, **new domain**). Fallback: Wikipedia "Kaplan–Meier estimator". Hastie's web.stanford.edu slides redirect to hastie.su.domains, so skip them.
+- **Reuse:** `quantile` from `shared/normal.js` for the 95% band, and `mulberry` from `shared/random.js`. Kaplan–Meier itself needs nothing external. The built-in data is a self-made table of 10 customers' months to cancel, some still subscribed.
+- **Facts:**
+  1. Kaplan–Meier S(t) = Π(1 − dᵢ/nᵢ) on the 10-customer table matches a hand-worked table at every event time. The first drop is 1 − 1/10 = 0.9.
+  2. With no censoring, Kaplan–Meier equals the plain fraction still subscribed at every t.
+  3. On a seeded cohort of 2,000 with true S(t) = e^(−t/12) and random censoring, Kaplan–Meier at t = 12 is within 0.03 of e⁻¹ ≈ 0.368. "Drop censored rows" and "count censored as cancelled" both come out more than 0.05 below it. The prose quotes the printed values.
+  4. The median is the first t with S(t) ≤ 0.5. For that cohort it is within 0.5 of 12 ln 2 ≈ 8.3.
+  5. The Greenwood 95% band (z = `quantile(0.975)`) is wider at the last event time than at the first, as the number at risk shrinks.
+
+### 10. `what-is-an-index`: What is an index?
+- **Scaffold:** `npm run new -- what-is-an-index "What is an index?" databases intro queries`. Prereqs: none. Path `databases`: after normalization, before btree.
+- **Sources:** SQLite, Query Planning, https://www.sqlite.org/queryplanner.html (docs; full scan vs binary-searched index, multi-column indexes and the leftmost column); PostgreSQL, Multicolumn Indexes, https://www.postgresql.org/docs/current/indexes-multicolumn.html (docs); Markus Winand, Use The Index, Luke: anatomy of an index, https://use-the-index-luke.com/sql/anatomy (article).
+- **Reuse:** `heightFor` from `explainers/btree/btree.js`, a one-liner. Move it to `shared/` or recompute it in the test, and keep its result. Link to query-planner for the "broad query, scan wins" crossover rather than reusing it.
+- **Facts:**
+  1. Finding one row among 1,000,000 at 100 rows per page: a full scan reads 10,000 pages. The index reads `heightFor(1e6, 100)` = 4 levels plus 1 table page, so 5 pages, 2,000× fewer. (log₁₀₀ 1,000,001 is just over 3, so it rounds up to 4. Quote 4, not 3.)
+  2. Binary search over 1,000,000 sorted keys needs at most ⌈log₂ 1,000,001⌉ = 20 comparisons.
+  3. An index on (last_name, first_name) serves `last = ?` and `last = ? AND first = ?`, but `first = ?` alone falls back to a full scan.
+  4. Writes pay: an insert into a table with 3 indexes updates 4 structures (1 + k).
+
 ## How to work (read before starting)
 
 **Start:** run `npm test` and expect all tests passing (636 at the time of writing). The local preview config is `.claude/launch.json`, name `under-the-hood`, port 8766; it's git-ignored, so recreate it if missing. Or run `npm start` (port 8765).
