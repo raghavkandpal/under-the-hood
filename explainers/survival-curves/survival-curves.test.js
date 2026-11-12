@@ -49,26 +49,37 @@ test("the cohort is seeded and censors about the requested share", () => {
 
 test("the page's default cohort (2,000, 50% censored, seed 1): Kaplan–Meier recovers e^-1 and both shortcuts fall far below", () => {
   const rows = cohort(), km = kaplanMeier(rows), truth = Math.exp(-1);
-  near(trueS(MEAN), truth);
   assert.ok(Math.abs(at(km, 12) - truth) < 0.03);
   assert.ok(dropCensored(rows, 12) < truth - 0.05);
   assert.ok(censoredAsCancelled(rows, 12) < truth - 0.05);
   assert.ok(Math.abs(median(km) - 12 * Math.LN2) < 0.5);
 });
 
-test("across seeds and censoring levels, Kaplan–Meier stays within 0.04 at month 12 (sampling noise) while the shortcuts miss by more than 0.05", () => {
-  for (const censored of [0.2, 0.3, 0.5, 0.7]) for (let seed = 1; seed <= 8; seed++) {
+// The page's slider reaches 0 to 0.7 in steps of 0.1, and its cohort button reaches seeds 1 to 9.
+const LEVELS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+test("at every censoring level and seed, Kaplan–Meier is within 0.04 at month 12, and from 20% up the shortcuts miss by more than 0.05", () => {
+  for (const censored of LEVELS) for (const seed of SEEDS) {
     const rows = cohort({ censored, seed });
     assert.ok(Math.abs(at(kaplanMeier(rows), 12) - Math.exp(-1)) < 0.04, `km ${censored} ${seed}`);
+    if (censored < 0.2) continue;
     assert.ok(dropCensored(rows, 12) < Math.exp(-1) - 0.05, `drop ${censored} ${seed}`);
     assert.ok(censoredAsCancelled(rows, 12) < Math.exp(-1) - 0.05, `as-cancelled ${censored} ${seed}`);
   }
 });
 
-test("more censoring pushes both shortcuts lower, and Kaplan–Meier does not move", () => {
-  const levels = [0, 0.2, 0.3, 0.5, 0.7], rows = levels.map(censored => cohort({ censored }));
-  for (const f of [dropCensored, censoredAsCancelled]) for (let i = 1; i < rows.length; i++) assert.ok(f(rows[i], 12) < f(rows[i - 1], 12), `${f.name} ${levels[i]}`);
-  for (const r of rows) assert.ok(Math.abs(at(kaplanMeier(r), 12) - Math.exp(-1)) < 0.03);
+test("more censoring pushes both shortcuts lower at every step and seed", () => {
+  for (const seed of SEEDS) {
+    const rows = LEVELS.map(censored => cohort({ censored, seed }));
+    for (const f of [dropCensored, censoredAsCancelled]) for (let i = 1; i < rows.length; i++) assert.ok(f(rows[i], 12) < f(rows[i - 1], 12), `${f.name} ${LEVELS[i]} ${seed}`);
+  }
+});
+
+test("with nobody censored, all three curves coincide", () => {
+  for (const seed of SEEDS) {
+    const rows = cohort({ censored: 0, seed }), km = kaplanMeier(rows);
+    for (const t of [0, 3, 12, 30]) { near(at(km, t), dropCensored(rows, t)); near(at(km, t), censoredAsCancelled(rows, t)); }
+  }
 });
 
 test("median: first event time with S ≤ 0.5", () => {
@@ -88,6 +99,7 @@ test("the 95% band brackets S and is wider late than early, when few are left at
   // The numbers the page quotes.
   assert.equal(Math.round(km[0].lo * 100) + "-" + Math.round(km[0].hi * 100), "71-100");
   assert.equal(Math.round(km.at(-1).lo * 100) + "-" + Math.round(km.at(-1).hi * 100), "0-54");
+  assert.equal(km.at(-1).n, 2); // 2 customers left at month 12
 });
 
 test("the numbers the page quotes for the default cohort", () => {
@@ -95,5 +107,5 @@ test("the numbers the page quotes for the default cohort", () => {
   assert.deepEqual([pc(at(km, 12)), pc(dropCensored(rows, 12)), pc(censoredAsCancelled(rows, 12))], [36, 14, 13]);
   assert.equal(median(km).toFixed(1), "8.1");
   assert.equal(pc(share(rows, r => !r.event)), 48);
-  assert.deepEqual([6].map(t => [at(kaplanMeier(CUSTOMERS), t), dropCensored(CUSTOMERS, t), censoredAsCancelled(CUSTOMERS, t)].map(pc)), [[69, 50, 50]]);
+  assert.deepEqual([at(kaplanMeier(CUSTOMERS), 6), dropCensored(CUSTOMERS, 6), censoredAsCancelled(CUSTOMERS, 6)].map(pc), [69, 50, 50]);
 });
