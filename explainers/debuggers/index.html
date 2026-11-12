@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How debuggers work</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  table.data td.mono, table.data th { white-space: nowrap; }
+  tr.bp td { background: var(--accent-soft); }
+  .controls button[aria-pressed="true"] { border-color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>How debuggers work</h1>
+  <p class="lede">A breakpoint looks like a pause button, but the CPU has no such thing. The debugger overwrites one byte of your program with a trap instruction, and has to put things back to carry on.</p>
+
+  <div class="panel">
+    <div class="row controls">
+      <label class="inline">Break at <select id="bp"></select></label>
+      <button type="button" id="rewind"></button>
+      <button type="button" id="rearm"></button>
+      <button type="button" id="cond"></button>
+    </div>
+    <div class="scroll-x"><table class="data" id="code"></table></div>
+    <div class="stats" id="stats" style="--stat-min:90px"></div>
+    <p class="status" id="status" aria-live="polite"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The trap byte.</b> To set a breakpoint at address <i>A</i>, the debugger reads the byte there, keeps it, and writes <code>0xCC</code> in its place. On x86 that is the one-byte <code>INT3</code> instruction, so it fits over any instruction without touching its neighbours. On Linux the debugger does this with <code>ptrace</code> (<code>PEEKTEXT</code> and <code>POKETEXT</code>). Clearing the breakpoint writes the saved byte back, and the code is exactly as it was.</p>
+  <p><b>Rewinding.</b> When the program runs into <code>0xCC</code> the CPU has already moved on: the program counter is <i>A</i> + 1. The debugger reports <i>A</i> and sets the counter back. Turn <i>Rewind</i> off and the program resumes in the middle of the instruction, running its operand as if it were an opcode. In this toy program that gives a different output at every address, or a crash.</p>
+  <p><b>Carrying on.</b> The original instruction has to run once, but its first byte is now <code>0xCC</code> again if you simply resume. So the debugger puts the saved byte back, single-steps one instruction (<code>PTRACE_SINGLESTEP</code>), writes <code>0xCC</code> again and resumes. A breakpoint in the 10-iteration loop then stops 10 times and the output is the same as without a debugger. Turn <i>Re-arm</i> off and the breakpoint fires once and is gone.</p>
+  <div class="note"><b>Try it.</b> Turn on <i>If i = 7</i>. The program still traps 10 times, but you see only 1 stop. Every trap is a switch into the debugger and back, 20 in all.</div>
+  <p><b>The cost of a condition.</b> The CPU can't test <code>i == 7</code> for you. The debugger stops the program every time, looks, and resumes if the condition is false. A conditional breakpoint in a hot loop is slow for that reason. Some debuggers, and hardware watchpoints, can do better.</p>
+  <p class="caveat">The VM is a made-up eleven-byte program, and a trap is counted as two switches whatever the operating system does. Real debuggers also handle threads, signals and breakpoints inside the instruction being stepped.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile } from "../../shared/common.js";
+import { PROGRAM, LOOP_START, TRAP, run, debug, disassemble } from "./debuggers.js";
+chrome();
+
+const hex = b => b.toString(16).toUpperCase().padStart(2, "0"), rows = disassemble(), want = run().out.join();
+const st = { bp: LOOP_START, rewind: true, rearm: true, cond: false };
+$("#bp").innerHTML = rows.map(r => `<option value="${r.addr}">${r.addr}: ${r.text}</option>`).join("");
+$("#bp").value = st.bp;
+$("#bp").onchange = e => { st.bp = +e.target.value; render(); };
+for (const k of ["rewind", "rearm", "cond"])
+  $("#" + k).onclick = () => { st[k] = !st[k]; render(); };
+const onOff = (label, v) => `${label} ${v ? "on" : "off"}`;
+
+function render() {
+  const r = debug(PROGRAM, { breakpoints: [st.bp], rewind: st.rewind, reinsert: st.rearm, cond: st.cond ? c => c.i === 7 : null });
+  $("#rewind").textContent = onOff("Rewind", st.rewind); $("#rearm").textContent = onOff("Re-arm", st.rearm); $("#cond").textContent = onOff("If i = 7", st.cond);
+  for (const k of ["rewind", "rearm", "cond"]) $("#" + k).setAttribute("aria-pressed", st[k]);
+  $("#code").innerHTML = "<tr><th>Addr</th><th>Bytes</th><th>Instruction</th></tr>" + rows.map(x =>
+    `<tr class="${x.addr === st.bp ? "bp" : ""}"><td class="mono">${x.addr}</td><td class="mono">${x.addr === st.bp ? hex(TRAP) + x.bytes.slice(1).map(b => " " + hex(b)).join("") : x.bytes.map(hex).join(" ")}</td><td class="mono">${x.text}</td></tr>`).join("");
+  const same = r.status === "halted" && r.out.join() === want;
+  $("#stats").innerHTML = [[r.stops.length, "stops"], [r.traps, "traps"], [r.switches, "switches"], [r.status === "fault" ? "crash" : same ? "same" : "differs", "output"]].map(statTile).join("");
+  $("#status").textContent = (r.stops.length ? `Stopped at ${r.stops.map(s => s.addr).filter((a, k, all) => all.indexOf(a) === k)} with i = ${r.stops.map(s => s.i).join(", ")}. ` : "No stops. ") + `Output: ${r.out.join(" ") || "none"}.`;
+}
+render();
+</script>
+</body>
+</html>
