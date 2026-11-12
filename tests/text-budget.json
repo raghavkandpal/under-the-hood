@@ -122,6 +122,7 @@
 "scheduling":{"helper":21,"caveat":44},
 "sharding":{"helper":15,"caveat":29},
 "signatures":{"helper":21,"caveat":38},
+"simd":{"helper":14,"caveat":24},
 "simpson":{"helper":1,"caveat":20},
 "skip-list":{"helper":9,"caveat":36},
 "sorting":{"helper":3,"caveat":23},

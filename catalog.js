@@ -362,6 +362,8 @@ export const CATALOG = [
     blurb: "Set a breakpoint by overwriting one byte with 0xCC, then watch the debugger rewind, restore, single-step and re-insert it to carry on.", prereqs: ["processes", "compiler"] },
   { id: "survival-curves", title: "Survival curves", area: "statistics", topic: "experiments-and-inference", level: "core", tags: ["survival analysis", "kaplan-meier", "censoring", "churn", "time to event", "greenwood", "statistics"],
     blurb: "How long do customers stay when many haven't left yet? Why dropping them or counting them as gone underestimates, and the Kaplan–Meier fix.", prereqs: ["clt"] },
+  { id: "simd", title: "SIMD vectorisation", area: "systems", topic: "the-processor", level: "core", tags: ["simd", "vectorisation", "avx", "sse", "neon", "lanes", "auto-vectorisation", "reassociation"],
+    blurb: "One instruction, many lanes: how a sum splits across a vector register, why float sums change, and what stops a loop vectorising.", prereqs: ["branch-prediction", "floating-point"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -422,7 +424,7 @@ export const PATHS = [
     audience: "Developers who use these tools daily and want to understand, and debug, what they do.",
     outcomes: ["Explain how pipes stream data between programs", "Describe how git stores history and how diff finds changes", "Explain incremental builds and dependency resolution", "Say what a container really is, and why layer order matters"] },
   { id: "machine", title: "What your code really runs on", blurb: "From bits to CPU caches, memory and threads.",
-    steps: ["twos-complement", "floating-point", "unicode", "compiler", "register-allocation", "cpu-cache", "branch-prediction", "virtual-memory", "processes", "gc", "memory-allocator", "scheduling", "race-conditions", "deadlock", "event-loop", "io-multiplexing"],
+    steps: ["twos-complement", "floating-point", "unicode", "compiler", "register-allocation", "cpu-cache", "branch-prediction", "simd", "virtual-memory", "processes", "gc", "memory-allocator", "scheduling", "race-conditions", "deadlock", "event-loop", "io-multiplexing"],
     intro: "Your code runs on hardware with surprising habits: numbers that don't add up, memory that's fast or slow depending on where you look, and threads that interfere with each other. This path goes from how numbers and text are stored, through compilers and memory, to how the operating system and runtimes juggle work.",
     audience: "Programmers who want to understand performance and the bugs that come from how machines actually work.",
     outcomes: ["Explain integer overflow, floating-point error and UTF-8", "Describe what a compiler does with your code", "Explain caches, virtual memory and garbage collection", "Reason about scheduling, race conditions and the event loop"] },
