@@ -50,7 +50,7 @@ test("uniform load drops nothing, and a one-expert load drops the overflow", () 
   assert.equal(all.dropped, 64 - all.capacity);
 });
 
-test("a higher capacity factor never drops more, for the untrained skewed router", () => {
+test("a higher capacity factor drops fewer tokens, for the untrained skewed router", () => {
   for (const seed of SEEDS) {
     const { xs } = makeTokens(seed), R = initRouter(seed + 1);
     const drops = [1, 1.25, 1.5, 2, 8].map(f => stats(R, xs, 8, f).dropped);
@@ -91,8 +91,9 @@ test("the page's run (seed 1, weight 10) lowers the busiest share and stays at 0
 });
 
 test("over 30 seeds, weight 10 drops far fewer tokens than no aux loss", () => {
-  const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
-  const mean = (alpha, key) => seeds.reduce((s, seed) => s + train({ seed, ...TRAIN, alpha }).history.at(-1)[key], 0) / seeds.length;
+  const seeds = Array.from({ length: 30 }, (_, i) => i + 1), last = {};
+  for (const alpha of [0, 10]) last[alpha] = seeds.map(seed => train({ seed, ...TRAIN, alpha }).history.at(-1));
+  const mean = (alpha, key) => last[alpha].reduce((s, l) => s + l[key], 0) / seeds.length;
   assert.ok(mean(10, "dropped") < 3 && mean(0, "dropped") > 15);
   assert.ok(mean(10, "busiest") < 0.2 && mean(0, "busiest") > 0.25);
 });
@@ -106,4 +107,12 @@ test("a stronger aux weight balances better, averaged over seeds", () => {
   const mean = alpha => SEEDS.reduce((s, seed) => s + train({ seed, ...TRAIN, alpha }).history.at(-1).dropped, 0) / SEEDS.length;
   const d = [0, 1, 3, 10].map(mean);
   d.slice(1).forEach((v, i) => assert.ok(v < d[i], d.join()));
+});
+
+test("on the page's seed, each stronger weight ends with fewer drops and a smaller busiest share, which falls more than with the loss off", () => {
+  const runs = [0, 1, 3, 10].map(alpha => train({ seed: 1, ...TRAIN, alpha }).history);
+  const last = runs.map(h => h.at(-1));
+  last.slice(1).forEach((l, i) => { assert.ok(l.dropped < last[i].dropped); assert.ok(l.busiest < last[i].busiest); });
+  const fall = h => h[0].busiest - h.at(-1).busiest;
+  assert.ok(fall(runs[0]) > 0 && fall(runs[3]) > fall(runs[0]));
 });
