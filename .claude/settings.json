@@ -12,7 +12,8 @@
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
       "Bash(gh issue view:*)",
-      "Bash(gh issue list:*)"
+      "Bash(gh issue list:*)",
+      "WebFetch"
     ],
     "ask": [
       "Bash(git push:*)",
@@ -25,8 +26,7 @@
       "Bash(pip install:*)",
       "Bash(cargo install:*)",
       "Bash(curl:*)",
-      "Bash(wget:*)",
-      "WebFetch"
+      "Bash(wget:*)"
     ],
     "deny": [
       "Read(./.env)",
