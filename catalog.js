@@ -358,6 +358,8 @@ export const CATALOG = [
     blurb: "Learn a reward from human choices, then tune a model towards it: the exact KL-regularised optimum, and how a length-loving reward gets exploited.", prereqs: ["rl", "logistic-regression", "sampling"] },
   { id: "tries-vs-suffix-arrays", title: "Tries vs suffix arrays", area: "algorithms", topic: "data-structures", level: "core", tags: ["suffix array", "suffix tree", "suffix trie", "trie", "lcp", "substring search", "kasai"],
     blurb: "Find a pattern anywhere in a text: a trie of every suffix explodes in size, a sorted array of start positions stays small.", prereqs: ["autocomplete", "string-search"] },
+  { id: "survival-curves", title: "Survival curves", area: "statistics", topic: "experiments-and-inference", level: "core", tags: ["survival analysis", "kaplan-meier", "censoring", "churn", "time to event", "greenwood", "statistics"],
+    blurb: "How long do customers stay when many haven't left yet? Why dropping them or counting them as gone underestimates, and the Kaplan–Meier fix.", prereqs: ["clt"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -398,7 +400,7 @@ export const PATHS = [
     audience: "Developers and analysts who want solid foundations before (or instead of) deep learning.",
     outcomes: ["Explain overfitting and how to detect it", "Compare nearest neighbours and decision trees", "Choose a decision threshold with ROC curves", "Use clustering, PCA and embeddings to find structure"] },
   { id: "stats", title: "Statistics for engineers", blurb: "Enough statistics to run an experiment and not fool yourself.",
-    steps: ["birthday-paradox", "monte-carlo", "markov-chains", "clt", "bootstrap", "linear-regression", "abtest", "power-analysis", "multiple-testing", "simpson", "bayes", "roc"],
+    steps: ["birthday-paradox", "monte-carlo", "markov-chains", "clt", "bootstrap", "survival-curves", "linear-regression", "abtest", "power-analysis", "multiple-testing", "simpson", "bayes", "roc"],
     intro: "Most bad decisions from data come from a few classic mistakes: trusting a noisy number, peeking at an experiment, or comparing groups that aren't alike. This path builds the intuition to avoid them, mostly through simulation rather than formulas.",
     audience: "Engineers and product people who run experiments or read dashboards and want to trust the conclusions.",
     outcomes: ["Explain why averages become predictable and how wide an error bar is", "Put an error bar on almost any number with the bootstrap", "Run an A/B test without fooling yourself", "Recognise Simpson's paradox and reason with Bayes"] },
