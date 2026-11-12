@@ -355,7 +355,7 @@ export const CATALOG = [
   { id: "mixture-of-experts", title: "Mixture of experts", area: "ml", topic: "language-models", level: "deep", tags: ["moe", "routing", "sparse", "top-k", "load balancing", "switch transformer", "capacity factor"],
     blurb: "Many experts, few used per token: how a router picks them, why parameters outgrow compute, and the loss that stops it overloading one expert.", prereqs: ["attention"] },
   { id: "rlhf", title: "Learning from human feedback", area: "ml", topic: "language-models", level: "deep", tags: ["rlhf", "reward model", "bradley-terry", "kl divergence", "reward hacking", "dpo", "alignment", "preferences"],
-    blurb: "Learn a reward from human choices, then tune a model towards it: the exact KL-regularised optimum, and why a slightly wrong reward gets exploited.", prereqs: ["rl", "logistic-regression", "sampling"] },
+    blurb: "Learn a reward from human choices, then tune a model towards it: the exact KL-regularised optimum, and how a length-loving reward gets exploited.", prereqs: ["rl", "logistic-regression", "sampling"] },
   { id: "tries-vs-suffix-arrays", title: "Tries vs suffix arrays", area: "algorithms", topic: "data-structures", level: "core", tags: ["suffix array", "suffix tree", "suffix trie", "trie", "lcp", "substring search", "kasai"],
     blurb: "Find a pattern anywhere in a text: a trie of every suffix explodes in size, a sorted array of start positions stays small.", prereqs: ["autocomplete", "string-search"] },
 ];

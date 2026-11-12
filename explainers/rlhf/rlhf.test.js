@@ -40,16 +40,17 @@ test("the reward model recovers the rater's ordering from 50 pairs, near the lab
   const held = makePairs(999, 20000);
   const ceiling = held.filter(({ a, b, win }) => (rater[a] > rater[b]) === (win === 1)).length / held.length;
   const accs = SEEDS.map(s => pairAccuracy(trainReward(makePairs(s, 50)), held));
-  assert.ok(ceiling > 0.8 && ceiling < 0.95);
-  assert.ok(mean(accs) > 0.83, `mean ${mean(accs)}`);
+  assert.ok(ceiling > 0.85 && ceiling < 0.87, `ceiling ${ceiling}`);
+  assert.ok(mean(accs) > 0.84 && mean(accs) < 0.87, `mean ${mean(accs)}`);
   assert.ok(mean(accs) <= ceiling + 1e-9);
   assert.ok(Math.min(...accs) > 0.8);
 });
 
-test("more preference pairs give a better reward model, on average", () => {
+test("the reward model improves from 2 to 5 to 10 pairs on average, then levels off near the ceiling", () => {
   const held = makePairs(999, 5000), acc = n => mean(SEEDS.map(s => pairAccuracy(trainReward(makePairs(s, n)), held)));
   close(pairAccuracy(trainReward([]), held), 0.5, 0.03); // no pairs: every reward ties, so it is a coin flip
-  assert.ok(acc(2) < acc(10) && acc(10) < acc(50) + 0.01 && acc(2) < 0.75, `${acc(2)} ${acc(10)} ${acc(50)}`);
+  assert.ok(acc(2) < 0.75 && acc(2) < acc(5) && acc(5) < acc(10) && acc(10) > 0.84, `${acc(2)} ${acc(5)} ${acc(10)}`);
+  assert.ok(Math.abs(acc(50) - acc(10)) < 0.02);
 });
 
 test("the optimum satisfies π*(y) ∝ π_ref(y)·exp(r/β), is a distribution, and beats random policies on E[r] − β·KL", () => {
@@ -95,11 +96,22 @@ test("reward hacking: proxy reward rises as β falls while the true score falls,
     for (let i = 1; i < BETAS.length; i++) assert.ok(proxy[i] < proxy[i - 1] + 1e-12, "proxy reward is higher at smaller β");
     const i = argmax(truth);
     assert.ok(i > 0 && i < BETAS.length - 1, `seed ${seed}: peak at ${BETAS[i]}`);
-    assert.ok(BETAS[i] > 1.5 && BETAS[i] < 8, `seed ${seed}: peak at ${BETAS[i]}`);
-    assert.ok(truth[i] > 0.35 && truth[i] < 0.42, `seed ${seed}: peak ${truth[i]}`);
+    assert.ok(BETAS[i] > 1.9 && BETAS[i] < 5.1, `seed ${seed}: peak at ${BETAS[i]}`);
+    assert.ok(truth[i] > 0.355 && truth[i] < 0.415, `seed ${seed}: peak ${truth[i]}`);
     assert.ok(truth[i] > refTrue + 0.02, `seed ${seed}: ${truth[i]} vs ref ${refTrue}`);
     assert.ok(truth[i] > truth[0] + 0.2, `seed ${seed}: beats β→0`);
     assert.ok(truth[0] < refTrue, "β→0 is worse than the base model");
     for (let j = 1; j <= i; j++) assert.ok(truth[j - 1] < truth[j] + 1e-12, "below the peak, the true score falls as β falls");
   }
+});
+
+test("seed 3, the run the page shows: peak 0.41 near β = 2, base 0.34, 0.11 at β = 0.05 with 98% on the longest reply", () => {
+  const r = fit(3), truth = b => expect(optimalPolicy(PI_REF, r, b), TRUE);
+  close(BETAS[16], 1.99, 1e-2);
+  close(truth(BETAS[16]), 0.408, 0.005);
+  assert.equal(argmax(BETAS.map(truth)), 16);
+  close(expect(PI_REF, TRUE), 0.34, 0.005);
+  close(truth(BETAS[0]), 0.109, 0.005);
+  const p = optimalPolicy(PI_REF, r, BETAS[0])[5];
+  assert.ok(p > 0.975 && p < 0.985, `${p}`);
 });
