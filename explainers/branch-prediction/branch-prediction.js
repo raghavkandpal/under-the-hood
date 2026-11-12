@@ -2,7 +2,7 @@
 // outcomes (true = taken) and report each guess. No DOM.
 
 import { bytes } from "../../shared/branch.js";
-export { PREDICTORS, run, bytes, cycles } from "../../shared/branch.js";
+export { run, cycles } from "../../shared/branch.js";
 
 export const PATTERNS = {
   sorted: (n, rnd) => bytes(n, rnd, true).map(x => x >= 128),

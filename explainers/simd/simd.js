@@ -41,14 +41,18 @@ export function maskedSum(n, seed, sorted, L = 8) {
   const branchy = xs.reduce((s, x) => (x >= 128 ? s + x : s), 0);
   const masked = laneSum(xs.map(x => x & -(x >= 128)), L, intAdd);   // the mask is all ones where true, all zeros where false
   const misses = run("twoBit", taken).hits.filter(h => !h).length;
-  return { branchy, masked, misses, scalarCycles: cycles(n, misses), vectorCycles: 3 * (Math.floor(n / L) + (n % L)) + (L - 1) };
+  return { branchy, masked, misses, maskedMisses: 0,   // compare + AND + add has no branch to guess
+     scalarCycles: cycles(n, misses), vectorCycles: 3 * (Math.floor(n / L) + (n % L)) + (L - 1) };
 }
 
-/** c[i] = a[i] + b[i] (independent) or a[i] = a[i-1] + b[i] (dependent): one element at a time, and L at a time reading old values. */
+/** c[i] = a[i] + b[i] (independent) or a[i] = a[i-1] + b[i] (dependent): one element at a time, and L at a time. Within a block of L, every element reads the values from before the block started. */
 export function carried(a, b, L, dependent) {
-  const scalar = a.slice(), vector = a.slice(), old = a.slice();
+  const scalar = a.slice(), vector = a.slice();
   for (let i = 1; i < a.length; i++) scalar[i] = (dependent ? scalar[i - 1] : a[i]) + b[i];
-  for (let s = 1; s < a.length; s += L) for (let i = s; i < Math.min(s + L, a.length); i++) vector[i] = (dependent ? old[i - 1] : old[i]) + b[i];
+  for (let s = 1; s < a.length; s += L) {
+    const old = vector.slice();
+    for (let i = s; i < Math.min(s + L, a.length); i++) vector[i] = (dependent ? old[i - 1] : old[i]) + b[i];
+  }
   return { scalar, vector, same: scalar.every((v, i) => v === vector[i]) };
 }
 

@@ -30,12 +30,12 @@
     <div class="view" id="v-lanes">
       <div class="row" style="margin-top:6px"><div class="seg" id="width" role="group" aria-label="Register width"></div></div>
       <div class="row" style="margin-top:6px"><div class="seg" id="elem" role="group" aria-label="Element type"></div></div>
-      <svg class="chart" id="reg" viewBox="0 0 600 50" role="img" aria-label="One vector register divided into lanes"></svg>
+      <svg class="chart" id="reg" viewBox="0 0 600 50" role="img"></svg>
       <div class="stats" id="plan" style="--stat-min:90px"></div>
     </div>
 
     <div class="view" id="v-sum" hidden>
-      <div class="row" style="margin-top:6px"><div class="seg" id="kind" role="group" aria-label="Data"></div><button id="seed"></button></div>
+      <div class="row" style="margin-top:6px"><div class="seg" id="kind" role="group" aria-label="Data"></div><button id="seed">🎲 New sample</button></div>
       <div class="stats" id="sums" style="--stat-min:130px"></div>
       <div class="status" id="sumStatus" role="status"></div>
     </div>
@@ -56,12 +56,12 @@
 
   <h2>How it works</h2>
   <p><b>Lanes.</b> A vector register is a wide box split into equal slots. A 128-bit register holds 4 float32, 2 float64 or 16 bytes. A 256-bit one holds 8 float32. One add instruction adds every slot at once, so the lane count is the register width divided by the element width.</p>
-  <p><b>A sum, in pieces.</b> To add 1,003 float32 values on 8 lanes the loop runs 125 times, adding 8 values per step into 8 running totals. Three values are left over and are added one at a time. Finally the 8 totals are folded into one with 7 more adds. That is 135 instructions instead of 1,003, and more lanes shrink it further.</p>
+  <p><b>A sum, in pieces.</b> To add 1,003 float32 values on 8 lanes the loop runs 125 times, adding 8 values per step into 8 running totals. Three values are left over and are added one at a time. Finally the 8 totals are folded into one with 7 more adds. That is 135 instructions instead of 1,003, and more lanes shrink it further, up to a point: at 64 lanes (512-bit bytes) the tail and the fold cost more than they save.</p>
   <div class="note"><b>Try it.</b> On Sum, compare floats with integers, then try a few seeds.</div>
-  <p><b>Why compilers ask permission for floats.</b> Eight running totals add the values in a different order than left to right. Integer addition does not care about order, so the answer is identical. Float addition rounds after every step, so a different order gives a different last few digits. Compilers such as <a href="https://llvm.org/docs/Vectorizers.html">LLVM</a> therefore vectorise float reductions only when told that reassociation is allowed, for example with <code>-ffast-math</code>.</p>
+  <p><b>Why compilers ask permission for floats.</b> Eight running totals add the values in a different order than left to right. Integer addition does not care about order, so the answer is identical. Float addition rounds after every step, so a different order usually changes the last few digits. Compilers such as <a href="https://llvm.org/docs/Vectorizers.html">LLVM</a> therefore, on most targets, vectorise float reductions only when told that reassociation is allowed, for example with <code>-ffast-math</code>.</p>
   <p><b>Branches become masks.</b> For <code>if (x &gt;= 128) sum += x</code> the vector version compares all lanes at once, giving a mask of all ones or all zeros per lane. It ANDs the mask with the values and adds. Every lane does the same work whatever the data, so there is nothing to mispredict, and the cycle count is the same for sorted and random input. The scalar loop pays for each wrong guess, as in <a href="../branch-prediction/">branch prediction</a>.</p>
-  <p><b>Dependencies stop it.</b> In <code>c[i] = a[i] + b[i]</code> every element is independent, so several at a time is safe. In <code>a[i] = a[i-1] + b[i]</code> each result needs the one just before it. Doing several at once reads old values for all but the first, which gives a different answer, so the compiler keeps the loop scalar. Compilers also add runtime checks that two arrays do not overlap before vectorising. Agner Fog's <a href="https://www.agner.org/optimize/optimizing_cpp.pdf">optimization guide</a> and V8's <a href="https://v8.dev/features/simd">WebAssembly SIMD</a> post show the same ideas from the programmer's side.</p>
-  <p class="caveat">Simplified: one cycle per instruction, three instructions per masked vector, and no memory costs. Real chips also have fused operations and several vector units.</p>
+  <p><b>Dependencies stop it.</b> In <code>c[i] = a[i] + b[i]</code> every element is independent, so several at a time is safe. In <code>a[i] = a[i-1] + b[i]</code> each result needs the one just before it. Doing several at once means each result reads the values from before its group started, so only the first in a group sees its neighbour's new value. That gives a different answer, so the compiler keeps the loop scalar. Compilers also add runtime checks that two arrays do not overlap before vectorising. Agner Fog's <a href="https://www.agner.org/optimize/optimizing_cpp.pdf">optimization guide</a> and V8's <a href="https://v8.dev/features/simd">WebAssembly SIMD</a> post show the same ideas from the programmer's side.</p>
+  <p class="caveat">Simplified: one cycle per instruction, plus 15 per wrong guess, and no memory costs. Mask always uses 8 lanes; real chips also have fused operations and several vector units.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, tabs, statTile } from "../../shared/common.js";
@@ -74,8 +74,8 @@ const show = () => { for (const v of ["lanes", "sum", "mask", "carry"]) $("#v-" 
 const draw = () => ({ lanes: drawLanes, sum: drawSum, mask: drawMask, carry: drawCarry })[view]();
 
 tabs($("#view"), { lanes: "Lanes", sum: "Sum", mask: "Mask", carry: "Carry" }, view, k => { view = k; show(); draw(); });
-tabs($("#width"), { 128: "128-bit", 256: "256-bit", 512: "512-bit" }, width, k => { width = +k; draw(); });
-tabs($("#elem"), { 8: "int8", 32: "float32", 64: "float64" }, elem, k => { elem = +k; draw(); });
+tabs($("#width"), { 128: "128-bit", 256: "256-bit", 512: "512-bit" }, String(width), k => { width = +k; draw(); });
+tabs($("#elem"), { 8: "int8", 32: "float32", 64: "float64" }, String(elem), k => { elem = +k; draw(); });
 tabs($("#kind"), { f32: "Floats", int: "Integers" }, kind, k => { kind = k; draw(); });
 tabs($("#order"), { sorted: "Sorted", random: "Random" }, order, k => { order = k; draw(); });
 tabs($("#loop"), { independent: "Independent", dependent: "Dependent" }, dep, k => { dep = k; draw(); });
@@ -83,27 +83,27 @@ $("#seed").onclick = () => { seed = seed % 5 + 1; draw(); };
 
 function drawLanes() {
   const n = L(), svg = $("#reg"), w = 600 / n;
-  svg.replaceChildren();
+  svg.replaceChildren(); svg.setAttribute("aria-label", `${width} bits ÷ ${elem} bits = ${n} lanes`);
   for (let i = 0; i < n; i++) svg.append(svgEl("rect", { x: i * w + 1, y: 4, width: w - 2, height: 24, rx: 3, fill: "var(--accent-soft)", stroke: "var(--accent)" }));
   svg.append(Object.assign(svgEl("text", { x: 0, y: 46 }), { textContent: `${width} bits ÷ ${elem} bits = ${n} lanes` }));
   const p = sumPlan(D.n, n);
   $("#plan").innerHTML = [[n, "lanes"], [p.vectorAdds, "vector adds"], [p.tailAdds, "tail adds"], [p.combineAdds, "combining"], [p.total, `of ${fmt(p.scalar)}`]].map(statTile).join("");
 }
 function drawSum() {
-  const r = compareSums(D.n, L(), seed, kind);
-  $("#seed").textContent = `Seed ${seed}`; $("#seed").setAttribute("aria-label", `Seed ${seed}, next seed`);
-  $("#sums").innerHTML = [[fmt(r.scalar), "left to right"], [fmt(r.lanes), `${L()} lanes`]].map(statTile).join("");
+  const n = lanes(width, 32), r = compareSums(D.n, n, seed, kind);
+  $("#seed").setAttribute("aria-label", `New sample, now seed ${seed}`);
+  $("#sums").innerHTML = [[fmt(r.scalar), "left to right"], [fmt(r.lanes), `${n} lanes`]].map(statTile).join("");
   $("#sumStatus").textContent = r.same ? "Identical" : `Differ by ${fmt(Math.abs(r.scalar - r.lanes))}`;
 }
 function drawMask() {
   const r = maskedSum(D.bytes, D.seed, order === "sorted"), max = Math.max(r.scalarCycles, r.vectorCycles);
   const bar = (name, c) => `<div class="bar"><span>${name}</span><span class="track"><span class="fill" style="width:${(c / max * 100).toFixed(1)}%"></span></span><span class="num">${fmt(c)}</span></div>`;
   $("#cycleBars").innerHTML = bar("Branchy", r.scalarCycles) + bar("Masked", r.vectorCycles);
-  $("#maskStatus").textContent = `${fmt(r.misses)} wrong guesses, same sum ${fmt(r.masked)}`;
+  $("#maskStatus").textContent = `Branchy guessed wrong ${fmt(r.misses)} times, Masked ${r.maskedMisses}. Same sum, ${fmt(r.masked)}.`;
 }
 function drawCarry() {
   const a = Array.from({ length: 12 }, () => 1), b = Array.from({ length: 12 }, (_, i) => i % 3 + 1), r = carried(a, b, 4, dep === "dependent");
-  const row = (name, xs, ref) => `<span class="h">${name}</span>` + xs.map((v, i) => `<span class="${ref && ref[i] !== v ? "bad" : ""}">${v}</span>`).join("");
+  const row = (name, xs, ref) => `<span class="h">${name}</span>` + xs.map((v, i) => ref && ref[i] !== v ? `<span class="bad" aria-label="${v}, differs">${v}</span>` : `<span>${v}</span>`).join("");
   $("#cells").innerHTML = row("one by one", r.scalar) + row("4 at a time", r.vector, r.scalar);
   $("#carryStatus").textContent = r.same ? "Same result" : "Different result";
 }
