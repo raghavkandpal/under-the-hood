@@ -70,7 +70,6 @@ export function debug(mem = PROGRAM, { breakpoints = [], rewind = true, reinsert
     clearBreakpoint(c.mem, a, saved[a]);
     c.status = "running";
     if (rewind) { step(c); if (c.status === "running" && reinsert) setBreakpoint(c.mem, a); }
-    else if (reinsert) delete saved[a];
   }
   return { out: c.out, status: c.status, stops, traps, switches, pc: c.pc };
 }

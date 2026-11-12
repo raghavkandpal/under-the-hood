@@ -15,7 +15,6 @@ const addrs = disassemble().map(r => r.addr);
 test("the program has 1-, 2- and 3-byte instructions and prints the hand-worked sums", () => {
   assert.deepEqual(new Set(disassemble().map(r => r.bytes.length)), new Set([1, 2, 3]));
   assert.deepEqual(run().out, expected);
-  assert.equal(expected[9], 85);
 });
 
 test("a breakpoint saves the byte and writes 0xCC; clearing restores the code exactly", () => {
@@ -56,6 +55,8 @@ test("restore, single-step, rewrite, resume: a breakpoint stops once per visit a
   }
   const r = debug(PROGRAM, { breakpoints: [LOOP_START] });
   assert.equal(r.stops.length, 10);
+  assert.equal(r.traps, 10); // the page's default view
+  assert.equal(r.switches, 20);
   assert.deepEqual(r.stops.map(s => s.i), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 });
 

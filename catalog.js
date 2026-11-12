@@ -359,7 +359,7 @@ export const CATALOG = [
   { id: "tries-vs-suffix-arrays", title: "Tries vs suffix arrays", area: "algorithms", topic: "data-structures", level: "core", tags: ["suffix array", "suffix tree", "suffix trie", "trie", "lcp", "substring search", "kasai"],
     blurb: "Find a pattern anywhere in a text: a trie of every suffix explodes in size, a sorted array of start positions stays small.", prereqs: ["autocomplete", "string-search"] },
   { id: "debuggers", title: "How debuggers work", area: "tools", topic: "everyday-tools", level: "core", tags: ["debugger", "breakpoint", "int3", "0xcc", "ptrace", "gdb", "single-step"],
-    blurb: "Set a breakpoint by overwriting one byte with 0xCC, then watch the debugger rewind, restore, single-step and re-insert it to carry on.", prereqs: ["processes", "compiler"] },
+    blurb: "Set a breakpoint by overwriting one byte with 0xCC, then watch the debugger rewind, restore, single-step and re-arm it to carry on.", prereqs: ["processes", "compiler"] },
   { id: "survival-curves", title: "Survival curves", area: "statistics", topic: "experiments-and-inference", level: "core", tags: ["survival analysis", "kaplan-meier", "censoring", "churn", "time to event", "greenwood", "statistics"],
     blurb: "How long do customers stay when many haven't left yet? Why dropping them or counting them as gone underestimates, and the Kaplan–Meier fix.", prereqs: ["clt"] },
   { id: "simd", title: "SIMD vectorisation", area: "systems", topic: "the-processor", level: "core", tags: ["simd", "vectorisation", "avx", "sse", "neon", "lanes", "auto-vectorisation", "reassociation"],
