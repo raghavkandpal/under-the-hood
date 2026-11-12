@@ -94,6 +94,9 @@ export const SOURCES = {
     ["RFC 9111: HTTP Caching", "https://www.rfc-editor.org/rfc/rfc9111.html", "standard", "IETF"]],
 
   // ---------- Databases & storage
+  "what-is-an-index": [["SQLite: Query Planning (indexes, multi-column indexes)", "https://www.sqlite.org/queryplanner.html", "docs", "SQLite"],
+    ["PostgreSQL: Multicolumn Indexes", "https://www.postgresql.org/docs/current/indexes-multicolumn.html", "docs", "PostgreSQL"],
+    ["Use The Index, Luke: anatomy of an index", "https://use-the-index-luke.com/sql/anatomy", "article", "Markus Winand"]],
   "btree": [["SQLite database file format: B-tree pages", "https://www.sqlite.org/fileformat.html", "docs", "SQLite"],
     ["Use The Index, Luke: the B-tree", "https://use-the-index-luke.com/sql/anatomy/the-tree", "article", "Markus Winand"],
     ["B-tree", "https://en.wikipedia.org/wiki/B-tree", "encyclopedia", "Wikipedia"]],
