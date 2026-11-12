@@ -78,6 +78,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; } /* class display rules (label.inline, .row) must not undo the hidden attribute */
 html, body { margin: 0; }
 body {
   background: var(--bg);
