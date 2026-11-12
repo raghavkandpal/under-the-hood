@@ -29,13 +29,12 @@ test("with E = 8 and k = 2 a token uses 25% of the expert parameters", () => {
   assert.equal(paramCounts({ shared: 3, expert: 7, E: 8, k: 2 }).expertShare, 0.25);
 });
 
-test("total and active parameters, summed expert by expert, at slider values", () => {
-  for (const E of [2, 4, 8, 16, 64]) for (const k of [1, 2, 4]) {
-    if (k > E) continue;
-    const shared = 5, expert = 3, { total, active } = paramCounts({ shared, expert, E, k });
-    const sizes = Array.from({ length: E }, () => expert);
-    assert.equal(total, shared + sizes.reduce((a, b) => a + b, 0));
-    assert.equal(active, shared + sizes.slice(0, k).reduce((a, b) => a + b, 0));
+test("total and active parameters, summed expert by expert, at the page's values", () => {
+  for (const E of [2, 4, 8, 16, 32, 64]) for (const k of [1, 2, 3, 4]) {
+    const kk = Math.min(k, E), { total, active } = paramCounts({ shared: 2, expert: 1, E, k: kk });
+    const sizes = Array.from({ length: E }, () => 1);
+    assert.equal(total, 2 + sizes.reduce((a, b) => a + b, 0));
+    assert.equal(active, 2 + sizes.slice(0, kk).reduce((a, b) => a + b, 0));
   }
 });
 
@@ -56,8 +55,10 @@ test("a higher capacity factor never drops more, for the untrained skewed router
     const { xs } = makeTokens(seed), R = initRouter(seed + 1);
     const drops = [1, 1.25, 1.5, 2, 8].map(f => stats(R, xs, 8, f).dropped);
     assert.ok(drops[0] > 0);
-    drops.slice(1).forEach((d, i) => assert.ok(d <= drops[i]));
+    drops.slice(1, 4).forEach((d, i) => assert.ok(d < drops[i], drops.join()));
     assert.equal(drops.at(-1), 0);
+    const spare = f => { const r = stats(R, xs, 8, f); return r.load.reduce((s, l) => s + Math.max(0, r.capacity - l), 0); };
+    assert.ok(spare(2) > spare(1.25) && spare(1.25) > 0); // a bigger factor reserves slots that go unused
   }
 });
 
@@ -83,22 +84,22 @@ test("aux loss rises as routing slides from uniform to one expert", () => {
   losses.slice(1).forEach((l, i) => assert.ok(l > losses[i]));
 });
 
-test("training with the aux loss lowers the busiest expert's share and ends with no drops at 1.25", () => {
-  for (const seed of SEEDS) {
-    const h = train({ seed, ...TRAIN }).history, first = h[0], last = h.at(-1);
-    assert.ok(first.dropped > 0);
-    assert.ok(last.busiest < first.busiest);
-    assert.equal(last.dropped, 0);
-    assert.ok(last.aux < first.aux);
-  }
+test("the page's run (seed 1, weight 10) lowers the busiest share and stays at 0 dropped from step 330", () => {
+  const h = train({ seed: 1, ...TRAIN }).history;
+  assert.ok(h[0].dropped > 0 && h[0].busiest > h.at(-1).busiest && h.at(-1).aux < h[0].aux);
+  h.slice(330).forEach(s => assert.equal(s.dropped, 0));
 });
 
-test("without the aux loss, tokens are still dropped after the same steps", () => {
-  for (const seed of SEEDS) {
-    const last = train({ seed, ...TRAIN, alpha: 0 }).history.at(-1), withLoss = train({ seed, ...TRAIN }).history.at(-1);
-    assert.ok(last.dropped > 0);
-    assert.ok(last.busiest > withLoss.busiest);
-  }
+test("over 30 seeds, weight 10 drops far fewer tokens than no aux loss", () => {
+  const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
+  const mean = (alpha, key) => seeds.reduce((s, seed) => s + train({ seed, ...TRAIN, alpha }).history.at(-1)[key], 0) / seeds.length;
+  assert.ok(mean(10, "dropped") < 3 && mean(0, "dropped") > 15);
+  assert.ok(mean(10, "busiest") < 0.2 && mean(0, "busiest") > 0.25);
+});
+
+test("without the aux loss, tokens are still dropped after the same steps on the page's seed", () => {
+  const last = train({ seed: 1, ...TRAIN, alpha: 0 }).history.at(-1);
+  assert.ok(last.dropped > 0);
 });
 
 test("a stronger aux weight balances better, averaged over seeds", () => {

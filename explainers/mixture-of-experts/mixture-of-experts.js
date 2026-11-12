@@ -18,10 +18,10 @@ export function paramCounts({ shared, expert, E, k }) {
   return { total, active, expertShare: k / E };
 }
 
-/** Tokens per expert (top-1) kept in arrival order up to capacity = factor × tokens / E. */
+/** Tokens per expert (top-1), and how many overflow capacity = factor × tokens / E (those are dropped). */
 export function capacityRun(assign, E, factor) {
-  const capacity = Math.ceil(factor * assign.length / E), load = Array(E).fill(0), kept = Array(E).fill(0);
-  for (const e of assign) { load[e]++; if (kept[e] < capacity) kept[e]++; }
+  const capacity = Math.ceil(factor * assign.length / E), load = Array(E).fill(0);
+  for (const e of assign) load[e]++;
   return { capacity, load, dropped: load.reduce((s, l) => s + Math.max(0, l - capacity), 0) };
 }
 

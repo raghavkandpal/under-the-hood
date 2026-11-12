@@ -13,7 +13,6 @@
   .track { position: relative; height: 14px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
   .track i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
   .track i.drop { background: var(--red); }
-  .track i.faint { background: var(--muted); opacity: .5; }
   .cap { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); }
   .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 10px; }
   @media (max-width: 680px) { .two { grid-template-columns: minmax(0, 1fr); } }
@@ -29,7 +28,7 @@
   <p class="lede">A mixture-of-experts layer holds many feed-forward networks but sends each token through only a few of them, so a model can have far more parameters than it spends compute on. The catch is the router: left alone, it piles tokens onto a favourite expert. Here you can watch routing, count the parameters, and train a router to share the work.</p>
 
   <div class="panel">
-    <div class="row"><label class="inline">Token <input type="range" id="tok" min="0" max="127" value="5"> <b id="tokv"></b></label><div class="seg" id="k" aria-label="Experts per token"></div></div>
+    <div class="row"><label class="inline">Token <input type="range" id="tok" min="0" max="127" value="5"> <b id="tokv"></b></label><div class="seg" id="k" aria-label="Experts kept per token"></div></div>
     <div class="two">
       <svg id="map" viewBox="-4 -4 8 8" role="img" aria-label="Toy tokens coloured by the expert with the highest score"></svg>
       <div>
@@ -40,13 +39,13 @@
   </div>
 
   <div class="panel">
-    <div class="row"><label class="inline">Experts <input type="range" id="E" min="1" max="6" value="3"> <b id="Ev"></b></label><div class="seg" id="kp" aria-label="Experts per token"></div></div>
+    <div class="row"><label class="inline">Experts <input type="range" id="E" min="1" max="6" value="3"> <b id="Ev"></b></label><div class="seg" id="kp" aria-label="Active experts per token, parameter count"></div></div>
     <div class="bars" id="params"></div>
     <div class="stats" id="pstats"></div>
   </div>
 
   <div class="panel">
-    <div class="row"><div class="seg" id="alpha" aria-label="Aux loss weight"></div><label class="inline">Capacity <input type="range" id="cf" min="1" max="2" step="0.05" value="1.25"> <b id="cfv"></b></label></div>
+    <div class="row"><b>Aux weight</b><div class="seg" id="alpha" aria-label="Aux loss weight"></div><label class="inline">Capacity <input type="range" id="cf" min="1" max="2" step="0.05" value="1.25"> <b id="cfv"></b></label></div>
     <div class="row"><label class="inline">Step <input type="range" id="step" min="0" max="600" step="10" value="0"> <b id="stepv"></b></label></div>
     <div class="bars" id="load"></div>
     <ul class="legend"><li><i style="--c:var(--accent)"></i>processed</li><li><i style="--c:var(--red)"></i>dropped</li><li><i style="--c:var(--text)"></i>capacity</li></ul>
@@ -54,12 +53,12 @@
   </div>
 
   <h2>How it works</h2>
-  <p><b>Routing.</b> A small linear layer, the router, scores every expert for each token. A softmax turns the scores into probabilities, the layer keeps the top <i>k</i>, and the kept probabilities are divided by their sum so the weights add to 1. The token's output is the weighted sum of those <i>k</i> experts' outputs. Every other expert does no work for that token. Compare with <a href="../attention/">attention</a>, where every token looks at every other token.</p>
-  <p><b>Total vs active parameters.</b> The experts replace the single feed-forward block in a transformer layer, while attention and embeddings stay shared. Total parameters are shared + E × expert, but a token only touches shared + k × expert. Add experts at a fixed <i>k</i> and the total grows while the compute per token stays the same. That is the trade: more capacity for the same cost per token, paid for in memory, since all the experts must be loaded.</p>
+  <p><b>Routing.</b> A small linear layer, the router, scores every expert for each token. A softmax turns the scores into probabilities, the layer keeps the top <i>k</i>, and the kept probabilities are divided by their sum so the weights add to 1. The token's output is the weighted sum of those <i>k</i> experts' outputs. Every other expert does no work for that token. Like <a href="../kv-cache/">the KV cache</a>, it trades memory for compute. Compare with <a href="../attention/">attention</a>, where each token looks at all the earlier tokens.</p>
+  <p><b>Total vs active parameters.</b> The experts replace the single feed-forward block in a transformer layer, while attention and embeddings stay shared. Total parameters are shared + E × expert, but a token only touches shared + k × expert. The bars count 2 units for the shared part and 1 per expert. Add experts at a fixed <i>k</i> and the total grows while the compute per token stays the same. That is the trade: more capacity for the same cost per token, paid for in memory, since all the experts must be loaded.</p>
   <p><b>Capacity and dropped tokens.</b> Experts run on batches, so each has a fixed number of slots: capacity factor × tokens ÷ experts. A token routed to a full expert is dropped, and passes through the layer unchanged on the residual path. An untrained router with a bias towards one expert overflows it at once, and raising the capacity factor drops fewer tokens but reserves slots that go unused.</p>
-  <p><b>The auxiliary loss.</b> The Switch Transformer adds E · Σ fᵢ·Pᵢ to the training loss, where fᵢ is the fraction of tokens sent to expert <i>i</i> and Pᵢ is the average router probability for it. It equals 1 when load is even and rises towards E when one expert takes everything. Gradients flow through Pᵢ, the soft part, which nudges the router towards sharing. Step through training above: with the loss off, the router follows what the tokens prefer and keeps overloading its favourites, and with it on, the busiest expert's share falls until nothing is dropped.</p>
-  <p class="note"><b>Try it.</b> Set the weight to 10 and drag the step slider from 0 to 600 at capacity 1.25. Then set the weight to none and drag again.</p>
-  <p class="caveat">A toy: 128 two-dimensional tokens, 8 experts, top-1 routing for the load demo and a router that is one linear layer. Real routers sit inside every layer and are trained together with the whole model. Read <a href="../kv-cache/">the KV cache</a> for another memory-versus-compute trade.</p>
+  <p><b>The auxiliary loss.</b> The Switch Transformer adds E · Σ fᵢ·Pᵢ to the training loss, where fᵢ is the fraction of tokens sent to expert <i>i</i> and Pᵢ is the average router probability for it. It is about 1 when load is even and rises towards E when one expert takes everything. Gradients flow through Pᵢ, the soft part, which nudges the router towards sharing. Step through training above: with the loss off, the router follows what the tokens prefer and keeps overloading its favourites, and with a large weight the busiest expert's share falls, and at weight 10 and capacity 1.25 nothing is dropped in this run. Weights 1 and 3 help less.</p>
+  <p class="note"><b>Try it.</b> Drag the step slider from 0 to 600 at weight 10, then at none.</p>
+  <p class="caveat">A toy: 128 two-dimensional tokens, 8 experts, top-1 routing for the load demo and a router that is one linear layer. Real routers sit inside every layer and are trained together with the whole model.</p>
 </main>
 <script type="module">
 import { chrome, $, svgEl, series, statTile, tabs } from "../../shared/common.js";
@@ -90,21 +89,24 @@ $("#tok").oninput = routing;
 
 // 2. parameters (illustrative units: shared = 2, one expert = 1)
 let kp = 2;
-tabs($("#kp"), { 1: "k 1", 2: "k 2", 3: "k 3", 4: "k 4" }, "2", v => { kp = +v; params(); });
+const setKp = tabs($("#kp"), { 1: "k 1", 2: "k 2", 3: "k 3", 4: "k 4" }, "2", v => { kp = +v; params(); });
 function params() {
-  const n = 2 ** +$("#E").value, kk = Math.min(kp, n), c = paramCounts({ shared: 2, expert: 1, E: n, k: kk }), max = paramCounts({ shared: 2, expert: 1, E: 64, k: 1 }).total;
+  const n = 2 ** +$("#E").value;
+  if (kp > n) { kp = n; setKp(String(n)); }
+  document.querySelectorAll("#kp button").forEach(b => (b.disabled = +b.dataset.k > n));
+  const kk = kp, c = paramCounts({ shared: 2, expert: 1, E: n, k: kk }), max = paramCounts({ shared: 2, expert: 1, E: 64, k: 1 }).total;
   $("#Ev").textContent = n;
   $("#params").innerHTML = [["Total", c.total], ["Active", c.active]].map(([l, v]) => `<div class="bar" style="grid-template-columns:50px minmax(0,1fr) 40px"><span>${l}</span><div class="track"><i style="width:${100 * v / max}%"></i></div><span class="v">${v}</span></div>`).join("");
-  $("#pstats").innerHTML = [[Math.round(100 * c.expertShare) + "%", "of expert parameters used"], [(c.active / c.total * 100).toFixed(0) + "%", "of all parameters used"]].map(statTile).join("");
+  $("#pstats").innerHTML = [[Math.round(100 * c.expertShare) + "%", "of expert parameters used"]].map(statTile).join("");
 }
 $("#E").oninput = params;
 
 // 3. load balancing
-const runs = {}, ALPHAS = { 0: "None", 1: "1", 3: "3", 10: "10" };
+const runs = {}, getRun = a => (runs[a] ??= train({ seed: 1, alpha: a, lr: 0.05, steps: 600 }).history), ALPHAS = { 0: "None", 1: "1", 3: "3", 10: "10" };
 let alpha = 0;
 tabs($("#alpha"), ALPHAS, "0", v => { alpha = +v; load(); });
 function load() {
-  const h = (runs[alpha] ??= train({ seed: 1, alpha, lr: 0.05, steps: 600 }).history), i = +$("#step").value, s = h[i], f = +$("#cf").value;
+  const h = getRun(alpha), i = +$("#step").value, s = h[i], f = +$("#cf").value;
   const cr = capacityRun(s.assign, E, f), scale = Math.max(...h[0].load);
   $("#stepv").textContent = i; $("#cfv").textContent = f.toFixed(2);
   $("#load").innerHTML = cr.load.map((l, e) => {
@@ -116,6 +118,7 @@ function load() {
 }
 $("#step").oninput = $("#cf").oninput = load;
 routing(); params(); load();
+[1, 3, 10].forEach((a, i) => setTimeout(() => getRun(a), 300 * (i + 1))); // warm the other runs after first paint, so clicks are instant
 </script>
 </body>
 </html>
