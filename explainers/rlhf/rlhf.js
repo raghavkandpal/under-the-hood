@@ -20,7 +20,8 @@ export const PI_REF = [0.45, 0.1, 0.1, 0.1, 0.15, 0.1];
 /** How strongly raters follow true quality, and how much they favour length on top of it. */
 export const RATER = { quality: 6, lengthBias: 8 };
 
-export const sigmoid = x => 1 / (1 + Math.exp(-x));
+import { sigmoid } from "../../shared/activations.js";
+export { sigmoid };
 /** Bradley–Terry: the chance A is preferred to B given their rewards. */
 export const bradleyTerry = (rA, rB) => sigmoid(rA - rB);
 

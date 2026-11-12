@@ -1,7 +1,8 @@
 // Mixture of experts: top-k routing, capacity and the Switch auxiliary loss on toy 2-D tokens. No DOM.
 import { mulberry, gaussian } from "../../shared/random.js";
 
-export const softmax = xs => { const m = Math.max(...xs), e = xs.map(x => Math.exp(x - m)), s = e.reduce((a, b) => a + b, 0); return e.map(v => v / s); };
+import { softmax } from "../../shared/activations.js";
+export { softmax };
 
 /** Softmax over expert scores, keep the top k, renormalise. Returns { probs, weights, chosen }. */
 export function route(scores, k) {
