@@ -347,9 +347,11 @@ export const CATALOG = [
   { id: "power-analysis", title: "Statistical power", area: "statistics", topic: "experiments-and-inference", level: "core", tags: ["statistical power", "sample size", "a/b testing", "effect size", "winner's curse", "experiments"],
     blurb: "How many users a test needs to notice a real lift, why halving the lift quadruples it, and the winner's curse.", prereqs: ["abtest"] },
   { id: "quic", title: "QUIC in depth", area: "networking", topic: "how-the-network-works", level: "deep", tags: ["quic", "http/3", "udp", "0-rtt", "connection migration", "amplification limit"],
-    blurb: "Fewer round trips, a connection that survives a change of network, and the two catches: an amplification limit and 0-RTT replay.", prereqs: ["http-versions", "tls"] },
+    blurb: "Fewer round trips, a connection that survives a change of network, and the catches of the fast start: an amplification limit and 0-RTT replay.", prereqs: ["http-versions", "tls"] },
   { id: "passkeys", title: "Passkeys", area: "security", topic: "protocols", level: "core", tags: ["passkeys", "webauthn", "fido2", "phishing", "public key", "authentication"],
     blurb: "A key pair per site instead of a password: why a stolen table is useless, a phishing relay fails, and what the counter catches.", prereqs: ["signatures", "totp"] },
+  { id: "paxos", title: "Paxos", area: "distributed", topic: "agreement", level: "deep", tags: ["consensus", "paxos", "ballots", "quorum", "multi-paxos", "fault tolerance"],
+    blurb: "Prepare, promise, accept: why a later proposer always finds a chosen value, and what two duelling proposers do to each other.", prereqs: ["quorum", "raft"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -380,7 +382,7 @@ export const PATHS = [
     audience: "Developers who handle logins, secrets or user data, and anyone who wants to know what the padlock means.",
     outcomes: ["Explain hashing, encryption and signatures, and which to use when", "Describe how TLS and “Sign in with…” keep credentials safe", "Store passwords properly and add a second factor", "Spot SQL injection and the misuse of cipher modes"] },
   { id: "distributed", title: "Distributed systems 101", blurb: "Keeping many machines fast, available and in agreement.",
-    steps: ["queues", "load-balancing", "rate-limiting", "retries", "idempotency", "hashtable", "consistent-hashing", "sharding", "quorum", "replication-lag", "gossip", "failure-detection", "tcp", "raft", "fencing-tokens", "crdt", "vector-clocks", "clock-sync"],
+    steps: ["queues", "load-balancing", "rate-limiting", "retries", "idempotency", "hashtable", "consistent-hashing", "sharding", "quorum", "replication-lag", "gossip", "failure-detection", "tcp", "raft", "paxos", "fencing-tokens", "crdt", "vector-clocks", "clock-sync"],
     intro: "Once a system runs on more than one machine, messages get lost, clocks disagree and servers fail at the worst moment. This path covers how real systems stay fast under load and keep their data in agreement: queues and back-off, spreading data across servers, consensus, and making sense of time.",
     audience: "Backend engineers who are starting to design or operate services that run on many machines.",
     outcomes: ["Reason about queues, load and retry storms", "Explain consistent hashing, quorums and gossip", "Describe how Raft keeps replicas in agreement", "Explain why clocks can't be trusted, and what systems use instead"] },

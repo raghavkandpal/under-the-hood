@@ -34,12 +34,15 @@ test("migration: TCP waits 2 RTT for a handshake, QUIC adds none; validation tak
 
 test("RTT samples: QUIC one per acked packet, TCP acked minus retransmitted", () => {
   const r = rttSamples(100, 0.1, mulberry(7));
-  assert.equal(r.quic, 100);
+  assert.deepEqual([r.sent, r.quic, r.tcp, r.retransmitted], [111, 100, 92, 8]); // seed 7, 10% loss
   assert.equal(r.tcp, r.acked - r.retransmitted);
   assert.ok(r.retransmitted > 0 && r.tcp < r.quic);
   // packet numbers only increase, even for retransmissions
   assert.ok(r.numbers.every((x, i) => i === 0 || x > r.numbers[i - 1]));
   assert.equal(r.sent, r.numbers.length);
+  // more loss, fewer TCP samples on average (single seeds can cross: 18% vs 19%)
+  const avg = l => [1, 2, 3, 4, 5].reduce((a, sd) => a + rttSamples(100, l, mulberry(sd)).tcp, 0) / 5;
+  assert.ok(avg(0.05) > avg(0.1) && avg(0.1) > avg(0.2));
   const clean = rttSamples(50, 0, mulberry(7));
   assert.equal(clean.tcp, 50); assert.equal(clean.retransmitted, 0);
 });

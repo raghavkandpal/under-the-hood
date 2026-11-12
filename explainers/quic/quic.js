@@ -21,8 +21,8 @@ export function handshake(bytes) {
 /** The next request after the client's address changes. TCP is tied to the 4-tuple; QUIC to a connection ID. */
 export function migrate() {
   return {
-    tcp: { handshakeRtt: 2, answeredAt: 2 + 1 },
-    quic: { handshakeRtt: 0, answeredAt: 1, validation: ["PATH_CHALLENGE", "PATH_RESPONSE"], validationRtt: 1 },
+    tcp: { handshakeRtt: HANDSHAKE.tcp, answeredAt: firstByte("tcp") },
+    quic: { handshakeRtt: 0, answeredAt: firstByte("zero"), validation: ["PATH_CHALLENGE", "PATH_RESPONSE"], validationRtt: 1 },
   };
 }
 
