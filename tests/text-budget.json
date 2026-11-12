@@ -130,6 +130,7 @@
 "sql-joins":{"helper":7,"caveat":0},
 "string-search":{"helper":36,"caveat":40},
 "subnets":{"helper":21,"caveat":28},
+"survival-curves":{"helper":49,"caveat":39},
 "tcp":{"helper":59,"caveat":26},
 "text-buffers":{"helper":38,"caveat":0},
 "three-way-merge":{"helper":38,"caveat":35},

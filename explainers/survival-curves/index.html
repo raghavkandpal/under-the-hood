@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Survival curves</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  svg.chart text { font-size: 11px; fill: var(--muted); }
+  .legend i.dot { border-radius: 50%; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Survival curves</h1>
+  <p class="lede">How long does a customer stay? Some haven&rsquo;t left yet, so you only know they stayed at least this long. Throw those customers away, or call them gone, and you badly underestimate. Kaplan&ndash;Meier uses what they do tell you.</p>
+
+  <div class="panel">
+    <div class="row">
+      <div class="seg" id="data"></div>
+      <label class="inline">Censored <input type="range" id="cens" min="0" max="0.8" step="0.1" value="0.5"> <b id="cv"></b></label>
+      <label class="inline">Month <input type="range" id="month" min="0" max="30" value="12"> <b id="mv"></b></label>
+      <button id="seed"></button>
+    </div>
+    <svg class="chart" id="curves" viewBox="0 0 600 250" role="img" aria-label="Share still subscribed against months, for the true curve, Kaplan–Meier with its 95% band, and the two shortcuts"></svg>
+    <ul class="legend">
+      <li><i style="--c:var(--accent)"></i>Kaplan&ndash;Meier</li><li id="lt"><i style="--c:var(--muted)"></i>truth</li><li><i style="--c:var(--blue)"></i>drop censored</li><li><i style="--c:var(--red)"></i>count as cancelled</li>
+    </ul>
+    <svg class="chart" id="lives" viewBox="0 0 600 130" role="img" aria-label="Months observed for the first ten customers, each ending in a dot"></svg>
+    <ul class="legend"><li><i class="dot" style="--c:var(--accent)"></i>cancelled</li><li><i class="dot" style="--c:var(--muted)"></i>still subscribed</li></ul>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Censored, not missing.</b> A customer who joined three months ago and is still subscribed hasn&rsquo;t told you their lifetime. They told you it is more than 3 months. That is a <em>censored</em> row. In the 10-customer table, 4 of the 10 are censored.</p>
+  <p><b>Kaplan&ndash;Meier.</b> Walk through the months where someone cancelled. At each one, take the share of the people still being watched who cancelled, and multiply the running survival by one minus that share. A censored customer counts as at risk until their last month and then leaves the denominator. On the table the curve drops to 0.9 at month 2 (1 of 10), to 0.8 at month 3 (1 of 9), to 24/35 = 0.69 at month 5 (1 of 7), to 0.41 at month 8 (2 of 5) and to 0.21 at month 12 (1 of 2). With nobody censored it is exactly the share still subscribed.</p>
+  <p><b>Two tempting mistakes.</b> Dropping censored rows keeps only the people who left, so everyone looks gone sooner. Counting &ldquo;last seen&rdquo; as &ldquo;cancelled&rdquo; makes the still-subscribed leave on the day we stopped watching. In the default cohort of 2,000 (true survival e<sup>&minus;t/12</sup>, so 37% at month 12, about half still subscribed when watching stopped) Kaplan&ndash;Meier reads 36% at month 12, dropping reads 14%, and counting as cancelled reads 13%. Across seeds 1 to 8 and every censoring level from 20% to 70%, Kaplan&ndash;Meier stays within 4 points of the truth and both mistakes are more than 5 points low. The more censoring, the lower they fall, and Kaplan&ndash;Meier does not move.</p>
+  <div class="note"><b>Try it.</b> Set Censored to 0 and watch the three curves coincide. Then raise it step by step. Switch to the 10-customer table and drag Month to 6: Kaplan&ndash;Meier says 69%, both shortcuts say 50%.</div>
+  <p><b>The median and the band.</b> The median is the first month where the curve reaches 50% or less: 8 months on the table, and about 8.1 on the default cohort against a true 12&middot;ln 2 = 8.3. The shaded band is Greenwood&rsquo;s 95% interval. It widens to the right because fewer people are left to learn from: on the table it runs from 71% to 100% at month 2 and from 0% to 54% at month 12, where 2 customers are left.</p>
+  <p class="caveat">Simplified: random censoring that doesn&rsquo;t depend on the customer, lifetimes drawn from one exponential, and a plain-scale band clipped to 0&ndash;100%. Real data has customers whose reason for being watched less is also a reason to leave.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { CUSTOMERS, kaplanMeier, at, median, dropCensored, censoredAsCancelled, cohort, trueS } from "./survival-curves.js";
+chrome();
+
+let mode = "cohort", seed = 1;
+const pct = v => Math.round(v * 100) + "%", XMAX = 30, L = 36, R = 590, T = 8, B = 215;
+const X = t => L + (R - L) * t / XMAX, Y = v => B - (B - T) * v;
+tabs($("#data"), { table: "Table", cohort: "Cohort" }, mode, k => { mode = k; render(); });
+$("#data").querySelectorAll("button").forEach(b => b.setAttribute("aria-label", b.dataset.k === "table" ? "Table of 10 customers" : "Cohort of 2,000 customers"));
+
+const line = (f, props) => { const p = []; for (let t = 0; t <= XMAX; t += 0.5) p.push(`${t ? "L" : "M"}${X(t)},${Y(f(t))}`); return svgEl("path", { d: p.join(""), fill: "none", "stroke-width": 1.8, ...props }); };
+// Each Kaplan–Meier value holds until the next event time, so the curve and band are staircases.
+const stairs = (steps, key) => steps.flatMap((s, i) => [[X(s.t), Y(s[key])], [X(i + 1 < steps.length ? steps[i + 1].t : XMAX), Y(s[key])]]);
+function render() {
+  const table = mode === "table", censored = +$("#cens").value, m = +$("#month").value;
+  const rows = table ? CUSTOMERS : cohort({ censored, seed }), km = kaplanMeier(rows);
+  $("#cens").disabled = $("#seed").disabled = table;
+  $("#cv").textContent = pct(table ? rows.filter(r => !r.event).length / rows.length : censored);
+  $("#mv").textContent = m; $("#seed").textContent = "Seed " + seed; $("#lt").style.display = table ? "none" : "";
+  const svg = $("#curves"); svg.replaceChildren();
+  for (const v of [0, 0.5, 1]) svg.append(svgEl("line", { x1: L, x2: R, y1: Y(v), y2: Y(v), stroke: "var(--border)" }), svgEl("text", { x: L - 6, y: Y(v) + 4, "text-anchor": "end" }, pct(v)));
+  for (const t of [0, 6, 12, 18, 24, 30]) svg.append(svgEl("text", { x: X(t), y: B + 16, "text-anchor": "middle" }, t));
+  svg.append(svgEl("text", { x: R, y: B + 32, "text-anchor": "end" }, "months"));
+  const pts = a => a.map(p => p.join(",")).join(" ");
+  const km0 = [{ t: 0, S: 1, lo: 1, hi: 1 }, ...km];
+  svg.append(svgEl("polygon", { points: pts([...stairs(km0, "hi"), ...stairs(km0, "lo").reverse()]), fill: "var(--accent)", opacity: 0.18 }));
+  if (!table) svg.append(line(trueS, { stroke: "var(--muted)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+  svg.append(line(t => dropCensored(rows, t), { stroke: "var(--blue)" }), line(t => censoredAsCancelled(rows, t), { stroke: "var(--red)" }),
+    svgEl("path", { d: "M" + pts(stairs(km0, "S")).replaceAll(" ", "L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2.4 }),
+    svgEl("line", { x1: X(m), x2: X(m), y1: T, y2: B, stroke: "var(--text)", "stroke-dasharray": "2 3" }));
+  const lv = $("#lives"); lv.replaceChildren();
+  rows.slice(0, 10).forEach((r, i) => { const y = 10 + i * 11.5, x = X(r.t), c = r.event ? "var(--accent)" : "var(--muted)";
+    lv.append(svgEl("line", { x1: L, x2: x, y1: y, y2: y, stroke: c, "stroke-width": 1.5 }), svgEl("circle", { cx: x, cy: y, r: 3.5, fill: c })); });
+  lv.append(svgEl("line", { x1: X(m), x2: X(m), y1: 0, y2: 120, stroke: "var(--text)", "stroke-dasharray": "2 3" }));
+  const med = median(km);
+  $("#stats").innerHTML = [[pct(at(km, m)), "Kaplan–Meier"], [pct(dropCensored(rows, m)), "drop censored"], [pct(censoredAsCancelled(rows, m)), "count as cancelled"], [med === null ? "–" : +med.toFixed(1), "median months"]].map(statTile).join("");
+}
+["#cens", "#month"].forEach(id => ($(id).oninput = render));
+$("#seed").onclick = () => { seed = seed % 9 + 1; render(); };
+render();
+</script>
+</body>
+</html>

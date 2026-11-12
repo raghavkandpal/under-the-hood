@@ -15,7 +15,7 @@ export const TRUSTED = [
   "git-scm.com", "postgresql.org", "sqlite.org", "github.com", "docs.docker.com", "man7.org", "gnu.org", "nodejs.org", "semver.org", "docs.npmjs.com", "doc.rust-lang.org", "research.swtch.com", "swtch.com",
   "parquet.apache.org", "scikit-learn.org", "huggingface.co", "v8.dev", "code.visualstudio.com", "ftp.cs.ucla.edu", "postgis.net", "3blue1brown.com", "llvm.org", "cheatsheetseries.owasp.org", "owasp.org", "community.owasp.org", "builder.aws.com", "oauth.net", "tls13.xargs.org", "letsencrypt.org",
   "redblobgames.com", "norvig.com", "use-the-index-luke.com", "jepsen.io", "jakearchibald.com", "evanmiller.org", "lilianweng.github.io", "jalammar.github.io", "betterexplained.com",
-  "utf8everywhere.org", "floating-point-gui.de", "docs.oracle.com", "joelonsoftware.com", "blog.cryptographyengineering.com", "itu.int", "bazel.build", "kernel.org", "http3-explained.haxx.se", "eli.thegreenplace.net",
+  "utf8everywhere.org", "floating-point-gui.de", "docs.oracle.com", "joelonsoftware.com", "blog.cryptographyengineering.com", "itu.int", "bazel.build", "kernel.org", "http3-explained.haxx.se", "eli.thegreenplace.net", "lifelines.readthedocs.io", "statlearning.com",
 ];
 
 export const SOURCES = {
@@ -341,6 +341,9 @@ export const SOURCES = {
   "multiple-testing": [["OpenIntro Statistics (multiple comparisons)", "https://www.openintro.org/book/os/", "book", "Diez, Çetinkaya-Rundel, Barr"],
     ["False discovery rate", "https://en.wikipedia.org/wiki/False_discovery_rate", "encyclopedia", "Wikipedia"],
     ["Multiple comparisons problem", "https://en.wikipedia.org/wiki/Multiple_comparisons_problem", "encyclopedia", "Wikipedia"]],
+  "survival-curves": [["Introduction to survival analysis", "https://lifelines.readthedocs.io/en/latest/Survival%20Analysis%20intro.html", "docs", "lifelines"],
+    ["An Introduction to Statistical Learning, 2nd ed., chapter 11", "https://www.statlearning.com/", "book", "James, Witten, Hastie, Tibshirani"],
+    ["Kaplan–Meier estimator", "https://en.wikipedia.org/wiki/Kaplan%E2%80%93Meier_estimator", "encyclopedia", "Wikipedia"]],
   "power-analysis": [["Sample Size Calculator", "https://www.evanmiller.org/ab-testing/sample-size.html", "article", "Evan Miller"],
     ["OpenIntro Statistics", "https://www.openintro.org/book/os/", "book", "Diez, Çetinkaya-Rundel, Barr"],
     ["Power of a test", "https://en.wikipedia.org/wiki/Power_(statistics)", "encyclopedia", "Wikipedia"]],
