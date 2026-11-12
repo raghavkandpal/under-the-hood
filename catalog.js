@@ -356,6 +356,8 @@ export const CATALOG = [
     blurb: "Many experts, few used per token: how a router picks them, why parameters outgrow compute, and the loss that stops it overloading one expert.", prereqs: ["attention"] },
   { id: "rlhf", title: "Learning from human feedback", area: "ml", topic: "language-models", level: "deep", tags: ["rlhf", "reward model", "bradley-terry", "kl divergence", "reward hacking", "dpo", "alignment", "preferences"],
     blurb: "Learn a reward from human choices, then tune a model towards it: the exact KL-regularised optimum, and why a slightly wrong reward gets exploited.", prereqs: ["rl", "logistic-regression", "sampling"] },
+  { id: "tries-vs-suffix-arrays", title: "Tries vs suffix arrays", area: "algorithms", topic: "data-structures", level: "core", tags: ["suffix array", "suffix tree", "suffix trie", "trie", "lcp", "substring search", "kasai"],
+    blurb: "Find a pattern anywhere in a text: a trie of every suffix explodes in size, a sorted array of start positions stays small.", prereqs: ["autocomplete", "string-search"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -401,7 +403,7 @@ export const PATHS = [
     audience: "Engineers and product people who run experiments or read dashboards and want to trust the conclusions.",
     outcomes: ["Explain why averages become predictable and how wide an error bar is", "Put an error bar on almost any number with the bootstrap", "Run an A/B test without fooling yourself", "Recognise Simpson's paradox and reason with Bayes"] },
   { id: "algorithms", title: "The algorithms toolkit", blurb: "The handful of ideas behind most fast code.",
-    steps: ["big-o", "sorting", "hashtable", "heap", "skip-list", "balanced-trees", "autocomplete", "string-search", "union-find", "topological-sort", "quadtree", "dynamic-programming", "pathfinding", "max-flow", "minimax", "sat-sudoku"],
+    steps: ["big-o", "sorting", "hashtable", "heap", "skip-list", "balanced-trees", "autocomplete", "string-search", "tries-vs-suffix-arrays", "union-find", "topological-sort", "quadtree", "dynamic-programming", "pathfinding", "max-flow", "minimax", "sat-sudoku"],
     intro: "A handful of algorithms and data structures account for most fast code. This path starts with how to compare algorithms at all, then works through the structures that make lookups, ordering and grouping cheap, and ends with search and constraint solving for harder problems.",
     audience: "Programmers preparing for interviews, or anyone who wants to know why some code scales and some doesn't.",
     outcomes: ["Estimate how code scales with Big-O", "Pick the right structure: hash table, heap, trie, skip list or union-find", "Solve problems with dynamic programming", "Explain how pathfinding and constraint solvers search efficiently"] },

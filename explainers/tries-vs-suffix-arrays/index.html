@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tries vs suffix arrays</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .row { gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+  .tabs { flex-wrap: wrap; }
+  input[type=text] { width: 9em; font: inherit; }
+  table.sa { border-collapse: collapse; font-family: ui-monospace, monospace; font-size: 13px; margin-top: 10px; }
+  table.sa th, table.sa td { padding: 2px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  table.sa tr.hit { background: var(--surface-2); }
+  table.sa mark { background: var(--accent); color: var(--bg); border-radius: 2px; }
+  .bars { display: grid; gap: 4px; margin-top: 10px; }
+  .bar { display: grid; grid-template-columns: 90px minmax(0, 1fr) 70px; gap: 8px; align-items: center; font-size: 13px; }
+  .bar .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .track { position: relative; height: 14px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+  .track i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); min-width: 2px; }
+  .stats { --stat-min: 120px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tries vs suffix arrays</h1>
+  <p class="lede">A trie finds words that start with what you typed. To find text that contains it anywhere, you need every suffix of the text in order, and there are two ways to store them: a tree of letters that grows quickly, or a plain array of start positions.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="text" role="group" aria-label="Text"></div>
+      <label class="inline" id="nlab">n <input type="range" id="n" min="0" max="4" value="4"> <b id="nv"></b></label>
+      <label class="inline">Pattern <input type="text" id="pat" autocomplete="off" spellcheck="false" maxlength="12"></label></div>
+    <div class="scroll-x" id="table"></div>
+    <div class="stats" id="stats"></div>
+    <div class="bars" id="bars"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The suffix array.</b> Write down every suffix of the text, sort them, and keep only where each one starts. For "banana" the sorted suffixes are a, ana, anana, banana, nana, na, so the array is [5, 3, 1, 0, 4, 2]. A second array, the LCP, records how many letters each suffix shares with the one above: [1, 3, 0, 0, 2]. Kasai&rsquo;s algorithm fills it in a single linear pass.</p>
+  <p><b>Finding a pattern.</b> Every occurrence of a pattern is the start of some suffix, and suffixes starting with the same letters sit next to each other. So two binary searches, one for each end of that block, find them all. Each search makes at most &lceil;log<sub>2</sub>(<i>n</i>+1)&rceil; comparisons, so a lookup costs at most 2&lceil;log<sub>2</sub>(<i>n</i>+1)&rceil;: 20 for <i>n</i> = 1,000. Each comparison reads up to as many letters as the pattern has.</p>
+  <p><b>Prefix versus anywhere.</b> A trie of the words &ldquo;database metadata update&rdquo; answers &ldquo;data&rdquo; with one word, database, because only database starts with it. The suffix array answers with two places, the start of database and the middle of metadata. That difference is the reason to index suffixes.</p>
+  <p><b>The suffix trie.</b> Put every suffix into a trie and any substring is a path from the root, found in as many steps as the pattern is long. The cost is size. A text has at most <i>n</i>(<i>n</i>+1)/2 substrings, and the trie needs a node for each distinct one: 15 for &ldquo;banana&rdquo;, so 16 nodes with the root. Subtracting the LCP total counts them without building the trie: 21 &minus; 6 = 15. For a random 4-letter text of 1,000 letters the trie has about 496,000 nodes against 1,000 array entries, roughly 500 to one. Over the lengths 10 to 1,000 on the slider the ratio keeps growing.</p>
+  <p><b>The suffix tree.</b> Most of those nodes sit in long chains with one child each. Merging each chain into one edge, as a radix tree does, leaves a suffix tree, which has fewer than 2<i>n</i> nodes. For &ldquo;banana&rdquo; that is 7 nodes, against 16 in the trie. With an end marker so that every suffix is a leaf, &ldquo;banana$&rdquo;, it is 11 against 23. It keeps the trie&rsquo;s speed in linear space, but with more pointers per node than an array&rsquo;s one integer per suffix, which is why practical tools often pick the array.</p>
+  <p><b>The longest repeated substring.</b> Two copies of a substring begin two suffixes that share it, and sorting puts such suffixes next to each other, so the longest repeat is the largest LCP value. In &ldquo;banana&rdquo; that is 3, &ldquo;ana&rdquo;.</p>
+  <p class="note"><b>Try it.</b> Pick terms and search &ldquo;data&rdquo;, then pick random and slide <i>n</i> from 10 up to 1,000 while watching the bars.</p>
+  <p class="caveat">The suffix array here is built by sorting whole suffixes, which is fine for short texts but slow for large ones, where real tools use faster constructions. The trie sizes for the long random texts are counted by formula, checked against a real trie on shorter ones.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs, escapeHtml } from "../../shared/common.js";
+import { radixNodes } from "../../shared/trie.js";
+import { TEXTS, suffixArray, lcpArray, suffixTrie, suffixTrieNodes, find, maxComparisons, longestRepeated, randomText, wordTrie } from "./tries-vs-suffix-arrays.js";
+chrome();
+
+const SIZES = [10, 50, 100, 300, 1000], SEED = 7, DEFAULTS = { banana: "ana", terms: "data", random: "abc" };
+const LABELS = { banana: "banana", terms: "terms", random: "random" };
+// Everything is built once at load: sorting 1,000 suffixes is quick, and the trie is only counted.
+const prep = (text, tree) => {
+  const sa = suffixArray(text), lcp = lcpArray(text, sa);
+  return { text, sa, lcp, trie: suffixTrieNodes(text, lcp), tree: tree ? radixNodes(suffixTrie(text)) : null, longest: longestRepeated(text, sa, lcp) };
+};
+const DATA = { banana: prep(TEXTS.banana, true), terms: prep(TEXTS.terms, true), random: SIZES.map(n => prep(randomText(SEED, n), n <= 100)) };
+
+let mode = "banana";
+tabs($("#text"), LABELS, mode, k => { mode = k; $("#pat").value = DEFAULTS[k]; render(); });
+const fmt = v => v.toLocaleString("en");
+const bar = (label, v, max) => `<div class="bar"><span>${label}</span><div class="track"><i style="width:${100 * v / max}%"></i></div><span class="v">${fmt(v)}</span></div>`;
+
+function render() {
+  const d = mode === "random" ? DATA.random[+$("#n").value] : DATA[mode], p = $("#pat").value;
+  $("#nlab").hidden = mode !== "random";
+  $("#nv").textContent = d.text.length;
+  const r = p ? find(d.text, d.sa, p) : { from: 0, to: 0, count: 0, comparisons: 0 };
+  const words = p ? wordTrie(d.text).all(p).length : 0;
+  $("#table").innerHTML = d.text.length > 30 ? "" : `<table class="sa"><caption class="sr-only">Sorted suffixes of the text</caption><thead><tr><th>SA</th><th>LCP</th><th>Suffix</th></tr></thead><tbody>${
+    d.sa.map((s, i) => {
+      const hit = i >= r.from && i < r.to, suf = escapeHtml(d.text.slice(s));
+      return `<tr${hit ? ' class="hit"' : ""}><td>${s}</td><td>${i ? d.lcp[i - 1] : "–"}</td><td>${hit ? `<mark>${escapeHtml(p)}</mark>${suf.slice(p.length)}` : suf}</td></tr>`;
+    }).join("")}</tbody></table>`;
+  $("#stats").innerHTML = [[r.count, "found in text"], [words, "words starting with it"], [`${r.comparisons} of ${maxComparisons(d.text.length)}`, "comparisons"], [d.longest || "–", "longest repeat"]].map(statTile).join("");
+  const rows = [["Trie", d.trie], d.tree != null && ["Suffix tree", d.tree], ["Array", d.sa.length]].filter(Boolean);
+  $("#bars").innerHTML = rows.map(([l, v]) => bar(l, v, d.trie)).join("");
+  $("#bars").setAttribute("aria-label", "Nodes in the suffix trie" + (d.tree != null ? ", nodes in the suffix tree" : "") + " and entries in the suffix array");
+}
+$("#n").oninput = render; $("#pat").oninput = render;
+$("#pat").value = DEFAULTS[mode]; render();
+</script>
+</body>
+</html>

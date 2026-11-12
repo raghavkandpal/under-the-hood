@@ -220,6 +220,8 @@ export const SOURCES = {
   "string-search": [["Algorithms, 4th ed., 5.3: Substring Search", "https://algs4.cs.princeton.edu/53substring/", "book", "Sedgewick & Wayne"],
     ["Prefix function: Knuth–Morris–Pratt", "https://cp-algorithms.com/string/prefix-function.html", "article", "cp-algorithms"],
     ["Boyer–Moore–Horspool algorithm", "https://en.wikipedia.org/wiki/Boyer%E2%80%93Moore%E2%80%93Horspool_algorithm", "encyclopedia", "Wikipedia"]],
+  "tries-vs-suffix-arrays": [["Algorithms, 4th ed., 6.3: Suffix Arrays", "https://algs4.cs.princeton.edu/63suffix/", "book", "Sedgewick & Wayne"],
+    ["Suffix Array", "https://cp-algorithms.com/string/suffix-array.html", "article", "cp-algorithms"]],
   "heap": [["Algorithms, 4th ed., 2.4: Priority Queues", "https://algs4.cs.princeton.edu/24pq/", "book", "Sedgewick & Wayne"],
     ["Binary heap", "https://en.wikipedia.org/wiki/Binary_heap", "encyclopedia", "Wikipedia"]],
   "skip-list": [["Skip list", "https://en.wikipedia.org/wiki/Skip_list", "encyclopedia", "Wikipedia"],
