@@ -1,22 +1,22 @@
 # Roadmap
 
-Plan for the next explainers, plus the working notes a new session needs. 145 explainers exist today, in 9 areas, 29 topics and 11 learning paths, each with free further reading.
+Plan for the next explainers, plus the working notes a new session needs. 155 explainers exist today, in 9 areas, 29 topics and 11 learning paths, each with free further reading.
 
 ## Where the gaps are
 
-Areas and topics after batch 11 (135 explainers). Each explainer has an area and a topic in `catalog.js`; `PATHS` lists learning paths.
+Areas and topics after batch 13 (155 explainers). Each explainer has an area and a topic in `catalog.js`; `PATHS` lists learning paths.
 
 | Area | Count | Intro / Core / Deep | Topics | Gap |
 |---|---|---|---|---|
-| Systems: hardware & OS | 15 | 6 / 7 / 2 | Numbers & text, Memory, Operating systems, The processor | SIMD, interrupts & syscalls in depth |
-| Networking & the web | 10 | 2 / 8 / 0 | How the network works, The web | **no deep dive**: QUIC in depth, BGP, Wi-Fi |
-| Databases & storage | 10 | 1 / 5 / 4 | Storage engines, Queries, Transactions & durability | more intro (what an index is), vector search |
-| Distributed systems | 17 | 1 / 12 / 4 | Traffic & reliability, Spreading data, Agreement, Time & order | **one intro**; Paxos, exactly-once streams |
-| Security & cryptography | 13 | 5 / 6 / 2 | Building blocks, Protocols, Attacks & defences | JWTs, passkeys/WebAuthn, timing attacks |
-| Algorithms & data structures | 25 | 8 / 14 / 3 | Foundations, Data structures, Search & graphs, Compression & signals | tries vs suffix arrays, max flow |
-| Machine learning & AI | 23 | 8 / 11 / 4 | Classic ML, Neural networks, Language models | logistic regression, RLHF, mixture of experts |
-| Statistics & probability | 10 | 6 / 3 / 1 | Probability, Experiments & inference | power analysis, survival curves |
-| Developer tools | 12 | 1 / 10 / 1 | Version control, Building & shipping, Compilers & runtimes, Everyday tools | **one intro**; debuggers, three-way merge |
+| Systems: hardware & OS | 16 | 6 / 8 / 2 | Numbers & text, Memory, Operating systems, The processor | interrupts & syscalls in depth |
+| Networking & the web | 12 | 2 / 8 / 2 | How the network works, The web | Wi-Fi, more intro |
+| Databases & storage | 12 | 2 / 6 / 4 | Storage engines, Queries, Transactions & durability | more intro |
+| Distributed systems | 19 | 2 / 12 / 5 | Traffic & reliability, Spreading data, Agreement, Time & order | more intro; exactly-once streams |
+| Security & cryptography | 16 | 5 / 8 / 3 | Building blocks, Protocols, Attacks & defences | more deep dives |
+| Algorithms & data structures | 27 | 8 / 15 / 4 | Foundations, Data structures, Search & graphs, Compression & signals | more deep dives |
+| Machine learning & AI | 26 | 8 / 12 / 6 | Classic ML, Neural networks, Language models | balanced; pick by reader demand |
+| Statistics & probability | 12 | 6 / 5 / 1 | Probability, Experiments & inference | **one deep dive** |
+| Developer tools | 15 | 2 / 12 / 1 | Version control, Building & shipping, Compilers & runtimes, Everyday tools | more intro and deep |
 
 New explainers: pick the topic when scaffolding (`npm run new -- <id> "<Title>" <area> <level> <topic>`), and add them to a learning path in `PATHS` if one fits. `tests/catalog.test.js` checks that path steps come after their prerequisites.
 
@@ -101,22 +101,15 @@ Thirty explainers, one PR per batch, each stacked on the one before:
 
 Ten from the gap table, built test-first with the `tdd` skill and reviewed with `code-review` and `ponytail-review`: bisect and three-way-merge (tools intro), failure-detection (distributed intro), jwt, timing-attacks, bgp (networking deep dive), max-flow, vector-search, logistic-regression, power-analysis. `diff`, `subnets` and `kmeans` moved to `shared/` as second users appeared, and `shared/normal.js` holds the normal CDF and quantile.
 
-## Next batch (in progress on `explainers/batch-13`)
-
-**Status (2026-11-12, session ended at its limit):**
-- **Done** (evaluated, fixed, checked in the browser at 360px): quic, passkeys, paxos.
-- **mixture-of-experts:** the re-evaluation found only minor items. Fix next session: say the busiest share "falls much further" with the loss (it also falls with the loss off); pin seed 1's ordering across weights; scale the load bars to the run's maximum load, since step 10 at weight None clips; give `#k`/`#kp` `role="group"`; compute each weight's 30-seed runs once (the test takes 10 s); rename "never drops more".
-- **rlhf:** evaluator fixes committed in 7f41289 (honest framing, Pairs readout as an 8-seed mean, tighter brackets, seed-3 test). Next: re-evaluate it and check it in the browser.
-- **tries-vs-suffix-arrays:** built (120914b), not yet evaluated. In the browser the `n` slider still shows on the banana and terms texts, because `hidden` on a `label.inline` gets overridden by its display rule.
-- **Not started:** simd, debuggers, survival-curves, what-is-an-index.
-- **Before the PR:** squash-merge. Intermediate commits a811fd5 and 5a4c5c4 fail tests on their own, because concurrent agents shared one working tree. Update the gap table and "145 explainers", and drop the stale line "No explainer imports from another explainer's folder" (quic's test imports http-versions). Then run code-review, ponytail-review and the final sweep.
+## Batch 13 ✅ done (on `explainers/batch-13`)
+**Status (2026-11-12):** all ten built, evaluated to PASS and checked in the browser at 360px: quic, passkeys, paxos, mixture-of-experts, rlhf, tries-vs-suffix-arrays, simd, debuggers, survival-curves, what-is-an-index. Moved to `shared/`: `trie.js` (autocomplete), `branch.js` (branch-prediction), `height.js` (btree). A global `[hidden]` rule in `shared/style.css` stops class display rules from undoing the attribute.
+- **Merge:** squash-merge the PR. Intermediate commits a811fd5 and 5a4c5c4 fail tests on their own.
 - **After this batch merges:** deploy on GitHub Pages (from `main`, as before). No other host.
-- **Lessons for the generator prompt:** give each generator its own worktree, as CLAUDE.md now says, so commits don't absorb each other's changes. Pin the page's own seed and control values, not only seed averages. Never tune a model until a claim holds and then state the claim as general.
+- **Lessons:** generators each in their own worktree, merged back one at a time, worked well. Evaluators found real bugs in every first draft, most often a claim true at the default but not at every reachable control state, so sweep every slider position and seed. Tell generators the house patterns up front ("🎲 New sample" seed buttons, `tabs()` keys are strings).
 
+Ten picked from the gap table: quic (networking deep dive), passkeys (security), paxos (distributed), mixture-of-experts and rlhf (ML), tries-vs-suffix-arrays (algorithms), simd (systems), debuggers (tools), survival-curves (statistics), what-is-an-index (databases intro). Same flow as batch 12: `tdd` per module, `code-review` plus `ponytail-review` before the PR, `pr` for the body.
 
-Ten picked from the gap table for the next session: quic (networking deep dive), passkeys (security), paxos (distributed), mixture-of-experts and rlhf (ML), tries-vs-suffix-arrays (algorithms), simd (systems), debuggers (tools), survival-curves (statistics), what-is-an-index (databases intro). Same flow as batch 12: `tdd` per module, `code-review` plus `ponytail-review` before the PR, `pr` for the body.
-
-Each spec gives the scaffold line, prereqs, where it goes in `PATHS`, sources (first one primary; **new domain** marks a host not yet in `TRUSTED`, so add it and run `npm run check-sources`, or use the listed fallback), what to reuse, and the facts. Every fact is a test: write it first, print the numbers across the parameter range, and copy prose numbers from the output. No explainer imports from another explainer's folder today, so reusing a module means moving it to `shared/` first (check the file name is free).
+Each spec gives the scaffold line, prereqs, where it goes in `PATHS`, sources (first one primary; **new domain** marks a host not yet in `TRUSTED`, so add it and run `npm run check-sources`, or use the listed fallback), what to reuse, and the facts. Every fact is a test: write it first, print the numbers across the parameter range, and copy prose numbers from the output. Reusing a module means moving it to `shared/` first (check the file name is free).
 
 ### 1. `quic`: QUIC in depth
 - **Scaffold:** `npm run new -- quic "QUIC in depth" networking deep how-the-network-works`. Prereqs: http-versions, tls. Path `internet`: after http-versions.
