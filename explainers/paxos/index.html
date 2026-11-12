@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paxos</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .acc { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+  .a { border: 2px solid var(--border); border-radius: 10px; padding: 8px 4px; text-align: center; background: var(--surface); font-size: 13px; cursor: pointer; }
+  .a b { display: block; }
+  .a .v { font-family: var(--mono); font-size: 18px; font-weight: 800; min-height: 1.4em; }
+  .a.down { opacity: .35; border-style: dashed; }
+  .a.has { border-color: var(--accent); background: var(--accent-soft); }
+  .q { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 12px 0; }
+  .q div { border: 2px solid var(--border); border-radius: 8px; padding: 6px; text-align: center; font-family: var(--mono); font-size: 13px; }
+  .q div.v { border-color: var(--blue); background: var(--blue-soft); }
+  .q div.w { border-color: var(--accent); background: var(--accent-soft); }
+  .q b { display: block; font-size: 18px; }
+  .log { font-family: var(--mono); font-size: 13px; margin: 10px 0 0; padding: 0; list-style: none; max-height: 260px; overflow: auto; }
+  .log li { padding: 2px 0; border-bottom: 1px solid var(--border); }
+  .log li.ok { color: var(--green); font-weight: 700; }
+  .log li.bad { color: var(--red); }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Paxos</h1>
+  <p class="lede">Five servers must agree on one value even though servers crash and messages arrive late. Paxos does it with two rounds of questions, and a rule that lets a later proposer discover and keep anything that might already have been decided.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="mode"></div></div>
+
+    <section id="free">
+      <div class="acc" id="acc"></div>
+      <div class="controls"><button id="pa" class="primary">A proposes v</button><button id="pb" class="primary">B proposes w</button><button id="reset">Reset</button></div>
+    </section>
+
+    <section id="quorums" class="hide">
+      <div class="row"><div class="seg" id="by"></div></div>
+      <div class="q" id="q"></div>
+    </section>
+
+    <section id="duel" class="hide">
+      <div class="row"><div class="seg" id="bo"></div>
+        <label class="inline">Seed <input type="range" id="seed" min="1" max="20" value="1"> <b id="sv"></b></label>
+        <button id="run" class="primary">Run 20 rounds</button></div>
+      <ul class="log" id="log"></ul>
+    </section>
+
+    <section id="cost" class="hide">
+      <div class="row"><label class="inline">Decisions <input type="range" id="slots" min="1" max="10" value="5"> <b id="slv"></b></label></div>
+    </section>
+
+    <div class="stats" id="stats"></div>
+    <p class="status" id="msg" aria-live="polite"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Two phases.</b> A proposer picks a ballot number and asks the acceptors to <i>prepare</i>: each one promises to ignore anything below that ballot, and reports the highest-ballot value it has already accepted, if any. With promises from a majority (3 of 5), the proposer sends <i>accept</i> with a value. Each acceptor takes it unless it has since promised a higher ballot. When a majority has accepted the same ballot, the value is <b>chosen</b>.</p>
+  <p><b>The one rule that matters.</b> If any promise reports an accepted value, the proposer must propose the one with the highest ballot instead of its own. Any two majorities share an acceptor, so a later proposer always hears about a chosen value. Open <i>Second proposer</i>: v is chosen at ballot 1, and ballot 2 asks for w through each of the 10 possible three-server groups. Every one finds v and chooses v again.</p>
+  <div class="note"><b>Try it.</b> Switch to "v on 1 acceptor". Now v was accepted but never chosen, and the answer depends on who B happens to hear from: 6 groups include that acceptor and keep v, 4 don't and choose w. Both are safe, since nothing had been decided.</div>
+  <p><b>Failures.</b> In <i>Free play</i>, click acceptors to crash them. With two down, a value is still chosen; with three down, nothing can be, and nothing wrong is chosen either. Paxos gives up progress, never agreement.</p>
+  <p><b>Duelling proposers.</b> Each proposer's accept is rejected because the other's prepare got there first, so each retries with a higher ballot and the other is rejected again. With the lock-step schedule in <i>Duel</i>, 20 rounds pass with no value chosen and the ballot reaches 40. Waiting a random number of rounds before a retry breaks the tie: across 500 seeds, a value was chosen by round 4 every time.</p>
+  <p><b>Cost.</b> One decision takes four message delays: prepare, promise, accept, accepted. Multi-Paxos runs the first phase once for a stable leader and covers every later slot with it, so each further decision takes two. That is the idea behind <a href="../raft/">Raft</a>'s leader, and the reason it needs <a href="../quorum/">quorums</a> to overlap.</p>
+  <p class="caveat">Simplified: one decision (not a log), messages delivered instantly in a scripted order, crashes that never recover, and no learner role or failure detector. Multi-Paxos is counted by formula.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs, pause } from "../../shared/common.js";
+import { Cluster, secondProposer, duel, delays } from "./paxos.js";
+chrome();
+
+const MODES = { free: "Free play", quorums: "Second proposer", duel: "Duel", cost: "Cost" };
+let mode = "free", by = "3", backoff = false, gen = 0, C, ballots;
+const sections = ["free", "quorums", "duel", "cost"];
+
+tabs($("#mode"), MODES, mode, k => { mode = k; gen++; render(); });
+const byTabs = tabs($("#by"), { 3: "v on 3 acceptors", 1: "v on 1 acceptor" }, by, k => { by = k; render(); });
+tabs($("#bo"), { off: "No backoff", on: "Random backoff" }, "off", k => { backoff = k === "on"; gen++; $("#log").innerHTML = ""; render(); });
+
+function reset() { C = new Cluster(5); ballots = { A: 0, B: 0 }; $("#msg").textContent = ""; }
+function renderAcc() {
+  $("#acc").innerHTML = C.nodes.map(n => `<button class="a${n.up ? "" : " down"}${n.value ? " has" : ""}" data-i="${n.id}" aria-label="acceptor ${n.id + 1}, ${n.up ? "up" : "crashed"}, click to toggle"><b>${n.id + 1}</b>promised ${n.promised}<span class="v">${n.value ? n.value + "@" + n.ballot : "·"}</span></button>`).join("");
+}
+function propose(who, value, parity) {
+  let b = Math.max(ballots[who], ...C.nodes.map(n => n.promised)) + 1; while (b % 2 !== parity) b++;
+  ballots[who] = b;
+  const r = C.propose(b, value), ch = C.chosen();
+  $("#msg").textContent = r.ok ? `${who} at ballot ${b}: chosen ${r.value}${r.value !== value ? ` (adopted, not ${value})` : ""} after ${r.delays} message delays.`
+    : `${who} at ballot ${b}: ${r.phase === 1 ? "no majority of promises" : "no majority of accepts"}.`;
+  renderAcc(); stats(ch);
+}
+function stats(ch = C.chosen()) {
+  $("#stats").innerHTML = [[ch.join(", ") || "none", "chosen"], [C.nodes.filter(n => n.up).length + " of 5", "acceptors up"]].map(statTile).join("");
+}
+
+function renderQuorums() {
+  const runs = secondProposer(+by), nv = runs.filter(r => r.value === "v").length;
+  $("#q").innerHTML = runs.map(r => `<div class="${r.value}"><span>${r.quorum.map(i => i + 1).join(" ")}</span><b>${r.value}</b></div>`).join("");
+  $("#stats").innerHTML = [[nv, "groups keep v"], [10 - nv, "groups choose w"], [runs[0].vChosenBefore ? "yes" : "no", "v chosen at ballot 1"]].map(statTile).join("");
+  $("#msg").textContent = "";
+}
+
+const line = e => e.kind === "chosen" ? `round ${e.round}: ${e.who} chosen at ballot ${e.ballot}` : e.kind === "promised" ? `round ${e.round}: ${e.who} promised at ballot ${e.ballot}`
+  : e.kind === "waits" ? `round ${e.round}: ${e.who} waits` : `round ${e.round}: ${e.who} ${e.kind}, next ballot ${e.ballot}${e.wait ? `, waits ${e.wait}` : ""}`;
+async function runDuel() {
+  const my = ++gen, d = duel(20, { backoff, seed: +$("#seed").value }), log = $("#log"); log.innerHTML = "";
+  for (const e of d.events) {
+    if (my !== gen) return;
+    log.insertAdjacentHTML("beforeend", `<li class="${e.kind === "chosen" ? "ok" : e.kind.includes("rejected") ? "bad" : ""}">${line(e)}</li>`);
+    log.scrollTop = log.scrollHeight;
+    await pause(120);
+  }
+  $("#stats").innerHTML = [[d.round ?? "none", "chosen in round"], [d.ballots, "highest ballot"], [d.value ?? "none", "value"]].map(statTile).join("");
+  $("#msg").textContent = d.round ? "" : "20 rounds, nothing chosen.";
+}
+
+function renderCost() {
+  const s = +$("#slots").value; $("#slv").textContent = s;
+  $("#stats").innerHTML = [[delays(s, false), "message delays, phase 1 every time"], [delays(s, true), "message delays, stable leader"]].map(statTile).join("");
+  $("#msg").textContent = "";
+}
+
+function render() {
+  for (const s of sections) $("#" + s).classList.toggle("hide", s !== mode);
+  $("#sv").textContent = $("#seed").value;
+  if (mode === "free") { renderAcc(); stats(); } else if (mode === "quorums") renderQuorums();
+  else if (mode === "duel") { $("#stats").innerHTML = ""; $("#msg").textContent = ""; } else renderCost();
+}
+$("#acc").onclick = e => { const b = e.target.closest("[data-i]"); if (!b) return; const n = C.nodes[+b.dataset.i]; n.up = !n.up; renderAcc(); stats(); };
+$("#pa").onclick = () => propose("A", "v", 1);
+$("#pb").onclick = () => propose("B", "w", 0);
+$("#reset").onclick = () => { reset(); render(); };
+$("#run").onclick = runDuel;
+$("#seed").oninput = () => { gen++; $("#log").innerHTML = ""; render(); };
+$("#slots").oninput = renderCost;
+reset(); render();
+</script>
+</body>
+</html>

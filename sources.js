@@ -150,6 +150,8 @@ export const SOURCES = {
     ["How to do distributed locking", "https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html", "article", "Martin Kleppmann"]],
   "raft": [["In Search of an Understandable Consensus Algorithm (the Raft paper)", "https://raft.github.io/raft.pdf", "paper", "Ongaro & Ousterhout"],
     ["The Raft Consensus Algorithm", "https://raft.github.io/", "article", "raft.github.io"]],
+  "paxos": [["Paxos Made Simple", "https://lamport.azurewebsites.net/pubs/paxos-simple.pdf", "paper", "Leslie Lamport"],
+    ["Paxos Made Moderately Complex", "https://www.cs.cornell.edu/courses/cs7412/2011sp/paxos.pdf", "paper", "van Renesse & Altinbuken"]],
   "two-phase-commit": [["Two-phase commit protocol", "https://en.wikipedia.org/wiki/Two-phase_commit_protocol", "encyclopedia", "Wikipedia"],
     ["PostgreSQL: PREPARE TRANSACTION", "https://www.postgresql.org/docs/current/sql-prepare-transaction.html", "docs", "PostgreSQL"]],
   "crdt": [["About CRDTs", "https://crdt.tech/", "article", "crdt.tech"],
