@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning from human feedback</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .bars { display: grid; gap: 4px; margin-top: 8px; }
+  .bar { display: grid; grid-template-columns: 34px minmax(0, 1fr) 48px; gap: 8px; align-items: center; font-size: 13px; }
+  .bar .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .track { position: relative; height: 14px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+  .track i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+  .track i.blue { background: var(--blue); }
+  .track i.ref { background: var(--muted); opacity: .5; }
+  .track i.top { top: 4px; bottom: 4px; }
+  .reply { margin-top: 12px; }
+  .reply p { margin: 0 0 4px; font-size: 13px; }
+  .row { gap: 10px; margin-top: 8px; }
+  .stats { --stat-min: 110px; }
+  svg { max-width: 100%; height: auto; display: block; margin-top: 10px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Learning from human feedback</h1>
+  <p class="lede">A language model trained on text can write a reply, but not tell which of two replies a person would rather read. Human feedback fixes that in two steps: learn a reward from people's choices between replies, then nudge the model towards high reward without letting it wander far from where it started. Here you can watch both steps, and what goes wrong in the second when the reward model has learned a bias.</p>
+
+  <div class="panel">
+    <div class="row"><label class="inline">Reward A <input type="range" id="ra" min="-3" max="3" step="0.1" value="0.5"> <b id="rav"></b></label>
+      <label class="inline">Reward B <input type="range" id="rb" min="-3" max="3" step="0.1" value="0.5"> <b id="rbv"></b></label></div>
+    <div class="bars"><div class="bar" style="grid-template-columns:70px minmax(0,1fr) 48px"><span>A beats B</span><div class="track"><i id="pa"></i></div><span class="v" id="pav"></span></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="row"><label class="inline">Pairs <input type="range" id="n" min="0" max="6" value="5"> <b id="nv"></b></label></div>
+    <div id="replies"></div>
+    <ul class="legend"><li><i style="--c:var(--accent)"></i>reward model</li><li><i style="--c:var(--blue)"></i>true quality</li></ul>
+    <div class="stats" id="rstats"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row"><label class="inline">β <input type="range" id="beta" min="0" max="40" value="16"> <b id="betav"></b></label></div>
+    <div class="bars" id="pol"></div>
+    <ul class="legend"><li><i style="--c:var(--muted)"></i>base model</li><li><i style="--c:var(--accent)"></i>tuned model</li></ul>
+    <div class="stats" id="pstats"></div>
+    <svg id="chart" viewBox="0 0 300 130" role="img" aria-label="Reward-model score and true score of the tuned model as β rises from 0.05 to 500"></svg>
+    <ul class="legend"><li><i style="--c:var(--accent)"></i>reward model score</li><li><i style="--c:var(--blue)"></i>true score</li><li><i style="--c:var(--muted)"></i>base model</li></ul>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Learning a reward from choices.</b> Nobody can write down a score for "a good answer", but people can say which of two answers they prefer. The Bradley&ndash;Terry model turns that into numbers: give each reply a reward <i>r</i>, and say the chance that A is preferred to B is &sigma;(<i>r</i><sub>A</sub> &minus; <i>r</i><sub>B</sub>). Equal rewards give 0.5, and a gap of ln 3 &asymp; 1.1 gives 0.75. Training adjusts the reward until the pairs people chose come out likely, which is <a href="../logistic-regression/">logistic regression</a> on the difference between two replies' features. Here a reply has two features, a cue that it sounds helpful and its length. The simulated raters follow true quality but also like a long answer, and they are set to like it so much that their ranking of the six replies follows length exactly.</p>
+  <p><b>How much feedback.</b> The readout is the mean over 8 seeds of how many fresh pairs the reward model gets right. It is about 71% after 2 pairs, 77% after 5 and 85% from 10 pairs on. The raters are noisy and only agree with their own taste 86% of the time, so there is little left to gain. The bars show one seed, which can be luckier or unluckier than the mean.</p>
+  <p><b>Tuning the model against it.</b> The model is nudged, usually with <a href="../rl/">reinforcement learning</a>, to raise the reward. Left alone it would pour all its probability onto whichever reply scores highest, so the objective subtracts &beta; times the KL divergence from the starting model, &pi;<sub>ref</sub>. For a choice among a few replies this has an exact answer, &pi;*(y) &prop; &pi;<sub>ref</sub>(y)&middot;exp(<i>r</i>(y)/&beta;). A huge &beta; leaves the model where it was, and a tiny one puts almost everything on the top-scoring reply. The same formula is what lets Direct Preference Optimization skip the separate reward model. Real models sample from a huge space of text, where this is approached by training rather than computed, but <a href="../sampling/">sampling</a> from the tuned model works the same way.</p>
+  <p><b>Reward hacking.</b> At the default 50 pairs, the reward model learned the raters&rsquo; liking for length, so it scores the longest, rambling reply highest, in all 8 seeds. As &beta; falls the score the model is chasing keeps rising, but the true quality rises and then falls. In this run it reaches 0.41 around &beta; = 2, against 0.34 for the starting model, and drops to 0.11 at &beta; = 0.05 where 98% of the probability sits on the rambling reply. Across the 8 seeds the peak is always at a middle &beta;, between about 2 and 5, though the gain over the starting model is modest: 0.36 to 0.41 against 0.34. The penalty is what holds the model back from the flaw.</p>
+  <p class="note"><b>Try it.</b> Set Reward A to 1.1 and Reward B to 0. Then drag &beta; from the far right to the far left and watch the true score.</p>
+  <p class="caveat">A toy: one prompt, six written replies, a two-feature reward model and an exact optimum, where real systems fit a neural reward model to many prompts and optimise by sampling. The strong length bias and the weak base model, which most often says the two-word reply, are chosen to make hacking show.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile } from "../../shared/common.js";
+import { REPLIES, PI_REF, bradleyTerry, makePairs, trainReward, rewards, pairAccuracy, optimalPolicy, kl, expect } from "./rlhf.js";
+chrome();
+
+const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8], mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length, TRUE = REPLIES.map(r => r.q), HELD = makePairs(999, 2000), PAIRS = [0, 2, 5, 10, 20, 50, 200], BETAS = Array.from({ length: 41 }, (_, i) => 0.05 * 10 ** (i / 10));
+const bar = (label, parts, v) => `<div class="bar"><span>${label}</span><div class="track">${parts}</div><span class="v">${v}</span></div>`;
+const w = (v, max) => `width:${100 * Math.max(0, v) / max}%`;
+
+// 1. Bradley-Terry
+function bt() {
+  const a = +$("#ra").value, b = +$("#rb").value, p = bradleyTerry(a, b);
+  $("#rav").textContent = a.toFixed(1); $("#rbv").textContent = b.toFixed(1);
+  $("#pa").style.width = 100 * p + "%"; $("#pav").textContent = p.toFixed(2);
+}
+$("#ra").oninput = $("#rb").oninput = bt;
+
+// 2. reward model
+let r = [];
+function model() {
+  const n = PAIRS[+$("#n").value], wt = trainReward(makePairs(3, n));
+  r = rewards(wt);
+  const max = Math.max(1, ...r.map(Math.abs));
+  $("#nv").textContent = n; $("#n").setAttribute("aria-valuetext", n + " pairs");
+  $("#replies").innerHTML = REPLIES.map((x, i) => `<div class="reply"><p><b>#${i + 1}</b> ${x.text}</p>${bar("RM", `<i style="${w(r[i], max)}"></i>`, r[i].toFixed(1))}${bar("True", `<i class="blue" style="${w(TRUE[i], 1)}"></i>`, TRUE[i].toFixed(2))}</div>`).join("");
+  $("#rstats").innerHTML = [[Math.round(100 * mean(SEEDS.map(s => pairAccuracy(trainReward(makePairs(s, n)), HELD)))) + "%", "right, 8-seed mean"], [wt[1].toFixed(1), "weight on length"]].map(statTile).join("");
+  chart(); policy();
+}
+$("#n").oninput = model;
+
+// 3. the tuned policy
+function policy() {
+  const beta = BETAS[+$("#beta").value], pi = optimalPolicy(PI_REF, r, beta);
+  $("#betav").textContent = beta < 1 ? beta.toFixed(2) : beta.toFixed(beta < 10 ? 1 : 0); $("#beta").setAttribute("aria-valuetext", "β " + $("#betav").textContent);
+  $("#pol").innerHTML = REPLIES.map((_, i) => bar("#" + (i + 1), `<i class="ref" style="${w(PI_REF[i], 1)}"></i><i class="top" style="${w(pi[i], 1)}"></i>`, pi[i].toFixed(2))).join("");
+  $("#pstats").innerHTML = [[expect(pi, r).toFixed(2), "reward model score"], [expect(pi, TRUE).toFixed(2), "true score"], [kl(pi, PI_REF).toFixed(2), "KL from base"]].map(statTile).join("");
+  cursor(beta);
+}
+$("#beta").oninput = policy;
+
+let cur;
+function cursor(beta) { const x = X(BETAS.findIndex(b => b === beta)); cur.setAttribute("x1", x); cur.setAttribute("x2", x); }
+const X = i => 10 + (280 * i) / 40;
+function chart() {
+  const svg = $("#chart"); svg.replaceChildren();
+  const lo = Math.min(...r), hi = Math.max(...r) || 1, Y = v => 120 - 110 * v;
+  const line = (f, color, dash) => svg.append(svgEl("polyline", { points: BETAS.map((b, i) => `${X(i)},${Y(f(optimalPolicy(PI_REF, r, b)))}`).join(" "), fill: "none", stroke: color, "stroke-width": 2, "stroke-dasharray": dash || "" }));
+  svg.append(svgEl("line", { x1: 10, x2: 290, y1: Y(expect(PI_REF, TRUE)), y2: Y(expect(PI_REF, TRUE)), stroke: "var(--muted)", "stroke-dasharray": "3 3" }));
+  line(p => (expect(p, r) - lo) / (hi - lo || 1), "var(--accent)");
+  line(p => expect(p, TRUE), "var(--blue)");
+  svg.append(cur = svgEl("line", { x1: 0, x2: 0, y1: 5, y2: 120, stroke: "var(--text)", "stroke-width": 1 }));
+}
+bt(); model();
+</script>
+</body>
+</html>

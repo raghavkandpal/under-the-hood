@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What is an index?</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .bars { display: grid; grid-template-columns: 84px minmax(0, 1fr) 56px; gap: 6px 10px; align-items: center; font-size: 13px; margin-top: 10px; }
+  .bars .track { height: 14px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+  .bars .fill { display: block; height: 100%; background: var(--accent); min-width: 2px; }
+  .bars .num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.data { font-size: 13px; margin-top: 10px; } table.data td, table.data th { padding: 3px 10px; text-align: left; }
+  .chips { display: grid; grid-template-columns: repeat(auto-fill, 64px); gap: 6px; margin-top: 10px; }
+  .chips span { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 0; text-align: center; font-size: 12px; }
+  .chips span.table { background: var(--accent-soft); }
+</style>
+</head>
+<body>
+<main>
+  <h1>What is an index?</h1>
+  <p class="lede">To find one person in a long list, you can read every line, or jump to the right place because the list is sorted. A database index is a sorted copy that lets it jump.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="shape"></div>
+      <label class="inline">Person <input type="range" id="person" min="1" max="2000" value="700"> <b id="pv"></b></label></div>
+    <p class="status" id="query"></p>
+    <div class="bars" id="bars"></div>
+    <div class="scroll-x" id="rows"></div>
+  </div>
+
+  <div class="panel">
+    <b>One row among 1,000,000</b>
+    <div class="stats" id="big"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row"><label class="inline">Indexes <input type="range" id="k" min="0" max="8" value="3"> <b id="kv"></b></label></div>
+    <div class="chips" id="chips"></div>
+    <div class="stats" id="writeStats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The problem.</b> A table is rows, like a spreadsheet of people with a last name and a first name. To find every <code>Ortiz</code> (in SQL, a <code>WHERE</code> clause says which rows you want), the database has no choice but a <i>full scan</i>: read every row and check it. The cost grows in step with the table. Databases store rows in fixed-size blocks called <i>pages</i>, and reading pages is the slow part.</p>
+  <p><b>The index.</b> An index is a second, sorted copy of some columns, each entry pointing back to its row. Because it is sorted, the database can use <i>binary search</i>: look at the middle, discard the half that cannot hold the answer, repeat. A million sorted keys need at most 20 comparisons, since 2<sup>20</sup> is just over a million. Doubling the table adds at most one comparison.</p>
+  <p><b>On disk.</b> Real indexes are stored as a <a href="../btree/">B-tree</a>: each page points to about 100 pages below it, so each step down the tree narrows the search 100-fold. For 1,000,000 rows at 100 rows per page, a scan reads 10,000 pages. The index walks 4 levels of tree (three levels hold at most 999,999 keys, one short of a million) and then fetches 1 table page: 5 pages, 2,000 times fewer.</p>
+  <p><b>Column order.</b> This index is on (last name, first name): sorted by last name, and by first name within each last name, like a phone book. A search by last name jumps straight in, and last plus first narrows further. A search by first name alone can't jump in, because matching entries are scattered through the whole index, so this toy scans every row. Both <a href="https://www.sqlite.org/queryplanner.html">SQLite</a> and <a href="https://www.postgresql.org/docs/current/indexes-multicolumn.html">PostgreSQL</a> sort this way: the leftmost column comes first.</p>
+  <p><b>Many matches.</b> The search finds the first match, then reads along the sorted entries. A last name shared by dozens of people costs dozens of steps more than a full name that appears once. An index pays off when the answer is a small part of the table. When it is a large share, a scan can win, and <a href="../query-planner/">query planners</a> make that call.</p>
+  <p><b>The price.</b> Every index is another structure to keep sorted. Inserting one row writes the table and each of its indexes: with 3 indexes, 4 structures. Indexes speed up reads at the cost of slower writes and more space, so add them for the queries you run, not for every column.</p>
+  <p class="note"><b>Try it.</b> Look up a person by first name alone, then by last name. The full bar shrinks to a sliver.</p>
+  <p class="caveat">Real planners may scan the whole index or skip-scan when the leading column is missing. The 2,000 names are made up.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs, escapeHtml } from "../../shared/common.js";
+import { DEFAULTS, SHAPES, structuresPerInsert, maxCompares, makeTable, buildIndex, lookup, scanPages, indexPages } from "./what-is-an-index.js";
+chrome();
+
+const rows = makeTable(), index = buildIndex(rows), N = rows.length;
+const fmt = n => n.toLocaleString();
+let shape = "last";
+const LABELS = { last: "Last", both: "Last + first", first: "First" };
+$("#shape").setAttribute("role", "group");
+tabs($("#shape"), LABELS, shape, k => { shape = k; render(); });
+
+function render() {
+  const p = rows[+$("#person").value - 1];
+  $("#pv").textContent = p.id;
+  const cols = SHAPES[shape], filter = Object.fromEntries(cols.map(c => [c, p[c]]));
+  const r = lookup(rows, index, filter);
+  $("#query").textContent = `WHERE ${cols.map(c => `${c} = '${p[c]}'`).join(" AND ")}: ${fmt(r.matches.length)} ${r.matches.length === 1 ? "row" : "rows"}`;
+  const bar = (name, steps) => `<span>${name}</span><span class="track"><span class="fill" style="width:${(100 * steps) / N}%"></span></span><span class="num">${fmt(steps)}</span>`;
+  $("#bars").innerHTML = bar("Full scan", N) + bar(r.usedIndex ? "Index" : "No index", r.steps);
+  const shown = r.matches.slice(0, 5).map(id => rows[id - 1]);
+  $("#rows").innerHTML = `<table class="data"><tr><th>id</th><th>last</th><th>first</th></tr>${shown.map(x => `<tr><td>${x.id}</td><td>${escapeHtml(x.last)}</td><td>${escapeHtml(x.first)}</td></tr>`).join("")}</table>`;
+  $("#person").setAttribute("aria-label", `Person ${p.id}`);
+  $("#shape").setAttribute("aria-label", `Filter on ${LABELS[shape]}`);
+}
+$("#person").oninput = render;
+
+const pp = DEFAULTS.perPage, bigScan = scanPages(1e6, pp), bigIndex = indexPages(1e6, pp);
+$("#big").innerHTML = [[fmt(bigScan), "pages, full scan"], [bigIndex, "pages, index"], [fmt(bigScan / bigIndex) + "×", "fewer pages"], [maxCompares(1e6), "comparisons, binary search"]].map(statTile).join("");
+
+function writes() {
+  const k = +$("#k").value;
+  $("#kv").textContent = k;
+  $("#k").setAttribute("aria-label", `Indexes ${k}`);
+  $("#chips").innerHTML = `<span class="table">table</span>` + Array.from({ length: k }, (_, i) => `<span>index ${i + 1}</span>`).join("");
+  $("#writeStats").innerHTML = statTile([structuresPerInsert(k), "structures per insert"]);
+}
+$("#k").oninput = writes;
+render(); writes();
+</script>
+</body>
+</html>

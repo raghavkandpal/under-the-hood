@@ -2,12 +2,8 @@
 
 export const dot = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0);
 export const matvec = (M, v) => M.map(row => dot(row, v));
-export function softmax(xs, temp = 1) {
-  const fin = xs.filter(Number.isFinite);
-  if (!fin.length) return xs.map(() => 0);
-  const m = Math.max(...fin), e = xs.map(x => (Number.isFinite(x) ? Math.exp((x - m) / temp) : 0)), s = e.reduce((a, b) => a + b, 0);
-  return e.map(v => v / s);
-}
+import { softmax } from "../../shared/activations.js";
+export { softmax };
 
 /** Q, K, V: arrays of vectors. Returns { scores, weights, out }. causal: query i sees keys ≤ i. */
 export function attend(Q, K, V, { causal = false, temp = 1, scale = true } = {}) {

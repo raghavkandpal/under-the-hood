@@ -57,7 +57,8 @@
 </main>
 <script type="module">
 import { chrome, $, svgEl, statTile } from "../../shared/common.js";
-import { BTree, heightFor } from "./btree.js";
+import { BTree } from "./btree.js";
+import { heightFor } from "../../shared/height.js";
 chrome();
 
 let t, last = { visit: new Set(), split: new Set(), hit: null }, rnd = 1, nextSeq = 1;

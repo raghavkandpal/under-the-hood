@@ -1,5 +1,5 @@
 // One-time codes for two-factor login: HMAC-SHA1 → HOTP (RFC 4226) → TOTP (RFC 6238). No DOM.
-import { sha1 } from "../../shared/git.js";
+import { sha1 } from "./git.js";
 
 const hexToBytes = h => Uint8Array.from(h.match(/../g), b => parseInt(b, 16));
 export const textBytes = s => new TextEncoder().encode(s);

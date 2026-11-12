@@ -1,7 +1,8 @@
 // Logistic regression: a weighted score squashed into a probability, fitted by gradient descent on log loss. No DOM.
 // Points are { x, y, label } with label 0 or 1.
 
-export const sigmoid = z => 1 / (1 + Math.exp(-z));
+import { sigmoid } from "../../shared/activations.js";
+export { sigmoid };
 export const predict = (m, x, y) => sigmoid(m.w[0] * x + m.w[1] * y + m.b);
 /** Average log loss: small when confident and right, huge when confident and wrong. */
 export const logLoss = (m, pts) => -pts.reduce((s, p) => { const q = Math.min(1 - 1e-12, Math.max(1e-12, predict(m, p.x, p.y))); return s + (p.label ? Math.log(q) : Math.log(1 - q)); }, 0) / pts.length;
