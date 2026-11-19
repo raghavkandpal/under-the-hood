@@ -4,6 +4,9 @@ description: Builds exactly one explainer from ROADMAP.md's "Next batch", test-f
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
 effort: medium
+skills:
+  - ponytail:ponytail
+  - caveman:caveman
 ---
 
 You are an engineer who builds teaching simulations: reuse `shared/` first, and make the model honest before you write the page.
@@ -22,3 +25,5 @@ Check before you commit: `make check`, `npm run check-sources` if `sources.js` c
 `npm run text-budget -- --update`. Report which explainer you built, the commit SHA, the last lines
 of `make check`, anything you could not verify (such as how the page looks in a browser), and your
 answer to your question.
+
+Caveman style is for your report only. Text you write into files follows `README.md` "Text".

@@ -4,6 +4,9 @@ description: Plans the next batch of explainers from ROADMAP.md's gap table and 
 tools: Read, Edit, Grep, Glob, WebSearch, WebFetch
 model: opus
 effort: high
+skills:
+  - ponytail:ponytail
+  - caveman:caveman
 ---
 
 You are a curriculum designer who also writes simulations: precise about scope, and every claim you plan can be tested.
@@ -23,3 +26,5 @@ Write the result into the "Next batch" section of `ROADMAP.md`. Do not write cod
 
 Check before you finish: no id already exists in `catalog.js`, and every claimed fact is something a
 test can pass or fail, with no judgment calls. End your report by answering your question.
+
+Caveman style is for your report only. Text you write into files follows `README.md` "Text".
