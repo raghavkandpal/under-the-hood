@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How linkers work</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #cmd { font-family: ui-monospace, Menlo, monospace; font-size: 14px; margin: 8px 0; }
+  .err { color: var(--red); }
+  td.pull { color: var(--green); }
+</style>
+</head>
+<body>
+<main>
+  <h1>How linkers work</h1>
+  <p class="lede">A compiler turns each source file into an object file that has holes where it calls code defined somewhere else. The linker pairs every use of a name with one definition, lays the pieces out in memory, and fills in the holes.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="mode" aria-label="Link command"></div></div>
+    <p id="cmd"></p>
+    <p class="status" id="out" role="status"></p>
+    <div class="stats" id="stats"></div>
+    <div class="scroll-x"><table class="data" id="tbl"></table></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Names pair up.</b> In this model there are nine toy object files. <code>main.o</code> defines <code>main</code> and calls <code>area</code> and <code>print</code>. <code>geom.o</code> defines <code>area</code>, <code>io.o</code> defines <code>print</code>, and <code>fast.o</code> is a second definition of <code>area</code>. Alone, <code>main.o</code> gets two undefined-reference errors. With <code>geom.o</code> and <code>io.o</code> it links. Add <code>fast.o</code> and the link fails with a multiple-definition error naming <code>geom.o</code> and <code>fast.o</code>.</p>
+  <p><b>Archives are scanned in order.</b> <code>libgeom.a</code> holds 5 members: <code>str.o</code>, <code>shape.o</code>, <code>fmt.o</code>, <code>sq.o</code> and <code>log.o</code>. GNU-style linkers read inputs left to right and take an archive member only if it defines something that is undefined at that point. Here <code>main.o</code> needs <code>area</code>, which <code>shape.o</code> defines, and <code>shape.o</code> calls <code>square</code>, which <code>sq.o</code> defines. The output contains those 2 members and the other 3 are left out. Put the archive before <code>main.o</code> and nothing is undefined yet when it is read, so it contributes nothing and the link fails with an undefined reference to <code>area</code>. Other linkers handle the order differently.</p>
+  <p><b>Relocation fills the holes.</b> Code is placed from address 0x1000 in command-line order. The sizes in this model are 32 bytes for <code>main.o</code>, 24 for <code>geom.o</code> and <code>shape.o</code>, 16 for <code>io.o</code> and 8 for <code>sq.o</code>. Each call has a 4-byte field and an addend A of &minus;4. For a PC-relative call the linker writes S + A &minus; P, where S is the address of the target and P is the address of the field. In Eli Bendersky's worked example, S = 0x0012e49c, A = &minus;4 and P = 0x0012e4b4 give 0xffffffe4, which is &minus;0x1c as a signed 32-bit number.</p>
+  <p><b>Moving the callee.</b> Linking <code>main.o io.o geom.o</code> puts <code>area</code> at 0x1030 and the patched field for it is 0x00000024. Insert <code>sq.o</code> before <code>geom.o</code> and <code>area</code> moves to 0x1038, so that field becomes 0x0000002c. The field for <code>print</code> stays 0x00000008, because <code>io.o</code> did not move.</p>
+  <div class="note"><b>Try it.</b> Compare "Archive after" and "Archive first", then "Callee moved" and "Three objects".</div>
+  <p class="caveat">This is static linking of invented object files; dynamic linking, the PLT and GOT, position-independent code, weak symbols, linker scripts and real ELF layouts are left out. Archive rules in this model follow GNU-style linkers and the cited articles, and other linkers differ.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs } from "../../shared/common.js";
+import { link, message, hex } from "./linkers.js";
+chrome();
+
+const MODES = {
+  alone: ["Alone", ["main.o"]],
+  three: ["Three objects", ["main.o", "geom.o", "io.o"]],
+  dup: ["Duplicate", ["main.o", "geom.o", "io.o", "fast.o"]],
+  after: ["Archive after", ["main.o", "io.o", "libgeom.a"]],
+  first: ["Archive first", ["libgeom.a", "main.o", "io.o"]],
+  moved: ["Callee moved", ["main.o", "io.o", "sq.o", "geom.o"]],
+};
+let mode = "three";
+tabs($("#mode"), Object.fromEntries(Object.entries(MODES).map(([k, v]) => [k, v[0]])), mode, k => { mode = k; render(); });
+function render() {
+  const inputs = MODES[mode][1], r = link(inputs);
+  $("#cmd").textContent = "ld " + inputs.join(" ");
+  $("#out").innerHTML = r.ok ? "Linked." : r.errors.map(e => `<span class="err">${message(e)}</span>`).join("<br>");
+  $("#stats").innerHTML = [[r.linked.length, "objects linked"], [r.errors.length, "errors"]].map(statTile).join("");
+  $("#tbl").innerHTML = r.ok
+    ? "<tr><th>In</th><th>Field</th><th>S</th><th>A</th><th>P</th><th>Written</th></tr>" + r.patches.map(p => `<tr><td>${p.object}</td><td>${p.symbol}</td><td>${hex(p.S, 4)}</td><td>${p.A}</td><td>${hex(p.P, 4)}</td><td>${hex(p.value)}</td></tr>`).join("")
+    : "<tr><th>Linked so far</th></tr><tr><td>" + (r.linked.join(" ") || "none") + "</td></tr>";
+}
+render();
+</script>
+</body>
+</html>

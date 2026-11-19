@@ -71,6 +71,7 @@
 "knn":{"helper":12,"caveat":27},
 "kv-cache":{"helper":15,"caveat":36},
 "linear-regression":{"helper":38,"caveat":37},
+"linkers":{"helper":14,"caveat":43},
 "load-balancing":{"helper":38,"caveat":45},
 "logistic-regression":{"helper":27,"caveat":19},
 "lora":{"helper":31,"caveat":31},
