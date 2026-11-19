@@ -4,6 +4,7 @@
 "balanced-trees":{"helper":25,"caveat":22},
 "bayes":{"helper":21,"caveat":37},
 "beam-search":{"helper":20,"caveat":24},
+"bellman-ford":{"helper":39,"caveat":47},
 "bgp":{"helper":36,"caveat":28},
 "big-o":{"helper":8,"caveat":27},
 "birthday-paradox":{"helper":23,"caveat":23},

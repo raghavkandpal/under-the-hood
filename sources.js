@@ -259,6 +259,8 @@ export const SOURCES = {
     ["Game-tree complexity", "https://en.wikipedia.org/wiki/Game_complexity", "encyclopedia", "Wikipedia"]],
   "max-flow": [["Algorithms, 4th ed., 6.4: Maximum Flow", "https://algs4.cs.princeton.edu/64maxflow/", "book", "Sedgewick & Wayne"],
     ["Maximum flow: Ford-Fulkerson and Edmonds-Karp", "https://cp-algorithms.com/graph/edmonds_karp.html", "article", "cp-algorithms"]],
+  "bellman-ford": [["Algorithms, 4th ed., 4.4: Shortest Paths", "https://algs4.cs.princeton.edu/44sp/", "book", "Sedgewick & Wayne"],
+    ["Bellman-Ford algorithm", "https://cp-algorithms.com/graph/bellman_ford.html", "article", "cp-algorithms"]],
   "pathfinding": [["Introduction to the A* Algorithm", "https://www.redblobgames.com/pathfinding/a-star/introduction.html", "article", "Red Blob Games"],
     ["Dijkstra's algorithm", "https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm", "encyclopedia", "Wikipedia"]],
   "pagerank": [["The PageRank Citation Ranking: Bringing Order to the Web", "http://ilpubs.stanford.edu:8090/422/", "paper", "Page, Brin, Motwani, Winograd"],
