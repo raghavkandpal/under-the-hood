@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Wi-Fi shares the air</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  /* Page-specific styles only. Shared: .row .tabs .seg .stats .stat .panel .controls .status .legend .caveat .scroll-x (shared/style.css). No helper text above the first h2: README › Text */
+</style>
+</head>
+<body>
+<main>
+  <h1>How Wi-Fi shares the air</h1>
+  <p class="lede">Every device in a room shares one stretch of air, and a radio can't listen while it talks. So Wi-Fi works by manners: wait for quiet, then wait a random moment more, and hope nobody picked the same one.</p>
+
+  <h2>Taking turns</h2>
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Stations <input type="range" id="n" min="2" max="20" value="10"> <b id="nv"></b></label>
+      <label class="inline"><input type="checkbox" id="dbl"> Double after collision</label>
+    </div>
+    <div class="stats" id="contend"></div>
+  </div>
+  <p><b>Random backoff.</b> A station with a frame to send picks a random slot out of 16 and counts it down while the air is quiet. The lowest slot sends. Two stations collide only when they tie for lowest. For two stations that is 1 in 16: of the 256 possible pairs of slots, 16 match, so 6.25%. More stations means more ties, and with a fixed window of 16 slots it climbs fast: in this model about 6% of rounds collide with 2 stations, 15% with 5, 28% with 10 and 50% with 20.</p>
+  <p><b>Doubling.</b> After a collision a station doubles its window, up to 1,024 slots, and goes back to 16 after a success. A crowd that keeps colliding spreads itself out: with 20 stations about 23% of rounds collide instead of 50%. The price is that a station that lost waits longer.</p>
+  <div class="note"><b>Try it.</b> Set 20 stations with and without doubling, then drop to 2 and watch the two settings come together at 5 to 6%.</div>
+
+  <h2>Hidden stations</h2>
+  <div class="panel">
+    <div class="row">
+      <div class="seg" id="hear"></div>
+      <label class="inline"><input type="checkbox" id="rts"> RTS/CTS</label>
+    </div>
+    <div class="stats" id="hidden"></div>
+  </div>
+  <p><b>The hidden node.</b> Stations A and C both reach the access point, but they are too far apart to hear each other. Each sees a quiet channel while the other is mid-frame, so each sends, and the two frames overlap at the access point. In this model, when each station gets a new frame with a 1% chance every slot, a pair that hears each other loses 2 of 309 frames. The hidden pair loses 200 of 402, half of what it sends, and 14% of the air carries a frame that is lost.</p>
+  <p><b>RTS/CTS.</b> Before a long frame, the station sends a short request to send (RTS). The access point answers with a clear to send (CTS), which both stations hear, and the one that was hidden stays quiet for that frame. Hidden stations can still collide, but only on the short RTS, so the air lost to collisions falls from 14% to under 0.1%. In this model RTS is 2 slots and a data frame is 20.</p>
+
+  <h2>One slow device</h2>
+  <div class="panel">
+    <div class="row"><div class="seg" id="slow"></div></div>
+    <div class="stats" id="speed"></div>
+  </div>
+  <p><b>Equal frames, not equal time.</b> Wi-Fi gives each station the same number of frames, not the same time on the air. A frame at 6 Mbit/s takes nine times as long as one at 54. With one station at each, each delivers 1 / (1/6 + 1/54) = 5.4 Mbit/s, 10.8 in total. Two stations at 54 get 27 each. The slow station costs the fast one four fifths of its speed.</p>
+  <p class="caveat">Simplified: slots are abstract, not 802.11 timings, there is no interference or encryption, and the first demo redraws its backoff every round where real Wi-Fi pauses the count while the air is busy. The hidden-node gap depends on the 1% load: if both stations always have a frame, the two pairs lose about 11% and 12% of their frames.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs } from "../../shared/common.js";
+import { contend, twoStations, throughput } from "./wifi.js";
+chrome();
+
+const pct = (x, d = 1) => (x * 100).toFixed(d) + "%";
+let hear = "hear", slow = 6;
+tabs($("#hear"), { hear: "Hear each other", hidden: "Hidden" }, hear, k => { hear = k; render(); });
+tabs($("#slow"), { 6: "Slow 6", 12: "Slow 12", 24: "Slow 24", 54: "Slow 54" }, String(slow), k => { slow = +k; render(); });
+function render() {
+  const n = +$("#n").value;
+  $("#nv").textContent = n;
+  const c = contend({ n, rounds: 10000, doubling: $("#dbl").checked });
+  $("#contend").innerHTML = [[pct(c.fraction), "rounds collide"], [c.collisions, "collisions"]].map(statTile).join("");
+  const t = twoStations({ hidden: hear === "hidden", rts: $("#rts").checked, slots: 20000 });
+  $("#hidden").innerHTML = [[`${t.lostFrames} of ${t.sent}`, "frames lost"], [pct(t.lostAirtime), "air lost"], [t.delivered, "delivered"]].map(statTile).join("");
+  const s = throughput([slow, 54]);
+  $("#speed").innerHTML = [[s.each.toFixed(1), "Mbit/s each"], [s.total.toFixed(1), "Mbit/s total"]].map(statTile).join("");
+}
+["#n"].forEach(s => ($(s).oninput = render)); ["#dbl", "#rts"].forEach(s => ($(s).onchange = render));
+render();
+</script>
+</body>
+</html>

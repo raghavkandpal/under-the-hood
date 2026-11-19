@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exactly-once processing</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .stat.bad b { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Exactly-once processing</h1>
+  <p class="lede">A consumer reads 100 payments from a Kafka-style log and adds them up, then dies partway through. Whether the total comes out right depends on the order of two steps: saving its position and doing the work.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="mode"></div><div class="seg" id="dedupe"></div></div>
+    <div class="row"><label class="inline">Crash after message <b id="pv"></b> <input type="range" id="p" min="1" max="100" value="25" aria-label="Crash after message"></label></div>
+    <div class="stats" id="stats" style="--stat-min:130px"></div>
+    <p class="status" id="out" aria-live="polite"></p>
+  </div>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="pmode"></div></div>
+    <div class="stats" id="pstats" style="--stat-min:150px"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Where the position is saved.</b> The consumer saves its offset (its position in the log) every 10 messages in this model. If it saves the offset first and then processes, a crash loses the unprocessed rest of the batch: at-most-once, between 0 and 9 messages missing. If it processes first and saves after, a crash replays everything since the last save: at-least-once, between 1 and 10 extra messages counted. Kafka's documentation describes both orders.</p>
+  <div class="note"><b>Try it:</b> crash after message 25. Commit first has saved offset 30 and counts 95, five lost. Process first last saved 20 and counts 105, five twice. Transaction counts 100.</div>
+  <p><b>One transaction.</b> Kafka can write the consumer's output and its new offset in a single transaction, so either both happen or neither does. A crash throws away the open batch and the restart redoes it, and the sink counts exactly 100 messages and the true total at every crash point.</p>
+  <p><b>Dropping duplicates.</b> A sink that remembers each (partition, offset) it has applied can run at-least-once and still count exactly 100, because a replayed message has the same offset. Remembering the message content instead is wrong here: the log holds two identical payments on purpose, the second is a real payment, and the content check drops it. The sink comes up one short, 99.</p>
+  <p><b>The producer side.</b> A producer whose acknowledgement is lost resends, and if the first copy had arrived the log now holds it twice. With 1 ack in 5 lost, this model's seeded run appends 23 extra copies and the log holds 123 messages. Kafka's idempotent producer attaches a producer ID and a sequence number to each message, and the broker drops any resend it has already appended: the log holds 100, with the same 23 resends.</p>
+  <p><b>The edge.</b> Exactly-once covers what happens inside the pipeline. An email sent while processing is outside the transaction, so it goes out 100 plus the extra replayed messages, at the same crash points as at-least-once, even in transaction mode. The effect needs its own idempotency key, as in <a href="../idempotency/">idempotency keys</a>. Flink reaches the same result by taking consistent snapshots of its operators' state (Carbone et al.); that algorithm is not modelled here.</p>
+  <p class="caveat">Simplified: one partition, one consumer, one crash and one restart, and the batch of 10 is this model's choice. Real Kafka transactions use a coordinator and fence old producers (see <a href="../fencing-tokens/">fencing tokens</a>), which this page leaves out.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs } from "../../shared/common.js";
+import { run, produce, TRUE_SUM, N } from "./exactly-once.js";
+chrome();
+
+let mode = "process-first", dedupe = "none", pmode = false;
+const MODES = { "commit-first": "Commit first", "process-first": "Process first", transaction: "Transaction" };
+function render() {
+  const p = +$("#p").value, r = run(mode, p, dedupe);
+  $("#pv").textContent = p;
+  const off = r.count - N;
+  $("#stats").innerHTML = [
+    [r.count, "messages counted"],
+    [r.sum.toLocaleString("en-US"), `sum, true ${TRUE_SUM.toLocaleString("en-US")}`],
+    [r.emails, "emails sent"],
+  ].map(statTile).join("");
+  $("#stats").children[0].classList.toggle("bad", off !== 0);
+  $("#stats").children[1].classList.toggle("bad", r.sum !== TRUE_SUM);
+  $("#stats").children[2].classList.toggle("bad", r.emails !== N);
+  $("#out").textContent = `Crash after message ${p}; offset ${r.committedAtCrash} saved. ` +
+    (off === 0 ? "Count correct." : off > 0 ? `${off} counted twice.` : `${-off} lost.`);
+  const q = produce({ idempotent: pmode });
+  $("#pstats").innerHTML = [[q.length, "messages in the log"], [q.resends, "resends"]].map(statTile).join("");
+  $("#pstats").firstElementChild.classList.toggle("bad", q.length !== N);
+}
+tabs($("#mode"), MODES, mode, k => { mode = k; render(); });
+tabs($("#dedupe"), { none: "Keep all", offset: "Dedupe by offset", content: "Dedupe by content" }, dedupe, k => { dedupe = k; render(); });
+tabs($("#pmode"), { plain: "Plain producer", id: "Producer ID" }, "plain", k => { pmode = k === "id"; render(); });
+$("#p").oninput = render;
+render();
+</script>
+</body>
+</html>

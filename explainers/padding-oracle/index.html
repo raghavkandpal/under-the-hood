@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Padding oracle attacks</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  table.run { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  table.run th, table.run td { padding: 4px 8px; border-bottom: 1px solid var(--border); text-align: left; font-family: ui-monospace, monospace; font-size: 13px; }
+  .bad { color: var(--red); font-weight: 700; } .good { color: var(--green); font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Padding oracle attacks</h1>
+  <p class="lede">A server that only says whether the padding of a message was valid, and nothing else, still leaks the whole message: the attacker forges the previous block, watches the yes or no, and reads the plaintext one byte at a time without the key.</p>
+
+  <div class="panel">
+    <div class="row"><label class="inline">Message <input id="msg" value="meet me at dawn" maxlength="24" size="26"></label>
+      <div class="tabs" id="mode"></div>
+      <button id="iv">New IV</button></div>
+    <div class="stats" id="stats"></div>
+    <div class="scroll-x"><table class="run" aria-label="One row per ciphertext block">
+      <thead><tr><th>Previous</th><th>Cipher</th><th>Queries</th><th>Recovered</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <p class="status" id="status" role="status"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Padding.</b> CBC needs whole blocks, so the sender pads the message: k − (length mod k) bytes, each holding that count. In this model the block is k = 2 bytes, so a 7-byte message gets one <code>01</code> and an 8-byte message gets a whole extra block <code>02 02</code>. A block ending <code>01 02</code> is invalid. The receiver strips the padding, and many servers answer differently when it is wrong. <a href="https://www.rfc-editor.org/rfc/rfc5652.html">RFC 5652</a> defines the rule.</p>
+  <p><b>The lever.</b> CBC decrypts a block, then XORs the result with the previous ciphertext block (the IV for the first). So XORing a value d into byte j of that previous block XORs d into byte j of the plaintext, and the attacker controls the previous block. The attacker sends a forged previous block with the one target block and tries all 256 values for its last byte. When the server says the padding is valid, the plaintext ended in <code>01</code>, so the unknown decrypted byte is the guess XOR 1 and the real plaintext byte follows by XORing with the true previous block.</p>
+  <p><b>The rest.</b> Next the attacker forces the last byte to <code>02</code> and tries all 256 values for the byte before it. Only <code>02 02</code> is valid, which reveals that byte too. One check query per block rules out the lucky case where the first byte already read <code>02</code> and <code>02 02</code> passed instead of <code>01</code>. That is at most 256 guesses per byte plus one check per block, about 128 per byte on average. Black and Urtubia put the cost at about 128 queries per byte for real ciphers. In this model the default message takes 2,092 queries for its 16 bytes, about 131 per byte, and each new IV gives a different count around that average. The IV travels with the message, so the first block falls too.</p>
+  <p><b>The fix.</b> Add a MAC over the IV and ciphertext and check it before decrypting. Every forged request now fails the MAC, so all 256 guesses get the same answer and the attacker recovers nothing. This is why <a href="https://www.usenix.org/legacy/event/sec02/full_papers/black/black_html/index.html">Black and Urtubia</a> argued for authenticated encryption, and what <a href="../cipher-modes/">GCM</a> does.</p>
+  <p class="note"><b>Try it:</b> switch to CBC + MAC, then back, and compare the answers seen and the bytes recovered. Type an 8-byte message and see the extra block.</p>
+  <p class="caveat">The blocks here are 2 bytes and the cipher is a toy, not secure; real AES blocks are 16 bytes, so real padding is 1 to 16 bytes and the maths is the same per byte. The MAC here is HMAC-SHA1 with a key derived from the cipher key, for teaching only.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs, escapeHtml } from "../../shared/common.js";
+import { makeServer, attack, ivFor } from "./padding-oracle.js";
+import { textBytes } from "../../shared/totp.js";
+chrome();
+
+const KEY = 0xC0FFEE, hex = b => [...b].map(x => x.toString(16).padStart(2, "0")).join(" "), safe = x => (x >= 32 && x < 127 ? escapeHtml(String.fromCharCode(x)) : "·");
+let mode = "plain", seed = 2;
+tabs($("#mode"), { plain: "CBC", mac: "CBC + MAC" }, mode, k => { mode = k; render(); });
+function render() {
+  const s = makeServer(KEY, { mac: mode === "mac" }), iv = ivFor(seed), m = s.encrypt(textBytes($("#msg").value), iv), r = attack(s.oracle, m.iv, m.ct, m.tag);
+  const rows = [];
+  for (let i = 0; i < m.ct.length; i += 2) {
+    const prev = i ? m.ct.slice(i - 2, i) : Uint8Array.of(iv >> 8, iv & 255), got = r.plain.slice(i, i + 2), q = r.perBlock[i / 2];
+    rows.push(`<tr><td>${hex(prev)}</td><td>${hex(m.ct.slice(i, i + 2))}</td><td>${q ?? "256, none accepted"}</td><td>${got.length ? hex(got) + " " + [...got].map(safe).join("") : "?"}</td></tr>`);
+  }
+  $("#rows").innerHTML = rows.join("");
+  const n = r.plain.length, text = r.text;
+  $("#stats").innerHTML = [[r.queries, "queries"], [n ? (r.queries / n).toFixed(0) : "n/a", "per byte"], [n, "bytes recovered"], [[...r.answers].map(a => a ? "yes" : "no").sort().reverse().join(" and "), "answers seen"]].map(statTile).join("");
+  $("#status").innerHTML = text ? `<span class="good">Recovered: ${[...text].map(safe).join("")}</span>` : n ? "" : `<span class="bad">Every guess got the same answer. Nothing recovered.</span>`;
+}
+$("#msg").oninput = render;
+$("#iv").onclick = () => { seed++; render(); };
+render();
+</script>
+</body>
+</html>

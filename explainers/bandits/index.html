@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multi-armed bandits</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #chart { width: 100%; height: auto; display: block; }
+  #chart .grid { stroke: var(--border); }
+  #chart text { fill: var(--muted); font-size: 11px; }
+  #chart .line { fill: none; stroke: var(--accent); stroke-width: 2; }
+  input[type=range] { accent-color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Multi-armed bandits</h1>
+  <p class="lede">Two page designs convert at slightly different rates and you don't know which is better. Splitting traffic evenly learns the answer but keeps showing the worse design; a bandit shifts traffic toward the better one while it is still learning.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="mode" aria-label="Policy"></div>
+      <label class="inline">Seed <input type="range" id="seed" min="1" max="200" value="1"> <b id="sv"></b></label></div>
+    <svg id="chart" viewBox="0 0 400 160" role="img" aria-label="Share of visitors shown design B, per 250 visitors">
+      <title>Share of visitors shown design B, per 250 visitors</title>
+      <g class="grid"><line x1="40" x2="390" y1="10" y2="10"/><line x1="40" x2="390" y1="70" y2="70"/><line x1="40" x2="390" y1="130" y2="130"/></g>
+      <text x="34" y="14" text-anchor="end">100%</text><text x="34" y="74" text-anchor="end">50%</text><text x="34" y="134" text-anchor="end">0%</text>
+      <text x="40" y="150">0</text><text x="390" y="150" text-anchor="end">10,000 visitors</text>
+      <polyline class="line" id="line" points=""/>
+    </svg>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Design A converts at 10%, design B at 12%.</b> In this model, 10,000 visitors arrive one at a time and each is shown one design. Every visit either converts or not. Against always showing B, a 50/50 split loses 5,000 &times; 0.02 = 100 expected conversions. That loss is the regret.</p>
+  <p><b>Beliefs as a Beta curve.</b> Start each design at Beta(1, 1), a flat guess. Every conversion adds 1 to the first number and every miss adds 1 to the second. After 7 conversions in 10 visits you have Beta(8, 4), whose mean is 8/12 &asymp; 0.667.</p>
+  <p><b>Thompson sampling.</b> For each visitor, draw one plausible rate from each design's Beta curve and show the design with the higher draw. A design that looks better is drawn from more often, and an uncertain one still gets a turn. Over the 200 seeded runs here (seeds 1 to 200), the mean regret is about 23 conversions, against 100 for the split.</p>
+  <p><b>Greedy gets stuck.</b> Greedy shows each design once, then always the one with the higher observed rate. An early lucky streak on A is never corrected, because B stops getting visits. Greedy sends most traffic to the worse design in 174 of the 200 runs and Thompson sampling in 2. The 50/50 split never does. Greedy's mean regret is about 174, worse than the split.</p>
+  <p><b>The price.</b> Thompson sampling shows the better design more over time: on seed 1, 72.9% of the first 1,000 visitors and 96.4% of the last 1,000. The worse design gets fewer visits, so its estimate is vaguer. On seed 1, A's 95% interval is 4.7 points wide under Thompson sampling and 1.6 points wide under the split.</p>
+  <div class="note"><b>Try it.</b> Pick Greedy and slide through seeds. Seed 1 is atypical: greedy happens to lock onto B there. Most seeds lock onto A.</div>
+  <p class="caveat">In this model the rates are fixed, ties in greedy go to design A, and the interval is a normal approximation; the 200 runs and seeds are the only randomness. This page makes no claim about any real testing platform.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs } from "../../shared/common.js";
+import { run, share, interval } from "./bandits.js";
+chrome();
+
+let mode = "thompson";
+tabs($("#mode"), { split: "50/50 split", greedy: "Greedy", thompson: "Thompson" }, mode, k => { mode = k; render(); });
+function render() {
+  const seed = +$("#seed").value, r = run(mode, seed), w = interval(r.wins[0], r.visits[0]).width;
+  $("#sv").textContent = seed;
+  const pts = [];
+  for (let i = 0; i < 40; i++) pts.push(`${(40 + (i + 0.5) * 350 / 40).toFixed(1)},${(130 - 120 * share(r.choices, i * 250, i * 250 + 250)).toFixed(1)}`);
+  $("#line").setAttribute("points", pts.join(" "));
+  $("#stats").innerHTML = [[r.visits[0].toLocaleString(), "A visits"], [r.visits[1].toLocaleString(), "B visits"], [r.wins[0] + r.wins[1], "conversions"], [r.regret.toFixed(1), "regret"], [(w * 100).toFixed(1) + " pts", "A interval"]].map(statTile).join("");
+}
+$("#seed").oninput = render;
+render();
+</script>
+</body>
+</html>

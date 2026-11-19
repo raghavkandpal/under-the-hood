@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Negative weights and Bellman–Ford</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  svg.fig { width: 100%; height: auto; display: block; }
+  .fig .e { stroke: var(--muted); fill: none; stroke-width: 1.5; }
+  .fig .e.cyc { stroke: var(--red); stroke-width: 2.5; }
+  .fig .ar { fill: var(--muted); }
+  .fig .n { fill: var(--surface-2); stroke: var(--control-border); stroke-width: 1.5; }
+  .fig text { fill: var(--text); font-size: 12px; text-anchor: middle; }
+  .fig .w { fill: var(--muted); }
+  .fig .cyc-t { fill: var(--red); font-weight: 600; }
+  .stat.bad b { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Negative weights and Bellman–Ford</h1>
+  <p class="lede">Dijkstra's shortest-path search is only right when no edge is negative. Bellman–Ford relaxes every edge over and over instead, which is slower and survives negative weights, and a round that still improves something exposes a negative cycle.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="graph"></div></div>
+    <div class="row"><label class="inline">Round <b id="rv"></b> <input type="range" id="r" min="0" max="1" value="1" aria-label="Round"></label></div>
+    <svg class="fig" id="fig" viewBox="0 0 480 200" role="img" aria-label="Graph with edge weights and the distance Bellman–Ford has found to each node">
+      <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ar" d="M0 0L10 5L0 10z"/></marker></defs>
+      <g id="g"></g>
+    </svg>
+    <div class="stats" id="stats" style="--stat-min:140px"></div>
+    <p class="status" id="out" aria-live="polite"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Why Dijkstra breaks.</b> Dijkstra settles the nearest node and never looks at it again, which is safe only if a longer route can never turn out shorter. Take S→A 2, S→B 5 and B→A −4. The version taught in textbooks, which settles each node once, settles A at 2 before it reaches B, so it reports A = 2. The true shortest route is S→B→A at 1. Versions that put a node back in the queue when it improves get this right but can take exponential time in the worst case.</p>
+  <div class="note"><b>Try it:</b> on Classic, the stats name A = 2 as Dijkstra's answer and Round 1 shows the true A = 1. Then open Chain back to front and step through the rounds: one new node is reached per round.</div>
+  <p><b>Relax everything.</b> Bellman–Ford keeps a distance for each node and, each round, goes through every edge u→v and lowers the distance to v if going through u is shorter. After round k every shortest route that uses at most k edges is correct, so V − 1 rounds are enough. Successful relaxations can therefore total at most (V − 1) × E: 6 on Classic (3 nodes, 3 edges), 25 on the 6-node chain (5 edges, 5 successful relaxations).</p>
+  <p><b>Edge order.</b> In this model the edges are relaxed in the order they are listed, and that order decides how many rounds do work. The chain N0→N1→…→N5 listed front to back is solved in 1 changing round, because each relaxation feeds the next one in the same pass. Listed back to front, only one new node is reached per round, so 5 rounds change something. Both finish with the same distances and the same 5 successful relaxations. The worst case, V − 1 rounds, is what the bound counts; a lucky order is not a guarantee. A round that changes nothing ends the run early, so the chain stops after round 2 front to back and round 6 back to front.</p>
+  <p><b>Negative cycles.</b> If a cycle's weights sum below 0, going around it again always shortens the route, and there is no shortest path. Then a relaxation still succeeds in round V. Stepping back along each node's predecessor V times must land on the cycle, and following the predecessors from there returns it. In Negative loop that is the loop through A, B and C (the tile starts it at C) with weights 1, −3 and 1, a sum of −1, and the run makes 21 successful relaxations against a bound of 20.</p>
+  <p><b>Arbitrage.</b> Give each exchange rate the weight −ln(rate). A path's weights then add up to −ln of the product of its rates, so a negative cycle is a loop of trades that ends with more than it started. The page's four currencies have invented rates, with no fees and no real market behind them. USD→EUR 0.90, EUR→GBP 0.85 and GBP→USD 1.32 multiply to 1.0098, a weight of −0.0098, and Bellman–Ford finds that loop. Of the 20 simple cycles through the 4 currencies, 4 pay more than they cost. Lowering the GBP→USD rate by 1%, to 1.3068, drops that loop to about 0.9997 and removes every one of the 4.</p>
+  <p class="caveat">Simplified: the Dijkstra here is the textbook settle-once variant, the exchange rates are invented and every trade is free and unlimited, and counts such as 5 changing rounds hold for the edge orders shown. The distance-vector version of this algorithm, run by routers, is in <a href="../routing/">internet routing</a>.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs } from "../../shared/common.js";
+import { GRAPHS, currencyGraph, cycleRate, cycleWeight, bellmanFord, dijkstraOnce } from "./bellman-ford.js";
+chrome();
+
+const VIEWS = {
+  classic: ["Classic", GRAPHS.classic],
+  "chain-front": ["Chain front to back", GRAPHS["chain-front"]],
+  "chain-back": ["Chain back to front", GRAPHS["chain-back"]],
+  loop: ["Negative loop", GRAPHS.loop],
+  fx: ["Currencies", currencyGraph()],
+  "fx-cut": ["GBP→USD −1%", currencyGraph([2, 0])],
+};
+const fmt = x => (x === Infinity ? "∞" : String(+x.toFixed(3)));
+let view = "classic";
+
+function line(a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
+  const s = [a[0] + ux * 18 + nx * 6, a[1] + uy * 18 + ny * 6], e = [b[0] - ux * 18 + nx * 6, b[1] - uy * 18 + ny * 6];
+  return { d: `M${s} L${e}`, t: [(s[0] + e[0]) / 2 + nx * 8, (s[1] + e[1]) / 2 + ny * 8] };
+}
+
+function render(resetRound) {
+  const g = VIEWS[view][1], res = bellmanFord(g), n = res.rounds.length;
+  const rin = $("#r");
+  if (resetRound) { rin.max = n; rin.value = n; }
+  const r = +rin.value, dist = r ? res.rounds[r - 1].dist : g.nodes.map((_, i) => (i ? Infinity : 0));
+  $("#rv").textContent = r;
+  const cyc = res.cycle, onCyc = (u, v) => cyc && cyc.some((x, i) => x === u && cyc[(i + 1) % cyc.length] === v);
+  const edges = g.edges.map(([u, v, w]) => {
+    const c = line(g.pos[u], g.pos[v]), lab = onCyc(u, v) || !g.rates;
+    return `<path class="e${onCyc(u, v) ? " cyc" : ""}" d="${c.d}" marker-end="url(#arrow)"/>` +
+      (lab ? `<text class="w${onCyc(u, v) ? " cyc-t" : ""}" x="${c.t[0]}" y="${c.t[1] + 4}">${g.rates ? +Math.exp(-w).toFixed(4) : w}</text>` : "");
+  }).join("");
+  const nodes = g.nodes.map((name, i) => `<circle class="n" cx="${g.pos[i][0]}" cy="${g.pos[i][1]}" r="16"/>` +
+    `<text x="${g.pos[i][0]}" y="${g.pos[i][1] + 4}">${name.length > 2 ? name.slice(0, 3) : name}</text>` +
+    (g.rates ? "" : `<text class="w" x="${g.pos[i][0]}" y="${g.pos[i][1] + 34}">${fmt(dist[i])}</text>`)).join("");
+  $("#g").innerHTML = edges + nodes;
+
+  const V = g.nodes.length;
+  let items;
+  if (g.rates) {
+    const p = cyc ? cycleRate(g, cyc) : null;
+    items = [[cyc ? cyc.map(i => g.nodes[i]).join("→") + "→" + g.nodes[cyc[0]] : "none", "cycle found"],
+      [p ? p.toFixed(4) : "–", "rate product"], [`${res.relaxations} / ${res.bound}`, "relaxations / bound"]];
+  } else {
+    const dj = dijkstraOnce(g), wrong = g.nodes.filter((_, i) => dj[i] !== res.dist[i]);
+    items = [[`${res.changingRounds} of ${n}`, "rounds that changed something"], [`${res.relaxations} / ${res.bound}`, "relaxations / bound"]];
+    if (!cyc) items.push([wrong.length ? wrong.map(w => `${w} = ${fmt(dj[g.nodes.indexOf(w)])}`).join(", ") : "none", "Dijkstra wrong at"]);
+    else items.push([cyc.map(i => g.nodes[i]).join("→") + "→" + g.nodes[cyc[0]], "cycle found"]);
+  }
+  $("#stats").innerHTML = items.map(statTile).join("");
+  const last = $("#stats").lastElementChild;
+  last.classList.toggle("bad", !!cyc || (!g.rates && last.firstElementChild.textContent !== "none"));
+  $("#out").textContent = cyc ? `Round ${n} still relaxed an edge: a negative cycle, total weight ${+cycleWeight(g, cyc).toFixed(4)}.`
+    : `Settled after ${n} rounds; the last one changed nothing.`;
+}
+tabs($("#graph"), Object.fromEntries(Object.entries(VIEWS).map(([k, v]) => [k, v[0]])), view, k => { view = k; render(true); });
+$("#r").oninput = () => render(false);
+render(true);
+</script>
+</body>
+</html>

@@ -221,6 +221,133 @@ Each spec gives the scaffold line, prereqs, where it goes in `PATHS`, sources (f
   3. An index on (last_name, first_name) serves `last = ?` and `last = ? AND first = ?`, but `first = ?` alone falls back to a full scan.
   4. Writes pay: an insert into a table with 3 indexes updates 4 structures (1 + k).
 
+## Next batch: batch 14 (planned, on `explainers/batch-14`)
+
+Nine from the gap table, one per open gap: syscalls (systems: interrupts and syscalls), wifi (networking intro), transactions (databases intro), exactly-once (distributed: exactly-once streams), padding-oracle (security deep dive), bellman-ford (algorithms deep dive), bandits (the statistics deep dive), shell-expansion and linkers (tools intro and deep). ML is balanced and gets none. Same flow as batch 13: `tdd` per module, `code-review` plus `ponytail-review` before the PR, `pr` for the body.
+
+Each spec gives the scaffold line, prereqs, path, sources (first one primary; **new domain** marks a host not yet in `TRUSTED`), reuse, the facts with the test that pins each, and what stays out. Numbers marked "printed" come from a seeded run: the generator prints them first, the test pins them, and the prose copies them. Model constants (slot counts, frame sizes, costs) are the page's own; the prose says "in this model" and never presents them as values from a standard.
+
+### Build result (2026-11-19)
+All nine built and checked in one session: no agents after the first fix rounds. Agent evaluators passed wifi (a5bcefc) and failed the rest in round 1; fixes were applied (transactions, shell-expansion, syscalls) and the unevaluated five (exactly-once, padding-oracle, bellman-ford, bandits, linkers) were checked by the main session against their reports, `make check` (807 pass) and the phone-width browser sweep (165 pages, bad: [] after bellman-ford's graph picker became wrapping `.tabs`). Fixes found late: padding-oracle escapes the recovered text, bellman-ford names the cycle from C as the tile shows it.
+
+Where the build departed from the plan:
+- syscalls: the call number is in `eax` (syscall(2)); kernel work is free and one instruction is 1 ms in this model; exit is itself a call, so the page counts `write` and `clock_gettime` calls.
+- linkers: fact 2 as planned failed on `print`, not `area`, so the page uses `main.o io.o libgeom.a` and `libgeom.a main.o io.o`; fact 3's chain lives in archive members `shape.o` and `sq.o` because `geom.o` must link alone for fact 1.
+- padding-oracle: the page's default IV seed is 2, not 1 (seed 1 gave an atypically low 92 queries per byte); the prose says counts vary around about 128.
+- wifi: stations get a new frame with a 1% chance per slot; with always-sending stations the hidden gap vanishes (about 11% vs 12%), and the caveat says so.
+- bandits: thresholds held (Thompson mean regret 22.6; Thompson ran mostly on the worse arm in 2 of 200 runs, greedy in 174, with ties going to the worse arm A).
+
+### 1. `syscalls`: System calls and interrupts
+- **Scaffold:** `npm run new -- syscalls "System calls and interrupts" systems deep operating-systems`. Prereqs: processes. Path `machine`: after processes.
+- **Sources:** OSTEP ch. 6, Mechanism: Limited Direct Execution, https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf (book; trap, trap table, user and kernel mode, timer interrupt); syscall(2), https://man7.org/linux/man-pages/man2/syscall.2.html (docs; x86-64 `syscall`, number in `eax`, result in `rax`); vdso(7), https://man7.org/linux/man-pages/man7/vdso.7.html (docs; `__vdso_clock_gettime` on x86-64).
+- **Reuse:** none. A toy single-CPU machine with a mode bit, a trap table set at boot, a syscall table, a timer and one disk. Link to scheduling for policies and to processes for fork and exec rather than repeating them.
+- **Facts:**
+  1. A privileged instruction run in user mode traps and the kernel ends the process. The same instruction in kernel mode runs. Test: run both, assert the user run ends in a fault and the kernel run changes the machine state.
+  2. A syscall switches user → kernel → user. The kernel is entered only at the handler in the trap table, whatever address the user program put in its registers, and control returns to the instruction after the trap. Test: assert the mode sequence, that the entry pc equals the table entry for 3 different user register values, and that the return pc is trap pc + 1. A user-mode write to the trap table faults.
+  3. Writing 10,000 bytes one byte per `write` makes 10,000 syscalls. Through a 4,096-byte buffer it makes 3 (4,096 + 4,096 + 1,808 at the flush). Test: count kernel entries in both runs.
+  4. 1,000 `clock_gettime` calls enter the kernel 1,000 times without the vDSO and 0 times with it, and return the same times. Test: count entries, compare results.
+  5. Timer interrupt: two loops that never make a syscall share 100 ms. With a 10 ms timer the kernel regains control 10 times and each loop runs 50 ms. With no timer the first loop runs 100 ms and the second 0. Test: run time per loop and interrupt count in both modes.
+  6. Blocking read: process A reads from a disk that answers in 5 ms. With an interrupt on completion, B runs for those 5 ms. If A polls the device instead, B runs 0 ms of them (the 10 ms timer slice is longer than the wait). Test: B's run time over the wait in both modes.
+- **Out of scope:** real instruction encodings, KPTI or Spectre mitigation costs, io_uring, signals beyond the fault in fact 1, nanosecond costs of a real syscall (no source gives one for this page), interrupt priorities and nesting.
+
+### 2. `wifi`: How Wi-Fi shares the air
+- **Scaffold:** `npm run new -- wifi "How Wi-Fi shares the air" networking intro how-the-network-works`. Prereqs: none. Path `internet`: after congestion-control.
+- **Sources:** Peterson & Davie, Computer Networks: A Systems Approach, 2.7 Wireless Networks, https://book.systemsapproach.org/direct/wireless.html (free book, **new domain**, answered from here on 2026-11-19; CSMA/CA, exponential backoff, hidden and exposed nodes, RTS/CTS, rate adaptation); Wikipedia, Hidden node problem, https://en.wikipedia.org/wiki/Hidden_node_problem (encyclopedia, approachable). Add the new domain to `TRUSTED` and run `npm run check-sources`.
+- **Reuse:** `mulberry` from `shared/random.js`. A slotted simulation: each station waiting to send picks a random backoff slot, the lowest slot sends, equal lowest slots collide. Model constants: 16 starting slots, doubling after a collision up to 1,024, reset after a success.
+- **Facts:**
+  1. Two stations picking from 16 slots collide with probability 1/16 = 0.0625. Test: enumerate the 256 pairs exactly, and a seeded run of 10,000 rounds lands within 0.01 of it.
+  2. With a fixed 16-slot window the collision fraction rises with the number of stations: printed values at 2, 5, 10 and 20 stations, strictly increasing. Doubling after each collision gives a lower collision fraction at 20 stations than the fixed window. Test: both comparisons on the seeded run.
+  3. Hidden stations: A and C both reach the access point but can't hear each other. At the same offered load, the hidden pair loses more frames than a pair that hears each other (printed). With RTS/CTS the airtime lost to collisions falls, because only short RTS frames collide. Test: frames lost hidden > not hidden, and lost airtime with RTS/CTS < without.
+  4. One slow station drags the fast one down. Each station gets an equal share of frames, so with one at 6 Mbit/s and one at 54 Mbit/s each delivers 1 / (1/6 + 1/54) = 5.4 Mbit/s, 10.8 in total, against 27 each when both run at 54. Test: the throughput function at those rates, exact to 1e-9.
+- **Out of scope:** real 802.11 timing values (SIFS, DIFS, slot length, CWmin by PHY), channels and interference between them, WPA and encryption (link to cipher-modes instead), MIMO and OFDM, airtime fairness schedulers, roaming.
+
+### 3. `transactions`: Transactions: all or nothing
+- **Scaffold:** `npm run new -- transactions "Transactions: all or nothing" databases intro transactions-and-durability`. Prereqs: none. Path `databases`: after lsm, before race-conditions.
+- **Sources:** PostgreSQL, Tutorial: Transactions, https://www.postgresql.org/docs/current/tutorial-transactions.html (docs; bank transfer, all or nothing, ROLLBACK, implicit transaction per statement); SQLite, Atomic Commit In SQLite, https://www.sqlite.org/atomiccommit.html (docs; rollback journal written before the database file, hot journal rolled back after a crash).
+- **Reuse:** none. A two-row table (Alice 100, Bob 50) with a `CHECK balance >= 0`, a rollback journal, and a crash point the reader picks. Link to isolation and write-ahead-log for concurrency and redo logs rather than covering them.
+- **Facts:**
+  1. Transfer 30 from Alice to Bob as two autocommit statements, crash between them: Alice 70, Bob 50, total 120. Inside a transaction, for every crash point the restarted table totals 150 and holds either (100, 50) or (70, 80). Test: sweep every crash point in both modes.
+  2. `ROLLBACK` after both updates restores (100, 50) exactly. Test: compare rows.
+  3. Transfer 120, crediting Bob first: the debit fails the check. In a transaction Bob's credit is undone, (100, 50). In autocommit it stays, (100, 170), and the total is 270. Test: both runs.
+  4. Before `COMMIT`, another session reads (100, 50). After it, (70, 80). It never reads (70, 50). Test: read at every step of the transaction.
+- **Out of scope:** isolation levels and concurrent writers (isolation, mvcc), savepoints, redo logging and fsync details (write-ahead-log), distributed transactions (two-phase-commit).
+
+### 4. `exactly-once`: Exactly-once processing
+- **Scaffold:** `npm run new -- exactly-once "Exactly-once processing" distributed deep traffic-and-reliability`. Prereqs: idempotency. Path `distributed`: after idempotency.
+- **Sources:** Apache Kafka design docs, Message Delivery Semantics, https://github.com/apache/kafka/blob/4.0.0/docs/design.html (docs, pinned to the 4.0.0 tag, section 4.6; at-most-once and at-least-once from where the consumer saves its position, idempotent producer with producer ID and sequence numbers, offsets written in the same transaction as the output); Carbone et al., "Lightweight Asynchronous Snapshots for Distributed Dataflows", arXiv 1506.08603 (paper). kafka.apache.org serves a script redirect, so link the GitHub copy at the tag.
+- **Reuse:** `mulberry` from `shared/random.js` for lost acks. A log of 100 self-written payment messages (two of them identical on purpose), one consumer that commits its offset every 10 messages, and a sink that sums them.
+- **Facts:**
+  1. At-least-once (process, then commit): a crash after message p replays everything since the last commit, so the sink counts 100 + (p − 10·⌊(p − 1)/10⌋) messages, between 1 and 10 extra. Test: sweep p = 1…100 against the formula.
+  2. At-most-once (commit, then process): the same crash loses 10·⌈p/10⌉ − p messages, between 0 and 9. Test: sweep p against the formula.
+  3. Committing output and offset in one transaction counts exactly 100 and the true sum for every p. Test: sweep p.
+  4. An at-least-once sink that drops duplicates by (partition, offset) also counts exactly 100 for every p. One that drops duplicates by message content also drops the genuine second copy of the identical payment and comes up one short. Test: sweep p for both.
+  5. Producer retries after lost acks append duplicates to the log (printed count above 100 on the seeded run). With a producer ID and sequence numbers the broker drops the resends and the log holds exactly 100. Test: log length in both modes.
+  6. Exactly-once stops at the pipeline's edge: an email sent while processing, outside the transaction, goes out 100 + extra times at the same crash points as fact 1, even in transactional mode. Test: sweep p.
+- **Out of scope:** Flink's barrier snapshot algorithm in detail, Kafka transaction coordinator internals and zombie fencing (link to fencing-tokens), windowing and late data, multi-partition ordering.
+
+### 5. `padding-oracle`: Padding oracle attacks
+- **Scaffold:** `npm run new -- padding-oracle "Padding oracle attacks" security deep attacks-and-defences`. Prereqs: cipher-modes. Path `security`: after cipher-modes.
+- **Sources:** Black & Urtubia, "Side-Channel Attacks on Symmetric Encryption Schemes: The Case for Authenticated Encryption", USENIX Security 2002, https://www.usenix.org/legacy/event/sec02/full_papers/black/black_html/index.html (paper; about 128 expected queries per byte, the case for authenticated encryption); RFC 5652 §6.3, https://www.rfc-editor.org/rfc/rfc5652.html (standard; the padding rule); Wikipedia, Padding oracle attack, https://en.wikipedia.org/wiki/Padding_oracle_attack (encyclopedia; at most 256 tries per byte).
+- **Reuse:** `makeCipher`, `cbcEncrypt` and `cbcDecrypt` from `explainers/cipher-modes/cipher-modes.js`: move the file to `shared/cipher-modes.js` (free today) and update cipher-modes' imports. `hmacSha1` from `shared/totp.js` for the fix. Blocks are 2 bytes in the toy cipher, so padding is 1 or 2 bytes; the caveat says real AES blocks are 16.
+- **Facts:**
+  1. Padding adds k − (len mod k) bytes, each of that value. With k = 2, a 7-byte message gets one 0x01 and an 8-byte message gets a whole block 0x02 0x02. Test: pad and unpad both, and reject a block ending 0x01 0x02.
+  2. XORing byte j of the previous ciphertext block (or the IV) with d XORs byte j of the next plaintext block with d. Test: decrypt the tampered ciphertext and compare that byte.
+  3. From the server's yes/no answer about padding alone, never touching the key, the attack recovers the whole self-written message, first block included (the IV is sent with it). Test: recovered bytes equal the plaintext.
+  4. Each byte takes at most 256 guesses, plus one check query per block to rule out a lucky 0x02 0x02. The printed run averages close to 128 per byte. Test: total queries ≤ 256 × bytes + blocks, and a crafted block whose first plaintext byte is 0x02 is still recovered correctly.
+  5. Fix: a MAC over IV and ciphertext, checked before decrypting. Every tampered ciphertext gets the same answer for all 256 guesses, and the attack recovers 0 bytes. Test: the set of answers has one element, recovered bytes is empty.
+- **Out of scope:** timing side channels such as Lucky Thirteen (link to timing-attacks), POODLE and SSL 3.0 history, CBC-R encryption, attacks on real AES or TLS.
+
+### 6. `bellman-ford`: Negative weights and Bellman–Ford
+- **Scaffold:** `npm run new -- bellman-ford "Negative weights and Bellman–Ford" algorithms deep search-and-graphs`. Prereqs: pathfinding. Path `algorithms`: after pathfinding.
+- **Sources:** Sedgewick & Wayne, Algorithms 4th ed., 4.4 Shortest Paths, https://algs4.cs.princeton.edu/44sp/ (book; Bellman–Ford, negative cycles, arbitrage with −ln of rates, Dijkstra without re-queueing may be wrong with negative edges); cp-algorithms, Bellman-Ford, https://cp-algorithms.com/graph/bellman_ford.html (article; n − 1 phases, a relaxation in phase n means a negative cycle).
+- **Reuse:** none. `explainers/routing/` runs distance vector across routers and covers count to infinity; link to it rather than repeating it. The exchange rates are invented for the page.
+- **Facts:**
+  1. Graph S→A 2, S→B 5, B→A −4: a Dijkstra that settles each node once reports A = 2. Bellman–Ford reports the true 1. Test: both distances.
+  2. A 6-node chain needs 5 rounds that change something when its edges are listed back to front, and 1 when listed front to back. Test: count changing rounds for both orders.
+  3. On any built-in graph without a negative cycle, relaxations ≤ (V − 1) × E. Test: the counter against the bound on each built-in graph.
+  4. A relaxation that still succeeds in round V proves a negative cycle. Walking predecessors V times from that node lands on the cycle, and its weights sum below 0. Test: detect, extract, sum.
+  5. Arbitrage: on 4 invented currencies with weights −ln(rate), the cycle found has a rate product above 1. Lowering one rate on that cycle by 1% removes every negative cycle. Test: product > 1 before, no cycle after.
+- **Out of scope:** Johnson's algorithm, SPFA and its worst case, distance vector across routers (routing), all-pairs shortest paths, real exchange rates or fees.
+
+### 7. `bandits`: Multi-armed bandits
+- **Scaffold:** `npm run new -- bandits "Multi-armed bandits" statistics deep experiments-and-inference`. Prereqs: abtest, bayes. Path `stats`: after bayes.
+- **Sources:** Sutton & Barto, Reinforcement Learning: An Introduction, 2nd ed., ch. 2 Multi-armed Bandits, http://incompleteideas.net/book/the-book-2nd.html (free book; already used by rl, keep the http URL); Russo, Van Roy, Kazerouni, Osband, Wen, "A Tutorial on Thompson Sampling", arXiv 1707.02038 (paper; Beta–Bernoulli Thompson sampling, greedy getting stuck).
+- **Reuse:** `mulberry` from `shared/random.js`, `quantile` from `shared/normal.js` for 95% intervals. Beta sampling is new and local (two gamma draws). Two arms converting at 0.10 and 0.12, 10,000 visitors, 200 seeded runs.
+- **Facts:**
+  1. From a Beta(1, 1) prior, 7 conversions in 10 visits gives Beta(8, 4), mean 8/12 ≈ 0.667. Test: the update and the mean.
+  2. A 50/50 split over 10,000 visitors loses 5,000 × 0.02 = 100 expected conversions against always showing the better arm. Test: the regret formula.
+  3. Thompson sampling's mean regret over the 200 seeded runs is below 100 (printed value). Test: the mean against 100.
+  4. Pure greedy (show the higher observed rate) sends most traffic to the worse arm in more than 0 of the 200 runs, and Thompson sampling in fewer than greedy (both printed). Test: the two counts.
+  5. Thompson's share of visitors on the better arm is higher in the last 1,000 than in the first 1,000. Test: on the seeded run.
+  6. The price: the worse arm gets fewer visitors, so its 95% interval is wider under Thompson sampling than under the 50/50 split. Test: both widths on the seeded run.
+- **Out of scope:** UCB and its regret bounds, contextual bandits, rewards that drift over time, Bayesian A/B stopping rules, ε-greedy tuning.
+
+### 8. `shell-expansion`: Shell quoting and globs
+- **Scaffold:** `npm run new -- shell-expansion "Shell quoting and globs" tools intro everyday-tools`. Prereqs: none. Path `toolbox`: after pipes.
+- **Sources:** GNU Bash Reference Manual, 3.5 Shell Expansions, https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html (docs; order of expansions, word splitting on unquoted results only, IFS default space tab newline, filename expansion sorted, no match left as is, leading dot matched explicitly); glob(7), https://man7.org/linux/man-pages/man7/glob.7.html (docs; POSIX leaves an unmatched pattern unchanged, `rm *` keeps `.profile`). gnu.org answered 429 once during planning, so retry `check-sources` before swapping it.
+- **Reuse:** none. A toy expander for `$var`, `"…"`, `'…'`, `*` and `?` over a built-in directory: `a.txt`, `b.txt`, `.hidden.txt`, `notes.md`, `-l`. Each command shows the argument list the program receives.
+- **Facts:**
+  1. With `file="my notes.txt"`, `rm $file` passes 2 arguments and `rm "$file"` passes 1. Test: argv lengths and values.
+  2. `'$file'` passes the literal text `$file`, and `"$file"` passes its value. Test: argv.
+  3. An unset variable unquoted passes 0 arguments, quoted it passes 1 empty argument. Test: argv.
+  4. `*.txt` becomes `a.txt b.txt`, without `.hidden.txt`. `"*.txt"` stays literal, and `*.csv`, matching nothing, is passed as `*.csv`. Test: argv for each.
+  5. `ls *` passes `-l` as an argument, so ls reads it as an option. `ls ./*` passes `./-l`. Test: argv contains `-l` in the first and `./-l` in the second.
+- **Out of scope:** brace and tilde expansion, command substitution and arithmetic, `nullglob`, `failglob` and `GLOBSORT`, locale sort order (the built-in names avoid it), other shells' differences, IFS changes.
+
+### 9. `linkers`: How linkers work
+- **Scaffold:** `npm run new -- linkers "How linkers work" tools deep compilers-and-runtimes`. Prereqs: compiler. Path `machine`: after register-allocation.
+- **Sources:** elf(5), https://man7.org/linux/man-pages/man5/elf.5.html (docs; symbol binding, relocation entries with r_offset, r_info, r_addend); Eli Bendersky, "Library order in static linking", https://eli.thegreenplace.net/2013/07/09/library-order-in-static-linking (article; left-to-right scan, members pulled only for undefined symbols, a library is not revisited); Eli Bendersky, "Load-time relocation of shared libraries", https://eli.thegreenplace.net/2011/08/25/load-time-relocation-of-shared-libraries (article; PC-relative patch worked through).
+- **Reuse:** none. Toy object files, each a list of defined symbols, undefined symbols, section sizes and relocations, with self-made names (`main`, `area`, `print`). Static linking only.
+- **Facts:**
+  1. Linking `main.o` alone reports undefined references to `area` and `print`. Adding `geom.o` and `io.o` links. Two objects that both define `area` give a duplicate-symbol error. Test: the error lists for each.
+  2. `main.o libgeom.a` links and `libgeom.a main.o` fails with an undefined reference to `area`. Test: both orders.
+  3. From an archive of 5 members where `main.o` needs one member that needs another, the output contains exactly those 2. Test: member list.
+  4. A PC-relative call is patched to S + A − P. Eli's example, S = 0x0012e49c, A = −4, P = 0x0012e4b4, gives 0xffffffe4. Test: that value, and moving the callee changes only the caller's patched field.
+- **Out of scope:** dynamic linking, PLT and GOT, position-independent code, weak symbols, linker scripts, LTO, real ELF byte layouts.
+
+### Questions for the user
+- Answered 2026-11-19: no tenth explainer (batch stays at nine); `book.systemsapproach.org` is a trusted domain; the Kafka docs link is pinned to the 4.0.0 tag, not trunk.
+
 ## How to work (read before starting)
 
 **Start:** run `npm test` and expect all tests passing (636 at the time of writing). The local preview config is `.claude/launch.json`, name `under-the-hood`, port 8766; it's git-ignored, so recreate it if missing. Or run `npm start` (port 8765).

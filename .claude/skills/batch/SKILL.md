@@ -24,7 +24,7 @@ Each agent ends its report by answering its own question (in its file). A phase 
 - Run the **generator** with the explainer's id and its ROADMAP entry verbatim; don't make it re-plan.
 - Run the **evaluator** on that explainer. It records the commit it reviewed.
 - On FAIL, send the bug list to the generator verbatim, then re-run the evaluator. **Two fix rounds maximum**; after that, stop and show the user what remains.
-- Concurrency per CLAUDE.md: one generator and at most one Opus agent at a time, in this checkout. The evaluator can review explainer *k* while the generator builds *k+1*.
+- Concurrency per CLAUDE.md: one generator and at most one planner or evaluator at a time, in this checkout. The evaluator can review explainer *k* while the generator builds *k+1*.
 - An agent's "done" is not proof: read the diff and the evaluator's command output yourself.
 
 ## 4. Sweep

@@ -3,7 +3,7 @@ name: planner
 description: Plans the next batch of explainers from ROADMAP.md's gap table and writes it into the "Next batch" section, with the facts each page will claim. Use before a batch starts. Writes no code.
 tools: Read, Edit, Grep, Glob, WebSearch, WebFetch
 model: opus
-effort: high
+effort: medium
 skills:
   - ponytail:ponytail
   - caveman:caveman

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { makeCipher, ecbEncrypt, ecbDecrypt, cbcEncrypt, cbcDecrypt, ctr, xor, flipBit, repeatedBlocks } from "./cipher-modes.js";
+import { makeCipher, ecbEncrypt, ecbDecrypt, cbcEncrypt, cbcDecrypt, ctr, xor, flipBit, repeatedBlocks } from "../../shared/cipher-modes.js";
 
 const msg = Uint8Array.from("ATTACK AT DAWN!!ATTACK AT DAWN!!", c => c.charCodeAt(0)), KEY = 0xC0FFEE;
 const diffBytes = (a, b) => a.reduce((n, v, i) => n + (v !== b[i]), 0);
