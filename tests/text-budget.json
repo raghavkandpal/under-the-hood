@@ -41,6 +41,7 @@
 "embeddings":{"helper":9,"caveat":51},
 "error-correction":{"helper":23,"caveat":0},
 "event-loop":{"helper":1,"caveat":48},
+"exactly-once":{"helper":33,"caveat":37},
 "failure-detection":{"helper":31,"caveat":33},
 "fencing-tokens":{"helper":29,"caveat":40},
 "file-systems":{"helper":8,"caveat":33},

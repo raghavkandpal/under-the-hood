@@ -143,6 +143,8 @@ export const SOURCES = {
   "idempotency": [["RFC 9110: HTTP Semantics, Idempotent Methods", "https://www.rfc-editor.org/rfc/rfc9110.html#name-idempotent-methods", "standard", "IETF"],
     ["The Idempotency-Key HTTP Header Field", "https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/", "standard", "IETF (draft)"],
     ["Idempotent requests", "https://docs.stripe.com/api/idempotent_requests", "docs", "Stripe"]],
+  "exactly-once": [["Apache Kafka design docs, Message Delivery Semantics", "https://github.com/apache/kafka/blob/4.0.0/docs/design.html", "docs", "Apache Kafka"],
+    ["Lightweight Asynchronous Snapshots for Distributed Dataflows", "https://arxiv.org/abs/1506.08603", "paper", "Carbone et al."]],
   "failure-detection": [["Distributed Systems lecture notes, 2.4: failure detectors", "https://www.cl.cam.ac.uk/teaching/2122/ConcDisSys/dist-sys-notes.pdf", "course", "Martin Kleppmann, Cambridge"],
     ["Failure detector", "https://en.wikipedia.org/wiki/Failure_detector", "encyclopedia", "Wikipedia"]],
   "retries": [["Timeouts, retries, and backoff with jitter", "https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter", "article", "AWS Builder Center"],
