@@ -21,6 +21,7 @@ test("a fixed window collides more as stations are added; doubling is better at 
   const d = contend({ n: 20, rounds: 10000, doubling: true, seed: 1 }).fraction;
   assert.equal(d, 0.2334);
   assert.ok(d < vals[3]);
+  assert.equal(contend({ n: 2, rounds: 10000, doubling: true, seed: 1 }).fraction, 0.053); // the Try-it note: both settings land at 5 to 6% with 2 stations
 });
 
 test("a hidden pair loses far more frames than a pair that hears each other", () => {
@@ -28,6 +29,12 @@ test("a hidden pair loses far more frames than a pair that hears each other", ()
   assert.deepEqual([hear.lostFrames, hid.lostFrames], [2, 200]); // printed
   assert.deepEqual([hear.sent, hid.sent], [309, 402]);
   assert.ok(hid.lostFrames > hear.lostFrames && hid.lostFraction > hear.lostFraction);
+});
+
+test("the hidden-node gap depends on load: gone when both stations always have a frame", () => {
+  const f = hidden => twoStations({ hidden, rts: false, slots: 20000, load: 1 });
+  assert.deepEqual([f(false).lostFrames, f(false).sent, f(true).lostFrames, f(true).sent], [96, 878, 88, 746]); // printed
+  assert.ok(f(true).lostFraction - f(false).lostFraction < 0.01);
 });
 
 test("RTS/CTS cuts the airtime a hidden pair loses, because only short RTS frames collide", () => {
@@ -48,4 +55,6 @@ test("a slow station drags a fast one down to the same speed", () => {
   const mixed = throughput([6, 54]), fast = throughput([54, 54]);
   close(mixed.each, 5.4); close(mixed.total, 10.8);
   close(fast.each, 27); close(fast.total, 54);
+  close(54 / 6, 9); // a 6 Mbit/s frame takes nine times as long as one at 54
+  close(1 - mixed.each / fast.each, 0.8); // the fast station keeps one fifth: it loses four fifths
 });

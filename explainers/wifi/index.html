@@ -35,7 +35,7 @@
     </div>
     <div class="stats" id="hidden"></div>
   </div>
-  <p><b>The hidden node.</b> Stations A and C both reach the access point, but they are too far apart to hear each other. Each sees a quiet channel while the other is mid-frame, so each sends, and the two frames overlap at the access point. In this model, with the same trickle of frames to each, a pair that hears each other loses 2 of 309 frames. The hidden pair loses 200 of 402, half of what it sends, and 14% of the air carries a frame that is lost.</p>
+  <p><b>The hidden node.</b> Stations A and C both reach the access point, but they are too far apart to hear each other. Each sees a quiet channel while the other is mid-frame, so each sends, and the two frames overlap at the access point. In this model, when each station gets a new frame with a 1% chance every slot, a pair that hears each other loses 2 of 309 frames. The hidden pair loses 200 of 402, half of what it sends, and 14% of the air carries a frame that is lost.</p>
   <p><b>RTS/CTS.</b> Before a long frame, the station sends a short request to send (RTS). The access point answers with a clear to send (CTS), which both stations hear, and the one that was hidden stays quiet for that frame. Hidden stations can still collide, but only on the short RTS, so the air lost to collisions falls from 14% to under 0.1%. In this model RTS is 2 slots and a data frame is 20.</p>
 
   <h2>One slow device</h2>
@@ -44,7 +44,7 @@
     <div class="stats" id="speed"></div>
   </div>
   <p><b>Equal frames, not equal time.</b> Wi-Fi gives each station the same number of frames, not the same time on the air. A frame at 6 Mbit/s takes nine times as long as one at 54. With one station at each, each delivers 1 / (1/6 + 1/54) = 5.4 Mbit/s, 10.8 in total. Two stations at 54 get 27 each. The slow station costs the fast one four fifths of its speed.</p>
-  <p class="caveat">Simplified: slots are abstract, not 802.11 timings; every station always has a frame (or, in the hidden demo, a fixed chance per slot); and there is no signal fading, interference or encryption. Real Wi-Fi keeps its backoff count between frames instead of redrawing it.</p>
+  <p class="caveat">Simplified: slots are abstract, not 802.11 timings, and there is no fading, interference or encryption. Backoff is redrawn every round; real Wi-Fi pauses a count while the air is busy and resumes it. The hidden-node gap depends on that 1% load: if both stations always have a frame, the two pairs lose about 11% and 12% of their frames.</p>
 </main>
 <script type="module">
 import { chrome, $, statTile, tabs } from "../../shared/common.js";

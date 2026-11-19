@@ -152,7 +152,7 @@
 "virtual-memory":{"helper":17,"caveat":47},
 "websockets":{"helper":31,"caveat":38},
 "what-is-an-index":{"helper":23,"caveat":21},
-"wifi":{"helper":30,"caveat":44},
+"wifi":{"helper":30,"caveat":59},
 "write-ahead-log":{"helper":25,"caveat":52},
 "xss":{"helper":25,"caveat":40},
 "zero-knowledge":{"helper":14,"caveat":52}}
