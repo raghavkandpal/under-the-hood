@@ -376,6 +376,8 @@ export const CATALOG = [
     blurb: "A toy CPU with a mode bit and a trap table: why a bad instruction kills the process, what a syscall costs, how a timer takes the CPU back, and interrupt vs polling.", prereqs: ["processes"] },
   { id: "exactly-once", title: "Exactly-once processing", area: "distributed", topic: "traffic-and-reliability", level: "deep", tags: ["exactly once", "at least once", "at most once", "kafka", "idempotent producer", "transactions", "offsets", "flink"],
     blurb: "Crash a consumer mid-stream: committing first loses messages, committing after double-counts, and one transaction or a dedupe key gets exactly 100.", prereqs: ["idempotency"] },
+  { id: "padding-oracle", title: "Padding oracle attacks", area: "security", topic: "attacks-and-defences", level: "deep", tags: ["padding oracle", "cbc", "pkcs7", "side channel", "mac", "authenticated encryption", "chosen ciphertext"],
+    blurb: "A server that only says whether the padding was valid lets an attacker read the whole message without the key, one byte per few hundred guesses. A MAC stops it.", prereqs: ["cipher-modes"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -401,7 +403,7 @@ export const PATHS = [
     audience: "Developers and curious readers who use chatbots and want a real mental model of what's inside.",
     outcomes: ["Explain gradient descent and backpropagation in plain terms", "Describe tokens, embeddings and attention, and how they fit together", "Say how a model picks each next word, and what temperature changes", "Explain the KV cache, quantization, speculative decoding and RAG"] },
   { id: "security", title: "Security essentials", blurb: "The crypto and protocols behind every login and padlock.",
-    steps: ["hash-functions", "password-hashing", "timing-attacks", "totp", "cipher-modes", "dh", "signatures", "tls", "oauth", "jwt", "passkeys", "sql-injection", "xss", "csrf", "zero-knowledge"],
+    steps: ["hash-functions", "password-hashing", "timing-attacks", "totp", "cipher-modes", "padding-oracle", "dh", "signatures", "tls", "oauth", "jwt", "passkeys", "sql-injection", "xss", "csrf", "zero-knowledge"],
     intro: "Every login, padlock and password reset rests on a few cryptographic building blocks and the protocols built from them. This path starts with hashes and keys, builds up to TLS and OAuth, and ends with the attacks that break real systems when those pieces are misused.",
     audience: "Developers who handle logins, secrets or user data, and anyone who wants to know what the padlock means.",
     outcomes: ["Explain hashing, encryption and signatures, and which to use when", "Describe how TLS and “Sign in with…” keep credentials safe", "Store passwords properly and add a second factor", "Spot SQL injection and the misuse of cipher modes"] },
