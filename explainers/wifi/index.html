@@ -44,7 +44,7 @@
     <div class="stats" id="speed"></div>
   </div>
   <p><b>Equal frames, not equal time.</b> Wi-Fi gives each station the same number of frames, not the same time on the air. A frame at 6 Mbit/s takes nine times as long as one at 54. With one station at each, each delivers 1 / (1/6 + 1/54) = 5.4 Mbit/s, 10.8 in total. Two stations at 54 get 27 each. The slow station costs the fast one four fifths of its speed.</p>
-  <p class="caveat">Simplified: slots are abstract, not 802.11 timings, and there is no fading, interference or encryption. Backoff is redrawn every round; real Wi-Fi pauses a count while the air is busy and resumes it. The hidden-node gap depends on that 1% load: if both stations always have a frame, the two pairs lose about 11% and 12% of their frames.</p>
+  <p class="caveat">Simplified: slots are abstract, not 802.11 timings, there is no interference or encryption, and the first demo redraws its backoff every round where real Wi-Fi pauses the count while the air is busy. The hidden-node gap depends on the 1% load: if both stations always have a frame, the two pairs lose about 11% and 12% of their frames.</p>
 </main>
 <script type="module">
 import { chrome, $, statTile, tabs } from "../../shared/common.js";
