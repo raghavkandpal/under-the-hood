@@ -121,7 +121,7 @@
 "sat-sudoku":{"helper":1,"caveat":38},
 "scheduling":{"helper":21,"caveat":44},
 "sharding":{"helper":15,"caveat":29},
-"shell-expansion":{"helper":47,"caveat":22},
+"shell-expansion":{"helper":55,"caveat":27},
 "signatures":{"helper":21,"caveat":38},
 "simd":{"helper":14,"caveat":40},
 "simpson":{"helper":1,"caveat":20},
