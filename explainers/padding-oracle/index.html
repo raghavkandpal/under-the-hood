@@ -36,12 +36,12 @@
   <p class="caveat">The blocks here are 2 bytes and the cipher is a toy, not secure; real AES blocks are 16 bytes, so real padding is 1 to 16 bytes and the maths is the same per byte. The MAC here is HMAC-SHA1 with a key derived from the cipher key, for teaching only.</p>
 </main>
 <script type="module">
-import { chrome, $, statTile, tabs } from "../../shared/common.js";
+import { chrome, $, statTile, tabs, escapeHtml } from "../../shared/common.js";
 import { makeServer, attack, ivFor } from "./padding-oracle.js";
 import { textBytes } from "../../shared/totp.js";
 chrome();
 
-const KEY = 0xC0FFEE, hex = b => [...b].map(x => x.toString(16).padStart(2, "0")).join(" "), safe = x => (x >= 32 && x < 127 ? String.fromCharCode(x) : "·");
+const KEY = 0xC0FFEE, hex = b => [...b].map(x => x.toString(16).padStart(2, "0")).join(" "), safe = x => (x >= 32 && x < 127 ? escapeHtml(String.fromCharCode(x)) : "·");
 let mode = "plain", seed = 2;
 tabs($("#mode"), { plain: "CBC", mac: "CBC + MAC" }, mode, k => { mode = k; render(); });
 function render() {
