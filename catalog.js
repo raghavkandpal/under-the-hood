@@ -366,6 +366,8 @@ export const CATALOG = [
     blurb: "One instruction, many lanes: how a sum splits across a vector register, why float sums change, and what stops a loop vectorising.", prereqs: ["branch-prediction", "floating-point"] },
   { id: "what-is-an-index", title: "What is an index?", area: "databases", topic: "queries", level: "intro", tags: ["index", "binary search", "full scan", "multicolumn index", "leftmost prefix", "write cost", "sql", "database"],
     blurb: "Find one row among a million by reading 5 pages instead of 10,000: a sorted copy, column order, and what each index costs on writes.", prereqs: [] },
+  { id: "wifi", title: "How Wi-Fi shares the air", area: "networking", topic: "how-the-network-works", level: "intro", tags: ["wi-fi", "csma/ca", "backoff", "hidden node", "rts/cts", "rate adaptation", "wireless"],
+    blurb: "Stations that can only talk by listening: random backoff, the hidden node problem, RTS/CTS, and why one slow device slows everyone.", prereqs: [] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -376,7 +378,7 @@ export const hrefOf = c => `explainers/${c.id}/`;
  *  intro, audience and outcomes are shown on the path's own page (path/?id=…). */
 export const PATHS = [
   { id: "internet", title: "How the internet works", blurb: "From typing a URL to a secure, cached page.",
-    steps: ["dns", "tcp", "congestion-control", "routing", "subnets", "bgp", "nat", "hash-functions", "dh", "signatures", "tls", "http-versions", "quic", "websockets", "http-caching", "cdn", "load-balancing"],
+    steps: ["dns", "tcp", "congestion-control", "wifi", "routing", "subnets", "bgp", "nat", "hash-functions", "dh", "signatures", "tls", "http-versions", "quic", "websockets", "http-caching", "cdn", "load-balancing"],
     intro: "Typing a web address sets off a chain of systems most people never see. This path follows one page load from start to finish: finding the server, getting data across an unreliable network, proving you're talking to the right site, and serving the result fast to people around the world.",
     audience: "Developers who use the web every day and want to know what happens between pressing Enter and seeing the page.",
     outcomes: ["Trace a page load from DNS lookup to a cached response", "Explain how TCP turns lossy packets into a reliable stream", "Say what TLS actually proves, and how", "Explain why CDNs and load balancers make sites fast and resilient"] },
