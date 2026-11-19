@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transactions: all or nothing</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .steps { font-family: var(--mono); font-size: 13px; display: grid; gap: 2px; margin: 10px 0; padding: 0; list-style: none; }
+  .steps li { padding: 3px 8px; border-radius: 6px; background: var(--surface-2); }
+  .steps li.done { background: var(--accent-soft); }
+  .steps li.crash { outline: 2px solid var(--red); }
+  .steps li.err { color: var(--red); }
+  .stat.bad b { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Transactions: all or nothing</h1>
+  <p class="lede">Moving 30 from Alice to Bob takes two UPDATE statements, and the machine can die between them. A transaction makes the pair succeed or vanish together.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="mode"></div><div class="seg" id="scenario"></div><div class="seg" id="ending"></div></div>
+    <div class="row"><label class="inline">Crash after <b id="cv"></b> <input type="range" id="crash" min="0" max="4" value="4" aria-label="Crash point"></label></div>
+    <ol class="steps" id="steps" aria-label="Statements"></ol>
+    <div class="stats" id="stats" style="--stat-min:120px"></div>
+    <p class="status" id="out" aria-live="polite"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Autocommit.</b> Outside a transaction every statement is its own transaction: it takes effect the moment it finishes. The debit commits, the machine dies, and after the restart Alice has 70 and Bob 50. The 30 is gone and the total is 120, not 150. Drag the crash point to the gap between the two statements.</p>
+  <p><b>A transaction.</b> <code>BEGIN</code> groups the statements, and nothing counts until <code>COMMIT</code>. SQLite does it with a rollback journal: before it changes the database file it copies the original value into a journal file. <code>COMMIT</code> deletes the journal, and that deletion is the moment the transfer happens. If the machine restarts and finds a journal, it is "hot", so the engine copies the originals back. Try every crash point: the table comes back as (100, 50) until the commit and (70, 80) after it, and the total is always 150.</p>
+  <p><b>ROLLBACK.</b> You can undo on purpose too. Choose ROLLBACK after both updates and the originals are restored, (100, 50), exactly as if nothing had run. The same thing happens when a statement fails.</p>
+  <div class="note"><b>Try it:</b> pick "120, Bob first". The credit to Bob succeeds, then the debit breaks <code>CHECK balance &gt;= 0</code>. In a transaction the credit is undone and the table is (100, 50). In autocommit the credit stays: Bob has 170 and the total is 270, money from nowhere.</div>
+  <p><b>What others see.</b> Another session never reads the half-done state. Before <code>COMMIT</code> it reads (100, 50), after it (70, 80), and it never reads (70, 50). Under autocommit it can read (70, 50), between the statements. How databases hide uncommitted work from several concurrent sessions is the subject of <a href="../isolation/">isolation</a> and <a href="../mvcc/">MVCC</a>; how real engines log changes so they can also redo committed ones is <a href="../write-ahead-log/">write-ahead logging</a>.</p>
+  <p class="caveat">Simplified: each UPDATE is a single atomic write, the journal holds one value per row, and the other session reads the old values from the journal (real SQLite makes it wait). Locks, savepoints and fsync are left out.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs, escapeHtml } from "../../shared/common.js";
+import { transferOps, timeline, restart, total } from "./transactions.js";
+chrome();
+
+const SCEN = { ok: transferOps(30), fail: transferOps(120, true) };
+let mode = "auto", scen = "ok", ending = "commit", states;
+const pair = d => `${d.Alice}, ${d.Bob}`;
+function run() {
+  states = timeline(mode, SCEN[scen], { rollback: ending === "rollback" });
+  const c = $("#crash");
+  const keep = Math.min(+c.value, states.length - 1);
+  c.max = states.length - 1; c.value = c.dataset.touched ? keep : states.length - 1;
+  render();
+}
+function render() {
+  const i = +$("#crash").value, s = states[i], after = restart(s);
+  $("#cv").textContent = s.step;
+  $("#steps").innerHTML = states.slice(1).map((x, k) =>
+    `<li class="${k < i ? "done" : ""} ${k + 1 === i ? "crash" : ""} ${x.error ? "err" : ""}">${escapeHtml(x.step)}${x.error ? " (" + escapeHtml(x.error) + ")" : ""}</li>`).join("");
+  const bad = total(after) !== 150;
+  $("#stats").innerHTML = [
+    [pair(s.disk), "database file"],
+    [s.journal ? Object.entries(s.journal).map(([k, v]) => `${k} ${v}`).join(", ") || "empty" : "none", "journal"],
+    [pair(s.view), "other session reads"],
+    [pair(after), "after restart"],
+    [total(after), "total"],
+  ].map(statTile).join("");
+  $("#stats").lastElementChild.classList.toggle("bad", bad);
+  $("#out").textContent = i === states.length - 1 ? "No crash: the run finished." : `Crash after ${s.step}, then restart.`;
+}
+const seg = (id, opts, init, set) => tabs($(id), opts, init, k => { set(k); run(); });
+seg("#mode", { auto: "Autocommit", txn: "Transaction" }, mode, k => (mode = k));
+seg("#scenario", { ok: "Transfer 30", fail: "120, Bob first" }, scen, k => (scen = k));
+seg("#ending", { commit: "COMMIT", rollback: "ROLLBACK" }, ending, k => (ending = k));
+$("#crash").oninput = e => { e.target.dataset.touched = 1; render(); };
+run();
+</script>
+</body>
+</html>

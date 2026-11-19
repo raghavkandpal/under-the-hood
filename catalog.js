@@ -368,6 +368,8 @@ export const CATALOG = [
     blurb: "Find one row among a million by reading 5 pages instead of 10,000: a sorted copy, column order, and what each index costs on writes.", prereqs: [] },
   { id: "wifi", title: "How Wi-Fi shares the air", area: "networking", topic: "how-the-network-works", level: "intro", tags: ["wi-fi", "csma/ca", "backoff", "hidden node", "rts/cts", "rate adaptation", "wireless"],
     blurb: "Stations that can only talk by listening: random backoff, the hidden node problem, RTS/CTS, and why one slow device slows everyone.", prereqs: [] },
+  { id: "transactions", title: "Transactions: all or nothing", area: "databases", topic: "transactions-and-durability", level: "intro", tags: ["transactions", "acid", "atomicity", "rollback", "commit", "rollback journal", "crash recovery", "sqlite", "database"],
+    blurb: "Move 30 between two accounts and crash halfway: autocommit loses money, a transaction never does. A rollback journal, ROLLBACK and a failed CHECK, run live.", prereqs: [] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -383,7 +385,7 @@ export const PATHS = [
     audience: "Developers who use the web every day and want to know what happens between pressing Enter and seeing the page.",
     outcomes: ["Trace a page load from DNS lookup to a cached response", "Explain how TCP turns lossy packets into a reliable stream", "Say what TLS actually proves, and how", "Explain why CDNs and load balancers make sites fast and resilient"] },
   { id: "databases", title: "Databases from the disk up", blurb: "How a database stores, finds and protects your rows.",
-    steps: ["normalization", "what-is-an-index", "btree", "hashtable", "bloom", "lsm", "race-conditions", "isolation", "mvcc", "write-ahead-log", "file-systems", "sql-joins", "query-planner", "columnar", "inverted-index"],
+    steps: ["normalization", "what-is-an-index", "btree", "hashtable", "bloom", "lsm", "transactions", "race-conditions", "isolation", "mvcc", "write-ahead-log", "file-systems", "sql-joins", "query-planner", "columnar", "inverted-index"],
     intro: "A database's job is to store your data, find it quickly, and never lose or corrupt it, even when the power fails mid-write. This path builds a database from the disk up: the data structures it stores rows in, how it stays correct under concurrent use and crashes, and how it decides to answer a query.",
     audience: "Anyone who writes SQL and wants to know why some queries are instant and others crawl.",
     outcomes: ["Compare B-trees and LSM trees and when each wins", "Explain isolation levels and the anomalies they prevent", "Describe how a write-ahead log survives a crash", "Read a query plan and spot a bad estimate"] },

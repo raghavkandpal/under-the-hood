@@ -124,6 +124,8 @@ export const SOURCES = {
   "mvcc": [["PostgreSQL: Concurrency Control (MVCC)", "https://www.postgresql.org/docs/current/mvcc-intro.html", "docs", "PostgreSQL"],
     ["PostgreSQL: Routine Vacuuming", "https://www.postgresql.org/docs/current/routine-vacuuming.html", "docs", "PostgreSQL"],
     ["Multiversion concurrency control", "https://en.wikipedia.org/wiki/Multiversion_concurrency_control", "encyclopedia", "Wikipedia"]],
+  "transactions": [["PostgreSQL: Tutorial, Transactions", "https://www.postgresql.org/docs/current/tutorial-transactions.html", "docs", "PostgreSQL"],
+    ["SQLite: Atomic Commit In SQLite", "https://www.sqlite.org/atomiccommit.html", "docs", "SQLite"]],
   "write-ahead-log": [["PostgreSQL: Write-Ahead Logging", "https://www.postgresql.org/docs/current/wal-intro.html", "docs", "PostgreSQL"],
     ["SQLite: Write-Ahead Logging", "https://www.sqlite.org/wal.html", "docs", "SQLite"],
     ["Algorithms for Recovery and Isolation Exploiting Semantics (ARIES)", "https://en.wikipedia.org/wiki/Algorithms_for_Recovery_and_Isolation_Exploiting_Semantics", "encyclopedia", "Wikipedia"]],
