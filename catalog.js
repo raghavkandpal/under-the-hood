@@ -370,6 +370,8 @@ export const CATALOG = [
     blurb: "Stations that can only talk by listening: random backoff, the hidden node problem, RTS/CTS, and why one slow device slows everyone.", prereqs: [] },
   { id: "transactions", title: "Transactions: all or nothing", area: "databases", topic: "transactions-and-durability", level: "intro", tags: ["transactions", "acid", "atomicity", "rollback", "commit", "rollback journal", "crash recovery", "sqlite", "database"],
     blurb: "Move 30 between two accounts and crash halfway: autocommit loses money, a transaction never does. A rollback journal, ROLLBACK and a failed CHECK, run live.", prereqs: [] },
+  { id: "shell-expansion", title: "Shell quoting and globs", area: "tools", topic: "everyday-tools", level: "intro", tags: ["shell", "bash", "quoting", "glob", "wildcards", "word splitting", "argv", "unix"],
+    blurb: "See the argument list a program really receives: why rm $file splits, what quotes protect, and how * skips dot files and picks up a file named -l.", prereqs: [] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -425,7 +427,7 @@ export const PATHS = [
     audience: "Anyone curious about what ZIP, JPEG and QR codes are actually doing.",
     outcomes: ["Explain how Huffman and LZ77 compress without losing anything", "Describe images and signals as sums of frequencies", "Explain what JPEG throws away and why you rarely notice", "Explain how error-correcting codes fix corrupted bits"] },
   { id: "toolbox", title: "A developer's toolbox", blurb: "What really happens when you run everyday commands.",
-    steps: ["pipes", "text-buffers", "diff", "hashtable", "git", "bisect", "three-way-merge", "build-systems", "dependency-resolution", "containers", "profilers", "debuggers", "fuzzing"],
+    steps: ["pipes", "shell-expansion", "text-buffers", "diff", "hashtable", "git", "bisect", "three-way-merge", "build-systems", "dependency-resolution", "containers", "profilers", "debuggers", "fuzzing"],
     intro: "The commands developers run every day hide some clever engineering. This path opens up the shell, text editors, diff and git, then the build tools, package managers and containers that get code from your laptop into production.",
     audience: "Developers who use these tools daily and want to understand, and debug, what they do.",
     outcomes: ["Explain how pipes stream data between programs", "Describe how git stores history and how diff finds changes", "Explain incremental builds and dependency resolution", "Say what a container really is, and why layer order matters"] },

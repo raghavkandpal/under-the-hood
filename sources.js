@@ -399,6 +399,8 @@ export const SOURCES = {
     ["The Node.js event loop", "https://nodejs.org/learn/asynchronous-work/event-loop-timers-and-nexttick", "docs", "Node.js"]],
   "pipes": [["pipe(7)", "https://man7.org/linux/man-pages/man7/pipe.7.html", "docs", "Linux man-pages"],
     ["Pipeline (Unix)", "https://en.wikipedia.org/wiki/Pipeline_(Unix)", "encyclopedia", "Wikipedia"]],
+  "shell-expansion": [["Bash Reference Manual: Shell Expansions", "https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html", "docs", "GNU Project"],
+    ["glob(7)", "https://man7.org/linux/man-pages/man7/glob.7.html", "docs", "Linux man-pages"]],
   "text-buffers": [["Text Buffer Reimplementation", "https://code.visualstudio.com/blogs/2018/03/23/text-buffer-reimplementation", "article", "VS Code team"],
     ["Piece table", "https://en.wikipedia.org/wiki/Piece_table", "encyclopedia", "Wikipedia"],
     ["Gap buffer", "https://en.wikipedia.org/wiki/Gap_buffer", "encyclopedia", "Wikipedia"]],

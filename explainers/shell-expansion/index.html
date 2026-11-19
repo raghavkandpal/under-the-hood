@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shell quoting and globs</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .cmd { width: 100%; font-family: var(--mono); font-size: 14px; padding: 6px 8px; box-sizing: border-box; }
+  .argv { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; padding: 0; list-style: none; font-family: var(--mono); font-size: 13px; }
+  .argv li { padding: 3px 8px; border-radius: 6px; background: var(--surface-2); }
+  .argv li.empty { outline: 1px dashed var(--muted); }
+  .dir { font-family: var(--mono); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Shell quoting and globs</h1>
+  <p class="lede">The shell rewrites your command before the program runs, and the program only sees the result. Quotes decide what gets rewritten.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="presets"></div></div>
+    <div class="row"><input class="cmd" id="cmd" spellcheck="false" autocomplete="off" aria-label="Command"></div>
+    <ol class="argv" id="argv" aria-label="Arguments the program receives"></ol>
+    <div class="stats" id="stats" style="--stat-min:120px"></div>
+    <p class="status" id="out" aria-live="polite"></p>
+    <p class="dir" id="dir"></p>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Splitting.</b> With <code>file="my notes.txt"</code>, <code>rm $file</code> hands <code>rm</code> two arguments, <code>my</code> and <code>notes.txt</code>, and <code>rm "$file"</code> hands it one. The shell replaces <code>$file</code> first, then cuts the result at spaces, tabs and newlines. Only text that came from an unquoted expansion is cut.</p>
+  <p><b>Quotes.</b> Single quotes change nothing: <code>'$file'</code> arrives as the literal text <code>$file</code>. Double quotes still expand <code>$file</code> but keep the value in one piece. Quoting also decides what happens to nothing: an unset variable unquoted vanishes, so <code>echo $empty</code> passes 0 arguments, while <code>echo "$empty"</code> passes 1 empty argument.</p>
+  <p><b>Globs.</b> An unquoted <code>*</code> or <code>?</code> is matched against the directory, and the sorted matches replace the word. <code>*.txt</code> becomes <code>a.txt b.txt</code>: the file <code>.hidden.txt</code> is skipped, because a leading dot has to be typed. <code>"*.txt"</code> is never expanded. A pattern that matches nothing is passed as typed, so <code>ls *.csv</code> gets the literal <code>*.csv</code>, and <code>ls</code> complains about a file that does not exist. The program never sees a glob; it sees the list.</p>
+  <div class="note"><b>Try it:</b> run <code>ls *</code>. The directory holds a file named <code>-l</code>, so <code>ls</code> receives <code>-l</code> as one of its arguments and reads it as an option. <code>ls ./*</code> passes <code>./-l</code> instead, which cannot be an option. The same trap hits <code>rm *</code>, which passes 4 names and keeps <code>.hidden.txt</code>.</div>
+  <p class="caveat">A toy: <code>$name</code>, both quotes, <code>*</code>, <code>?</code> and a leading <code>./</code> only, one fixed directory, default word splitting. No braces, <code>~</code>, backslashes, <code>$(…)</code> or other shells' options.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs, escapeHtml } from "../../shared/common.js";
+import { expand, DIR } from "./shell-expansion.js";
+chrome();
+
+const PRESETS = ["rm $file", 'rm "$file"', "echo '$file'", "echo $empty", 'echo "$empty"', "ls *.txt", 'ls "*.txt"', "ls *.csv", "ls *", "ls ./*"];
+function show() {
+  const r = expand($("#cmd").value);
+  $("#out").textContent = r.error || "";
+  const argv = r.error ? [] : r.argv;
+  $("#argv").innerHTML = argv.map(x => `<li class="${x === "" ? "empty" : ""}">${x === "" ? "(empty)" : escapeHtml(x)}</li>`).join("");
+  $("#stats").innerHTML = statTile([r.error ? "–" : argv.length, "arguments"]);
+}
+const mark = tabs($("#presets"), Object.fromEntries(PRESETS.map((p, i) => [i, escapeHtml(p)])), 0, i => { $("#cmd").value = PRESETS[i]; show(); });
+$("#cmd").oninput = e => { mark(PRESETS.indexOf(e.target.value)); show(); };
+$("#dir").textContent = "Directory: " + DIR.join("  ") + "  ·  file=\"my notes.txt\"";
+$("#cmd").value = PRESETS[0]; show();
+</script>
+</body>
+</html>
