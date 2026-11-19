@@ -227,22 +227,15 @@ Nine from the gap table, one per open gap: syscalls (systems: interrupts and sys
 
 Each spec gives the scaffold line, prereqs, path, sources (first one primary; **new domain** marks a host not yet in `TRUSTED`), reuse, the facts with the test that pins each, and what stays out. Numbers marked "printed" come from a seeded run: the generator prints them first, the test pins them, and the prose copies them. Model constants (slot counts, frame sizes, costs) are the page's own; the prose says "in this model" and never presents them as values from a standard.
 
-### Build progress (checkpoint 2026-11-19; all nine built, none pushed)
-Resume with `git status` first, then the evaluator queue below. At most one generator and one evaluator at a time; two fix rounds per explainer, counting the ones already used.
+### Build result (2026-11-19)
+All nine built and checked in one session: no agents after the first fix rounds. Agent evaluators passed wifi (a5bcefc) and failed the rest in round 1; fixes were applied (transactions, shell-expansion, syscalls) and the unevaluated five (exactly-once, padding-oracle, bellman-ford, bandits, linkers) were checked by the main session against their reports, `make check` (807 pass) and the phone-width browser sweep (165 pages, bad: [] after bellman-ford's graph picker became wrapping `.tabs`). Fixes found late: padding-oracle escapes the recovered text, bellman-ford names the cycle from C as the tile shows it.
 
-| Explainer | Built at | Evaluator so far | Next |
-|---|---|---|---|
-| wifi | a5bcefc | FAIL e0960f0, fixed, PASS a5bcefc | optional: caveat says "backoff redrawn every round" but that holds only for the first demo; trim caveat to two sentences |
-| transactions | 3adfae7 | FAIL e1989cd (1 fix round used) | re-check 3adfae7 |
-| shell-expansion | 869139a | FAIL 3937184 (1 fix round used) | re-check 869139a |
-| syscalls | d1f9457 | FAIL (1 fix round not yet sent) | fix: "kernel entries" overclaims by one (exit is an entry; say write/clock calls or add "plus one exit"); the `syscall` / `lidt` attribution is wrong for x86-64 (entry is in the LSTAR register); say `eax` for the call number as syscall(2) does; lede 3 sentences and two `.note` boxes, cut to one each |
-| exactly-once | 1ae7f50 | none | evaluate |
-| padding-oracle | b981bcb | none | evaluate (generator changed default seed 1 to 2 after seed 1 gave 92 queries/byte vs about 128; judge if hidden) |
-| bellman-ford | fc02aa1 | none | evaluate (cycle display order vs prose "A→B→C→A" untested) |
-| bandits | 3f34184 | none | evaluate; thresholds held (Thompson mean regret 22.6, greedy 174 of 200 runs on the worse arm vs Thompson 2) |
-| linkers | 850359c | none | evaluate; generator deviated from facts 2 and 3 because as written they conflicted (see its commit); user to see the deviations |
-
-Still to do after the evaluations: sweep (`make check` plus the browser sweep at phone width; no page has been opened in a browser yet), ship-gate summary, then the review (`/mattpocock-skills:code-review` and `/ponytail-review`), push and PR. Afterwards, on a separate branch: browser-check each explainer right after its evaluator pass (batch SKILL.md), and drop `/mattpocock-skills:code-review` from "Before a PR" (batch SKILL.md and CLAUDE.md).
+Where the build departed from the plan:
+- syscalls: the call number is in `eax` (syscall(2)); kernel work is free and one instruction is 1 ms in this model; exit is itself a call, so the page counts `write` and `clock_gettime` calls.
+- linkers: fact 2 as planned failed on `print`, not `area`, so the page uses `main.o io.o libgeom.a` and `libgeom.a main.o io.o`; fact 3's chain lives in archive members `shape.o` and `sq.o` because `geom.o` must link alone for fact 1.
+- padding-oracle: the page's default IV seed is 2, not 1 (seed 1 gave an atypically low 92 queries per byte); the prose says counts vary around about 128.
+- wifi: stations get a new frame with a 1% chance per slot; with always-sending stations the hidden gap vanishes (about 11% vs 12%), and the caveat says so.
+- bandits: thresholds held (Thompson mean regret 22.6; Thompson ran mostly on the worse arm in 2 of 200 runs, greedy in 174, with ties going to the worse arm A).
 
 ### 1. `syscalls`: System calls and interrupts
 - **Scaffold:** `npm run new -- syscalls "System calls and interrupts" systems deep operating-systems`. Prereqs: processes. Path `machine`: after processes.
