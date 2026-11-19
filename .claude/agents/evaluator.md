@@ -2,8 +2,8 @@
 name: evaluator
 description: Skeptical reviewer for one explainer. Checks its claims against the simulation and the README rules, and returns PASS or FAIL with a bug list. Never fixes anything.
 tools: Read, Bash, Grep, Glob
-model: opus
-effort: medium
+model: sonnet
+effort: high
 skills:
   - ponytail:ponytail
   - caveman:caveman
