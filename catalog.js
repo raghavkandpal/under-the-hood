@@ -380,6 +380,8 @@ export const CATALOG = [
     blurb: "A server that only says whether the padding was valid lets an attacker read the whole message without the key, one byte per few hundred guesses. A MAC stops it.", prereqs: ["cipher-modes"] },
   { id: "bellman-ford", title: "Negative weights and Bellman–Ford", area: "algorithms", topic: "search-and-graphs", level: "deep", tags: ["bellman-ford", "negative weights", "negative cycle", "shortest path", "dijkstra", "arbitrage"],
     blurb: "A negative edge breaks Dijkstra's shortcut. Relax every edge V − 1 times instead, and a round that still improves something exposes a negative cycle, like a currency loop that pays.", prereqs: ["pathfinding"] },
+  { id: "bandits", title: "Multi-armed bandits", area: "statistics", topic: "experiments-and-inference", level: "deep", tags: ["bandits", "thompson sampling", "exploration", "regret", "beta distribution", "a/b testing"],
+    blurb: "A 50/50 split keeps showing the worse option. Thompson sampling shifts traffic to the better one as evidence arrives; greedy can lock onto the wrong one.", prereqs: ["abtest", "bayes"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -420,7 +422,7 @@ export const PATHS = [
     audience: "Developers and analysts who want solid foundations before (or instead of) deep learning.",
     outcomes: ["Explain overfitting and how to detect it", "Compare nearest neighbours and decision trees", "Choose a decision threshold with ROC curves", "Use clustering, PCA and embeddings to find structure"] },
   { id: "stats", title: "Statistics for engineers", blurb: "Enough statistics to run an experiment and not fool yourself.",
-    steps: ["birthday-paradox", "monte-carlo", "markov-chains", "clt", "bootstrap", "survival-curves", "linear-regression", "abtest", "power-analysis", "multiple-testing", "simpson", "bayes", "roc"],
+    steps: ["birthday-paradox", "monte-carlo", "markov-chains", "clt", "bootstrap", "survival-curves", "linear-regression", "abtest", "power-analysis", "multiple-testing", "simpson", "bayes", "bandits", "roc"],
     intro: "Most bad decisions from data come from a few classic mistakes: trusting a noisy number, peeking at an experiment, or comparing groups that aren't alike. This path builds the intuition to avoid them, mostly through simulation rather than formulas.",
     audience: "Engineers and product people who run experiments or read dashboards and want to trust the conclusions.",
     outcomes: ["Explain why averages become predictable and how wide an error bar is", "Put an error bar on almost any number with the bootstrap", "Run an A/B test without fooling yourself", "Recognise Simpson's paradox and reason with Bayes"] },

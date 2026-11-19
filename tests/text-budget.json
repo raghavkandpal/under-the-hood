@@ -2,6 +2,7 @@
 "attention":{"helper":26,"caveat":41},
 "autocomplete":{"helper":14,"caveat":18},
 "balanced-trees":{"helper":25,"caveat":22},
+"bandits":{"helper":25,"caveat":40},
 "bayes":{"helper":21,"caveat":37},
 "beam-search":{"helper":20,"caveat":24},
 "bellman-ford":{"helper":39,"caveat":47},

@@ -367,6 +367,8 @@ export const SOURCES = {
   "power-analysis": [["Sample Size Calculator", "https://www.evanmiller.org/ab-testing/sample-size.html", "article", "Evan Miller"],
     ["OpenIntro Statistics", "https://www.openintro.org/book/os/", "book", "Diez, Çetinkaya-Rundel, Barr"],
     ["Power of a test", "https://en.wikipedia.org/wiki/Power_(statistics)", "encyclopedia", "Wikipedia"]],
+  "bandits": [["Reinforcement Learning: An Introduction (2nd ed.), ch. 2 Multi-armed Bandits", "http://incompleteideas.net/book/the-book-2nd.html", "book", "Sutton & Barto"],
+    ["A Tutorial on Thompson Sampling", "https://arxiv.org/abs/1707.02038", "paper", "Russo, Van Roy, Kazerouni, Osband, Wen"]],
   "abtest": [["How Not To Run an A/B Test", "https://www.evanmiller.org/how-not-to-run-an-ab-test.html", "article", "Evan Miller"],
     ["A/B testing", "https://en.wikipedia.org/wiki/A/B_testing", "encyclopedia", "Wikipedia"]],
   "simpson": [["Understanding Simpson's Paradox", "https://ftp.cs.ucla.edu/pub/stat_ser/r414.pdf", "paper", "Judea Pearl"],
