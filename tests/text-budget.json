@@ -133,6 +133,7 @@
 "string-search":{"helper":36,"caveat":40},
 "subnets":{"helper":21,"caveat":28},
 "survival-curves":{"helper":24,"caveat":39},
+"syscalls":{"helper":46,"caveat":40},
 "tcp":{"helper":59,"caveat":26},
 "text-buffers":{"helper":38,"caveat":0},
 "three-way-merge":{"helper":38,"caveat":35},

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System calls and interrupts</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .tl { display: flex; height: 22px; margin-top: 10px; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+  .tl i { flex: 1; background: var(--surface-2); }
+  .tl i.p0 { background: var(--blue); } .tl i.p1 { background: var(--green); }
+</style>
+</head>
+<body>
+<main>
+  <h1>System calls and interrupts</h1>
+  <p class="lede">A program runs on the CPU with no way to touch the disk, the network or another program's memory. It has to ask the kernel, and the kernel has to be able to take the CPU back. Both depend on the same small mechanism: a CPU that can tell who is running.</p>
+
+  <h2>Two modes</h2>
+  <div class="panel">
+    <div class="row"><div class="seg" id="priv" aria-label="Mode"></div></div>
+    <div class="stats" id="privOut"></div>
+    <div class="row" style="margin-top:14px"><div class="seg" id="reg" aria-label="Register r2"></div></div>
+    <div class="stats" id="trapOut"></div>
+  </div>
+  <p><b>Privileged instructions.</b> The CPU has a mode bit. In user mode, a few instructions are forbidden, such as the one that sets the trap table (<code>lidt</code> on x86). Running one is not an error the program can handle: the CPU traps into the kernel, which ends the process. In kernel mode the same instruction runs and changes the table. In this model the user run ends faulted and the table keeps its old entry; the kernel run points it at the new one.</p>
+  <p><b>Trap.</b> A program asks for a service with a trap instruction (<code>syscall</code> on x86-64, with the call number in <code>rax</code>). The CPU flips to kernel mode and jumps to the handler address the kernel stored in the trap table at boot. The program cannot choose that address: set <code>r2</code> to anything above and the entry is the same, because the kernel is only ever entered at a place it picked. The handler does its work, then a return-from-trap instruction flips back to user mode at the instruction after the trap. A user-mode write to the table is itself a privileged instruction, so it faults too. This is the mechanism <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf">OSTEP calls limited direct execution</a>: the program runs directly on the CPU, limited to what the mode bit allows.</p>
+
+  <h2>What a crossing costs</h2>
+  <div class="panel">
+    <div class="row"><div class="seg" id="wr" aria-label="Writing 10,000 bytes"></div></div>
+    <div class="stats" id="wrOut"></div>
+    <div class="row" style="margin-top:14px"><div class="seg" id="ck" aria-label="Reading the clock 1,000 times"></div></div>
+    <div class="stats" id="ckOut"></div>
+  </div>
+  <p><b>Fewer crossings.</b> Writing 10,000 bytes one byte per <code>write</code> enters the kernel 10,000 times. A C program that writes through stdio gets a 4,096-byte buffer in user space: bytes are copied into it with no trap, and one <code>write</code> goes out each time it fills. That is 3 calls here: 4,096 bytes, 4,096 and the last 1,808 at the flush. Every byte arrives either way.</p>
+  <p><b>No crossing at all.</b> Reading the clock needs no privilege, only the kernel's current time. On Linux the kernel maps a small page into every process, the <a href="https://man7.org/linux/man-pages/man7/vdso.7.html">vDSO</a>, with code and data to read the time in user space (<code>__vdso_clock_gettime</code> on x86-64). In this model 1,000 clock reads enter the kernel 1,000 times as system calls and 0 times through the vDSO, with the same 1,000 times returned. This page gives no cost for a crossing: the model prices every instruction at 1 ms and the kernel's work at nothing, and that is not what hardware does.</p>
+  <div class="note"><b>Try it.</b> Switch the writes between the two settings: the bytes written stay at 10,000 while the entries drop from 10,000 to 3.</div>
+
+  <h2>Taking the CPU back</h2>
+  <div class="panel">
+    <div class="row"><div class="seg" id="tm" aria-label="Timer"></div></div>
+    <div class="stats" id="tmOut"></div>
+    <div class="tl" id="tmTl" role="img" aria-label="Which loop ran in each of 100 ms"></div>
+    <ul class="legend"><li><i style="--c:var(--blue)"></i>A</li><li><i style="--c:var(--green)"></i>B</li></ul>
+    <div class="row" style="margin-top:14px"><div class="seg" id="dk" aria-label="A waits for the disk"></div></div>
+    <div class="stats" id="dkOut"></div>
+    <div class="tl" id="dkTl" role="img" aria-label="Which process ran during the disk wait"></div>
+  </div>
+  <p><b>The timer.</b> Two loops, A and B, never make a syscall and share 100 ms. Without help the kernel could never run again, because a program that does not call it does not give it the CPU. So at boot the kernel starts a timer that interrupts the CPU every 10 ms. Each interrupt enters the kernel through the trap table, and the kernel switches to the other loop (the <a href="../scheduling/">scheduling</a> page covers who to pick). With the 10 ms timer the kernel regains control 10 times and each loop runs 50 ms. With no timer the first loop runs all 100 ms and the second 0.</p>
+  <p><b>Waiting for a device.</b> Process A reads from a disk that answers in 5 ms, while B loops. If the kernel blocks A and starts B, the disk interrupts the CPU when it is done, and B has run for those 5 ms. If A polls the device in a loop instead, A holds the CPU for the whole wait and B runs 0 ms of it: the 10 ms timer slice is longer than the 5 ms wait, so the timer never steps in. An interrupt lets the CPU do other work while a slow device is busy.</p>
+  <div class="note"><b>Try it.</b> In the disk run, choose Poll and watch B's time in the wait fall from 5 ms to 0.</div>
+  <p>How a process is created or replaced is on the <a href="../processes/">processes</a> page; here a process is just a program counter, some registers and a state.</p>
+  <p class="caveat">Simplified: one CPU, instructions of 1 ms, kernel work free, no nested interrupts, and a program that runs off its end exits. Polling is a loop on a status flag, and the call numbers and addresses are this model's own.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs } from "../../shared/common.js";
+import { SYS, privileged, trap, writes, clock, loops, disk, count } from "./syscalls.js";
+chrome();
+
+const hex = n => "0x" + n.toString(16);
+const num = n => n.toLocaleString("en-US");
+const tiles = (el, items) => ($(el).innerHTML = items.map(statTile).join(""));
+const timeline = (el, m) => ($(el).innerHTML = m.owner.map(o => `<i class="${o === "-" ? "" : "p" + o}"></i>`).join(""));
+const st = { priv: "user", reg: 0xdead, wr: "buf", ck: "vdso", tm: 10, dk: "irq" };
+const seg = (id, opts) => tabs($(id), opts, String(st[id.slice(1)]), k => { st[id.slice(1)] = isNaN(+k) || k === "" ? k : +k; render(); });
+seg("#priv", { user: "User mode", kernel: "Kernel mode" });
+seg("#reg", { 0: "r2 0x0", 4864: "r2 0x1300", 57005: "r2 0xdead" });
+seg("#wr", { raw: "1 byte per write", buf: "4,096-byte buffer" });
+seg("#ck", { sys: "System call", vdso: "vDSO" });
+seg("#tm", { 10: "10 ms timer", 0: "No timer" });
+seg("#dk", { irq: "Interrupt", poll: "Poll" });
+
+function render() {
+  const p = privileged(st.priv);
+  tiles("#privOut", [[p.procs[0].state === "faulted" ? "fault" : "ran", "lidt"], [hex(p.trapTable.syscall), "table entry after"]]);
+  const t = trap(st.reg), e = t.entries[0];
+  tiles("#trapOut", [[t.modes.slice(0, 3).join(" → "), "modes"], [hex(e.entryPc), "entry pc"], [`${e.returnPc} = ${e.trapPc} + 1`, "return pc"]]);
+  const w = writes(10000, st.wr === "buf");
+  tiles("#wrOut", [[num(count(w, "syscall", SYS.write)), "write calls"], [num(w.written.reduce((s, x) => s + x, 0)), "bytes written"]]);
+  const c = clock(1000, st.ck === "vdso");
+  tiles("#ckOut", [[num(count(c, "syscall", SYS.clock_gettime)), "kernel entries"], [num(c.procs[0].seen.length), "times returned"]]);
+  const l = loops(st.tm);
+  tiles("#tmOut", [[count(l, "timer"), "timer interrupts"], [l.procs[0].ran + " ms", "A ran"], [l.procs[1].ran + " ms", "B ran"]]);
+  timeline("#tmTl", l);
+  const d = disk(st.dk === "poll");
+  tiles("#dkOut", [[d.procs[1].ran + " ms", "B ran in the wait"], [count(d, "disk"), "disk interrupts"]]);
+  timeline("#dkTl", d);
+}
+render();
+</script>
+</body>
+</html>
