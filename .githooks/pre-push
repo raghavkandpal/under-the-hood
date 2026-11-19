@@ -1,0 +1,3 @@
+#!/bin/sh
+# Every push must pass the checks. Enable once per clone: git config core.hooksPath .githooks
+exec make check < /dev/null
