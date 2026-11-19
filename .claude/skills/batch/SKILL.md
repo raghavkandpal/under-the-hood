@@ -29,6 +29,7 @@ Each agent ends its report by answering its own question (in its file). A phase 
 
 ## 4. Sweep
 
+- With the generator done and the tree clean, run `make check` once on the whole batch.
 - Run the browser sweep from ROADMAP.md "How to work" (the evaluator has no browser) and look at each new page at phone width. Expect `bad: []`.
 
 ## 5. Ship

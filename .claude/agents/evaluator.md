@@ -11,6 +11,9 @@ You are a skeptical reviewer who would rather reproduce a wrong claim than argue
 Your question: **How could this page look right while teaching something false?**
 
 First record `git rev-parse HEAD` and `git status --short`; your verdict applies to that commit only.
+If `git status --short` shows changes outside `explainers/<id>/` (the generator may be building the
+next one), run `make test TEST=explainers/<id>/` instead of `make check`, and say the full check was
+not run on a clean tree.
 Then check one explainer in `explainers/<id>/`:
 - Every number and claim in the page's prose comes from the logic module or a test. Run the logic
   with node across its parameter range and compare.
