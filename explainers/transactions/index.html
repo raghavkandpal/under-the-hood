@@ -29,12 +29,12 @@
   </div>
 
   <h2>How it works</h2>
-  <p><b>Autocommit.</b> Outside a transaction every statement is its own transaction: it takes effect the moment it finishes. The debit commits, the machine dies, and after the restart Alice has 70 and Bob 50. The 30 is gone and the total is 120, not 150. Drag the crash point to the gap between the two statements.</p>
-  <p><b>A transaction.</b> <code>BEGIN</code> groups the statements, and nothing counts until <code>COMMIT</code>. SQLite does it with a rollback journal: before it changes the database file it copies the original value into a journal file. <code>COMMIT</code> deletes the journal, and that deletion is the moment the transfer happens. If the machine restarts and finds a journal, it is "hot", so the engine copies the originals back. Try every crash point: the table comes back as (100, 50) until the commit and (70, 80) after it, and the total is always 150.</p>
-  <p><b>ROLLBACK.</b> You can undo on purpose too. Choose ROLLBACK after both updates and the originals are restored, (100, 50), exactly as if nothing had run. The same thing happens when a statement fails.</p>
-  <div class="note"><b>Try it:</b> pick "120, Bob first". The credit to Bob succeeds, then the debit breaks <code>CHECK balance &gt;= 0</code>. In a transaction the credit is undone and the table is (100, 50). In autocommit the credit stays: Bob has 170 and the total is 270, money from nowhere.</div>
+  <p><b>Autocommit.</b> Outside a transaction every statement is its own transaction: it takes effect the moment it finishes. The debit commits, the machine dies, and after the restart Alice has 70 and Bob 50. The 30 is gone and the total is 120, not 150.</p>
+  <p><b>A transaction.</b> <code>BEGIN</code> groups the statements, and nothing counts until <code>COMMIT</code>. SQLite does it with a rollback journal: before it changes the database file it copies the original data into a journal file. <code>COMMIT</code> deletes the journal, and that deletion is the moment the transfer happens. If the machine restarts and finds a journal, it is "hot", so the engine copies the originals back. At every crash point the table comes back as (100, 50) until the commit and (70, 80) after it, and the total is always 150.</p>
+  <p><b>ROLLBACK.</b> You can undo on purpose too. <code>ROLLBACK</code> after both updates restores the originals, (100, 50), exactly as if nothing had run.</p>
+  <div class="note"><b>Try it:</b> pick "120, Bob first". The credit to Bob succeeds, then the debit breaks <code>CHECK balance &gt;= 0</code>. In a transaction the page rolls back for you, the credit is undone and the table is (100, 50). In autocommit the credit stays: Bob has 170 and the total is 270, money from nowhere.</div>
   <p><b>What others see.</b> Another session never reads the half-done state. Before <code>COMMIT</code> it reads (100, 50), after it (70, 80), and it never reads (70, 50). Under autocommit it can read (70, 50), between the statements. How databases hide uncommitted work from several concurrent sessions is the subject of <a href="../isolation/">isolation</a> and <a href="../mvcc/">MVCC</a>; how real engines log changes so they can also redo committed ones is <a href="../write-ahead-log/">write-ahead logging</a>.</p>
-  <p class="caveat">Simplified: each UPDATE is a single atomic write, the journal holds one value per row, and the other session reads the old values from the journal (real SQLite makes it wait). Locks, savepoints and fsync are left out.</p>
+  <p class="caveat">Simplified: each UPDATE is one atomic write, the journal holds a value per row (SQLite journals whole pages), and a failed statement rolls the transaction back for you (SQLite keeps it open for your code to ROLLBACK). The other session reads the old values at once, as in PostgreSQL; a SQLite reader sees the unchanged file until the commit locks it.</p>
 </main>
 <script type="module">
 import { chrome, $, statTile, tabs, escapeHtml } from "../../shared/common.js";
@@ -53,13 +53,14 @@ function run() {
 }
 function render() {
   const i = +$("#crash").value, s = states[i], after = restart(s);
+  $("#ending").hidden = mode === "auto";
   $("#cv").textContent = s.step;
   $("#steps").innerHTML = states.slice(1).map((x, k) =>
     `<li class="${k < i ? "done" : ""} ${k + 1 === i ? "crash" : ""} ${x.error ? "err" : ""}">${escapeHtml(x.step)}${x.error ? " (" + escapeHtml(x.error) + ")" : ""}</li>`).join("");
   const bad = total(after) !== 150;
   $("#stats").innerHTML = [
     [pair(s.disk), "database file"],
-    [s.journal ? Object.entries(s.journal).map(([k, v]) => `${k} ${v}`).join(", ") || "empty" : "none", "journal"],
+    [Object.entries(s.journal || {}).map(([k, v]) => `${k} ${v}`).join(", ") || "none", "journal"],
     [pair(s.view), "other session reads"],
     [pair(after), "after restart"],
     [total(after), "total"],
