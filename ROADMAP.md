@@ -227,6 +227,23 @@ Nine from the gap table, one per open gap: syscalls (systems: interrupts and sys
 
 Each spec gives the scaffold line, prereqs, path, sources (first one primary; **new domain** marks a host not yet in `TRUSTED`), reuse, the facts with the test that pins each, and what stays out. Numbers marked "printed" come from a seeded run: the generator prints them first, the test pins them, and the prose copies them. Model constants (slot counts, frame sizes, costs) are the page's own; the prose says "in this model" and never presents them as values from a standard.
 
+### Build progress (checkpoint 2026-11-19; all nine built, none pushed)
+Resume with `git status` first, then the evaluator queue below. At most one generator and one evaluator at a time; two fix rounds per explainer, counting the ones already used.
+
+| Explainer | Built at | Evaluator so far | Next |
+|---|---|---|---|
+| wifi | a5bcefc | FAIL e0960f0, fixed, PASS a5bcefc | optional: caveat says "backoff redrawn every round" but that holds only for the first demo; trim caveat to two sentences |
+| transactions | 3adfae7 | FAIL e1989cd (1 fix round used) | re-check 3adfae7 |
+| shell-expansion | 869139a | FAIL 3937184 (1 fix round used) | re-check 869139a |
+| syscalls | d1f9457 | FAIL (1 fix round not yet sent) | fix: "kernel entries" overclaims by one (exit is an entry; say write/clock calls or add "plus one exit"); the `syscall` / `lidt` attribution is wrong for x86-64 (entry is in the LSTAR register); say `eax` for the call number as syscall(2) does; lede 3 sentences and two `.note` boxes, cut to one each |
+| exactly-once | 1ae7f50 | none | evaluate |
+| padding-oracle | b981bcb | none | evaluate (generator changed default seed 1 to 2 after seed 1 gave 92 queries/byte vs about 128; judge if hidden) |
+| bellman-ford | fc02aa1 | none | evaluate (cycle display order vs prose "A→B→C→A" untested) |
+| bandits | 3f34184 | none | evaluate; thresholds held (Thompson mean regret 22.6, greedy 174 of 200 runs on the worse arm vs Thompson 2) |
+| linkers | 850359c | none | evaluate; generator deviated from facts 2 and 3 because as written they conflicted (see its commit); user to see the deviations |
+
+Still to do after the evaluations: sweep (`make check` plus the browser sweep at phone width; no page has been opened in a browser yet), ship-gate summary, then the review (`/mattpocock-skills:code-review` and `/ponytail-review`), push and PR. Afterwards, on a separate branch: browser-check each explainer right after its evaluator pass (batch SKILL.md), and drop `/mattpocock-skills:code-review` from "Before a PR" (batch SKILL.md and CLAUDE.md).
+
 ### 1. `syscalls`: System calls and interrupts
 - **Scaffold:** `npm run new -- syscalls "System calls and interrupts" systems deep operating-systems`. Prereqs: processes. Path `machine`: after processes.
 - **Sources:** OSTEP ch. 6, Mechanism: Limited Direct Execution, https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-mechanisms.pdf (book; trap, trap table, user and kernel mode, timer interrupt); syscall(2), https://man7.org/linux/man-pages/man2/syscall.2.html (docs; x86-64 `syscall`, number in `eax`, result in `rax`); vdso(7), https://man7.org/linux/man-pages/man7/vdso.7.html (docs; `__vdso_clock_gettime` on x86-64).
