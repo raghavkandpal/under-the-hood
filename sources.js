@@ -424,4 +424,6 @@ export const SOURCES = {
     ["Computer Networks: A Systems Approach, 3.3 Basic Internetworking", "https://book.systemsapproach.org/internetworking/basic-ip.html", "book", "Peterson & Davie"]],
   "backups": [["PostgreSQL: Continuous Archiving and Point-in-Time Recovery (PITR)", "https://www.postgresql.org/docs/current/continuous-archiving.html", "docs", "PostgreSQL"],
     ["PostgreSQL: Backup and Restore", "https://www.postgresql.org/docs/current/backup.html", "docs", "PostgreSQL"]],
+  "tail-latency": [["The Tail at Scale (Dean & Barroso, CACM 2013)", "https://research.google/pubs/pub40801/", "paper", "Google"],
+    ["Site Reliability Engineering, ch. 4: Service Level Objectives", "https://sre.google/sre-book/service-level-objectives/", "book", "Google"]],
 };

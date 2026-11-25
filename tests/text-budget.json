@@ -141,6 +141,7 @@
 "survival-curves":{"helper":24,"caveat":39},
 "switches":{"helper":31,"caveat":25},
 "syscalls":{"helper":45,"caveat":44},
+"tail-latency":{"helper":30,"caveat":27},
 "tcp":{"helper":59,"caveat":26},
 "text-buffers":{"helper":38,"caveat":0},
 "three-way-merge":{"helper":38,"caveat":35},

@@ -388,6 +388,8 @@ export const CATALOG = [
     blurb: "A switch learns which port each machine is on by watching source addresses, floods what it doesn't know, and ARP finds the MAC for an IP; add a loop and a broadcast never dies.", prereqs: ["subnets"] },
   { id: "backups", title: "Backups and point-in-time recovery", area: "databases", topic: "transactions-and-durability", level: "intro", tags: ["backup", "point-in-time recovery", "pitr", "wal archive", "base backup", "postgresql", "disaster recovery"],
     blurb: "Restoring last night's backup loses a day; replaying the log gets you to the minute before someone dropped the table.", prereqs: ["transactions"] },
+  { id: "tail-latency", title: "Tail latency and fan-out", area: "distributed", topic: "traffic-and-reliability", level: "intro", tags: ["tail latency", "p99", "fan-out", "hedged requests", "percentiles", "the tail at scale"],
+    blurb: "A server that is slow 1% of the time makes most requests slow once they fan out to a hundred of them; hedging fixes it for 1% extra calls.", prereqs: [] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -418,7 +420,7 @@ export const PATHS = [
     audience: "Developers who handle logins, secrets or user data, and anyone who wants to know what the padlock means.",
     outcomes: ["Explain hashing, encryption and signatures, and which to use when", "Describe how TLS and “Sign in with…” keep credentials safe", "Store passwords properly and add a second factor", "Spot SQL injection and the misuse of cipher modes"] },
   { id: "distributed", title: "Distributed systems 101", blurb: "Keeping many machines fast, available and in agreement.",
-    steps: ["queues", "load-balancing", "rate-limiting", "retries", "idempotency", "exactly-once", "hashtable", "consistent-hashing", "sharding", "quorum", "replication-lag", "gossip", "failure-detection", "tcp", "raft", "paxos", "fencing-tokens", "crdt", "vector-clocks", "clock-sync"],
+    steps: ["queues", "tail-latency", "load-balancing", "rate-limiting", "retries", "idempotency", "exactly-once", "hashtable", "consistent-hashing", "sharding", "quorum", "replication-lag", "gossip", "failure-detection", "tcp", "raft", "paxos", "fencing-tokens", "crdt", "vector-clocks", "clock-sync"],
     intro: "Once a system runs on more than one machine, messages get lost, clocks disagree and servers fail at the worst moment. This path covers how real systems stay fast under load and keep their data in agreement: queues and back-off, spreading data across servers, consensus, and making sense of time.",
     audience: "Backend engineers who are starting to design or operate services that run on many machines.",
     outcomes: ["Reason about queues, load and retry storms", "Explain consistent hashing, quorums and gossip", "Describe how Raft keeps replicas in agreement", "Explain why clocks can't be trusted, and what systems use instead"] },
