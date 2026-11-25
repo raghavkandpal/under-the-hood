@@ -364,6 +364,8 @@ export const SOURCES = {
   "survival-curves": [["Introduction to survival analysis", "https://lifelines.readthedocs.io/en/latest/Survival%20Analysis%20intro.html", "docs", "lifelines"],
     ["An Introduction to Statistical Learning, 2nd ed., chapter 11", "https://www.statlearning.com/", "book", "James, Witten, Hastie, Tibshirani"],
     ["Kaplan–Meier estimator", "https://en.wikipedia.org/wiki/Kaplan%E2%80%93Meier_estimator", "encyclopedia", "Wikipedia"]],
+  "sequential-testing": [["Always Valid Inference: Bringing Sequential Analysis to A/B Testing", "https://arxiv.org/abs/1512.04922", "paper", "Johari, Pekelis and Walsh"],
+    ["Simple Sequential A/B Testing", "https://www.evanmiller.org/sequential-ab-testing.html", "article", "Evan Miller"]],
   "power-analysis": [["Sample Size Calculator", "https://www.evanmiller.org/ab-testing/sample-size.html", "article", "Evan Miller"],
     ["OpenIntro Statistics", "https://www.openintro.org/book/os/", "book", "Diez, Çetinkaya-Rundel, Barr"],
     ["Power of a test", "https://en.wikipedia.org/wiki/Power_(statistics)", "encyclopedia", "Wikipedia"]],

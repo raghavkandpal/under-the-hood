@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sequential A/B tests</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+  #chart text { font-size: 12px; fill: var(--muted); }
+  #chart .axis { stroke: var(--control-border); stroke-width: 1; }
+  #chart .bound { fill: none; stroke: var(--red); stroke-width: 2; }
+  #chart .walk { fill: none; stroke: var(--accent); stroke-width: 1.6; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sequential A/B tests</h1>
+  <p class="lede">Checking an A/B test every day and stopping when it looks like a win makes useless changes win far too often. A stopping rule fixed in advance lets you look after every conversion and still keeps false winners rare.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="mode"></div><div class="seg" id="lift"></div>
+      <label class="inline">Seed <input type="range" id="seed" min="1" max="200" value="1" aria-label="Random run seed"> <b id="sv"></b></label></div>
+    <svg id="chart" viewBox="0 0 600 260" role="img" aria-label="Treatment minus control conversions after each conversion, against the line that ends the test with a winner"></svg>
+    <ul class="legend"><li><i style="--c:var(--accent)"></i>T − C</li><li><i style="--c:var(--red)"></i>winner line</li></ul>
+    <div class="stats" id="stats" style="--stat-min: 150px"></div>
+    <div class="status" id="status" aria-live="polite"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Counting conversions.</b> In this model only conversions count. Each one belongs to the treatment (T) or to the control (C), and the chart follows T − C. With no difference each conversion is the treatment's with probability 1/2, so the line is a coin-flip walk. With a 20% lift it is 6 in 11, a pull upwards.</p>
+  <p><b>The rule.</b> Pick N before the test, here 808 conversions in this model, the size Evan Miller's article gives for a 20% lift at 80% power. Stop with a winner as soon as T − C reaches 2√N, which is 57 after rounding up 56.9. Otherwise stop with no winner at conversion 808. The rule is one-sided, with a false winner target of 5%. Exact calculation, one conversion at a time, gives a false winner chance of 4.5% when there is no difference.</p>
+  <p><b>Peeking.</b> Run an ordinary one-sided z-test, T − C above 1.645√n, after every conversion and stop at the first win. Its line starts low and rises to 46.8 at conversion 808, so a lucky early swing crosses it. The false winner chance is 42.7%, about nine times the rule's. A single test at conversion 808 is fine, at 4.9%, but only if you wait for it. <a href="../abtest/">A/B testing</a> shows the same trap with p-values, and <a href="../multiple-testing/">multiple testing</a> counts it as many chances to be fooled.</p>
+  <div class="note"><b>Try it:</b> pick a 20% lift and switch between Stop rule and Peeking. The mean stop tile goes from 577 to 188 conversions, and peeking wins more often, but only because it also wins when there is nothing to find.</div>
+  <p><b>Power.</b> With a 20% lift the rule finds the winner 79.0% of the time, near the 80% the size was chosen for, and stops after 577 conversions on average, before 808 because the walk often reaches the line early. With a 50% lift it stops after 285 on average, and finds the winner more than 99.9% of the time. Peeking finds the 20% winner 94.6% of the time and stops after 188, but its extra wins cost the false winners above.</p>
+  <p><b>Why it holds.</b> The line at 57 sits where a coin-flip walk goes in only 4.5% of runs, and that already counts a look after every conversion. This is the idea of always-valid inference: the guarantee holds however often you look.</p>
+  <p class="caveat">Simplified: conversions only, no visitors who don't convert, and the one-sided rule. Exact values are from a dynamic program over T − C.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { N, MODES, LIFT_LABELS, view } from "./sequential-testing.js";
+chrome();
+
+const W = 600, H = 260, L = 36, R = 8, T = 8, B = 24, YMAX = 90;
+const x = n => L + (n / N) * (W - L - R), y = d => T + (1 - (Math.max(-YMAX, Math.min(YMAX, d)) + YMAX) / (2 * YMAX)) * (H - T - B);
+let mode = "rule", lift = "none";
+
+tabs($("#mode"), MODES, mode, k => { mode = k; render(); });
+$("#lift").innerHTML = Object.entries(LIFT_LABELS).map(([k, l]) => `<button data-k="${k}">${l}</button>`).join("");
+$("#lift").onclick = e => { const k = e.target.dataset.k; if (k) { lift = k; render(); } };
+$("#seed").oninput = render;
+
+function render() {
+  const seed = +$("#seed").value, v = view(mode, lift, seed), svg = $("#chart"), line = pts => pts.map(([a, b], i) => `${i ? "L" : "M"}${x(a)},${y(b)}`).join("");
+  for (const b of $("#lift").children) b.setAttribute("aria-pressed", b.dataset.k === lift);
+  $("#sv").textContent = seed;
+  svg.replaceChildren();
+  for (const g of [-60, -30, 0, 30, 60, 90]) {
+    svg.append(svgEl("line", { x1: L, x2: W - R, y1: y(g), y2: y(g), class: "axis", opacity: g ? 0.35 : 1 }));
+    svg.append(svgEl("text", { x: L - 4, y: y(g) + 4, "text-anchor": "end" }, g));
+  }
+  for (const n of [0, 200, 400, 600, 808]) svg.append(svgEl("text", { x: x(n), y: H - 6, "text-anchor": "middle" }, n));
+  svg.append(svgEl("path", { d: line(v.boundary), class: "bound" }));
+  svg.append(svgEl("path", { d: line(v.run.path.map((d, n) => [n, d])), class: "walk" }));
+  svg.append(svgEl("circle", { cx: x(v.run.stop), cy: y(v.run.path[v.run.stop]), r: 4, fill: v.run.won ? "var(--green)" : "var(--muted)" }));
+  $("#stats").innerHTML = v.stats.map(statTile).join("");
+  $("#status").textContent = v.status;
+}
+render();
+</script>
+</body>
+</html>

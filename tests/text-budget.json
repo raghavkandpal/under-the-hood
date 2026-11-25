@@ -127,6 +127,7 @@
 "sampling":{"helper":88,"caveat":0},
 "sat-sudoku":{"helper":1,"caveat":38},
 "scheduling":{"helper":21,"caveat":44},
+"sequential-testing":{"helper":45,"caveat":22},
 "sharding":{"helper":15,"caveat":29},
 "shell-expansion":{"helper":55,"caveat":27},
 "signatures":{"helper":21,"caveat":38},
