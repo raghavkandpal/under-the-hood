@@ -422,4 +422,6 @@ export const SOURCES = {
   "switches": [["RFC 826: An Ethernet Address Resolution Protocol", "https://www.rfc-editor.org/rfc/rfc826.html", "standard", "IETF"],
     ["Computer Networks: A Systems Approach, 3.2 Switched Ethernet", "https://book.systemsapproach.org/internetworking/ethernet.html", "book", "Peterson & Davie"],
     ["Computer Networks: A Systems Approach, 3.3 Basic Internetworking", "https://book.systemsapproach.org/internetworking/basic-ip.html", "book", "Peterson & Davie"]],
+  "backups": [["PostgreSQL: Continuous Archiving and Point-in-Time Recovery (PITR)", "https://www.postgresql.org/docs/current/continuous-archiving.html", "docs", "PostgreSQL"],
+    ["PostgreSQL: Backup and Restore", "https://www.postgresql.org/docs/current/backup.html", "docs", "PostgreSQL"]],
 };

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backups and point-in-time recovery</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  table.t { border-collapse: collapse; margin-top: .6rem; font-size: .9rem; }
+  table.t th, table.t td { text-align: left; padding: .15rem .8rem .15rem 0; }
+  table.t tr.kept td:last-child { color: var(--green); }
+  table.t tr.lost td:last-child { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Backups and point-in-time recovery</h1>
+  <p class="lede">A nightly backup is a day old by evening. Keep the write-ahead log as well and you can rebuild the database as it was at any minute after the backup.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="mode"></div></div>
+    <div class="row" id="ctl">
+      <label class="inline">Failure <input type="range" id="fail" min="0" max="1439" value="1050"> <b id="fv"></b></label>
+      <label class="inline" id="tl">Stop at <input type="range" id="tgt" min="-120" max="1439" value="1034"> <b id="tv"></b></label>
+    </div>
+    <div class="status" id="status" role="status"></div>
+    <div class="stats" id="stats"></div>
+    <ul class="legend" id="key"><li><i style="--c:var(--green)"></i>recovered</li><li><i style="--c:var(--red)"></i>lost</li></ul>
+    <div class="scroll-x" id="out"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The backup.</b> Every night at 00:00 a base backup copies the database. Alice has 100 and Bob 50 then. If the disk fails at 17:30 and you restore only that backup, you get the 00:00 state and lose all 11 commits made since.</p>
+  <p><b>The archive.</b> The database also writes every change to its log, the same log that makes <a href="../write-ahead-log/">crash recovery</a> work. Here a finished 15-minute segment of that log is copied to another disk. Restore the backup, then replay the archive over it, and you reach the last segment that was shipped. With a failure at 17:30 that is 17:30 itself and nothing is lost. At 17:29 the last shipped segment ends at 17:15, so the 17:25 commit is gone.</p>
+  <p><b>How much is lost.</b> A failure at minute t loses the commits made since the last segment boundary, and those are less than 15 minutes of work. It is never a whole day. Shorter segments shrink the window further; they cost more files.</p>
+  <p><b>Point in time.</b> At 17:15 someone runs <code>DROP TABLE audit</code>. Replaying the archive to the end replays the drop too, and the table stays gone. Stop the replay at 17:14 and the table is back with its 9 rows, Alice at 35 and Bob at 115. The stop point can be any minute after the base backup ended. 23:00 the day before is refused, because the backup already contains what happened after that.</p>
+  <div class="note"><b>Try it.</b> On Point in time, drag Stop at between 17:14 and 17:15 and watch the audit table disappear. Then drag it to the day before.</div>
+  <p><b>Why the copy may be inconsistent.</b> A backup copies the files while the database keeps running. On the Copy tab, a transfer of 30 from Alice (100) to Bob (50) runs while the copy reads the two rows in order. Of the 6 ways the four steps can interleave, 4 give a total of 150, one gives 180 and one gives 120. Replay fixes it: each log record holds the row's new value, so replaying from the start of the backup overwrites whatever the copy caught, and every one of the 6 totals 150.</p>
+  <p class="caveat">One database, a 15-minute segment size and a log of 12 events made up for this page. The log records here hold row values; real WAL records are more involved, and replay depends on full-page images after a checkpoint.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs } from "../../shared/common.js";
+import { describe, fuzzyCopy, hhmm } from "./backups.js";
+chrome();
+
+let mode = "backup";
+const MODES = { backup: "Backup only", archive: "Plus archive", pitr: "Point in time", copy: "Copy" };
+tabs($("#mode"), MODES, mode, k => { mode = k; render(); });
+function render() {
+  const copy = mode === "copy";
+  $("#ctl").hidden = $("#key").hidden = $("#stats").hidden = copy;
+  if (copy) {
+    $("#status").textContent = "";
+    $("#out").innerHTML = `<table class="t"><tr><th>Steps</th><th>Copy</th><th>After replay</th></tr>${fuzzyCopy(30).map(r =>
+      `<tr><td>${r.order.join(", ")}</td><td>${r.copy.Alice} + ${r.copy.Bob} = ${r.total}</td><td>${r.replayedTotal}</td></tr>`).join("")}</table>`;
+    return;
+  }
+  $("#tl").hidden = mode !== "pitr";
+  const f = +$("#fail").value, t = +$("#tgt").value;
+  $("#fv").textContent = hhmm(f); $("#tv").textContent = hhmm(t);
+  const d = describe(mode, f, t);
+  $("#status").textContent = d.status;
+  $("#stats").innerHTML = (d.stats ?? []).map(statTile).join("");
+  $("#out").innerHTML = `<table class="t"><tr><th>Time</th><th>Commit</th><th></th></tr>${d.rows.map(r =>
+    `<tr class="${r.mark}"><td>${r.time}</td><td>${r.text}</td><td>${r.mark}</td></tr>`).join("")}</table>`;
+}
+$("#fail").oninput = $("#tgt").oninput = render;
+render();
+</script>
+</body>
+</html>
