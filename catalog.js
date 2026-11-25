@@ -399,7 +399,7 @@ export const CATALOG = [
   { id: "command-lookup", title: "How the shell finds a command", area: "tools", topic: "everyday-tools", level: "intro", tags: ["shell", "bash", "path", "hash", "which", "command not found", "unix"],
     blurb: "Type a command name and watch bash try a function, a builtin, the hash table, then each PATH directory in turn: why \"command not found\" happens and why a new install can be ignored.", prereqs: [] },
   { id: "type-inference", title: "Type inference", area: "tools", topic: "compilers-and-runtimes", level: "deep", tags: ["type inference", "unification", "hindley-milner", "let-polymorphism", "occurs check", "type checking", "ocaml", "compilers"],
-    blurb: "Never write a type and still get one: collect equations between type variables, solve them by unification, and see why `x x` has no type and a let-bound function works at two types.", prereqs: ["compiler"] },
+    blurb: "Never write a type and still get one: collect equations between type variables, solve them by unification, and see why x x has no type and a let-bound function works at two types.", prereqs: ["compiler"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);

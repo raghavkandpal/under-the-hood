@@ -12,13 +12,14 @@ export const PROGRAMS = [
   { name: "parameter", src: "(fun id -> let a = id 0 in id true) (fun x -> x)" },
 ];
 export const SHUFFLES = 20;
+export const MAX_SOURCE = 300, MAX_TYPE = 200; // the longest built-in is 62 characters; types can otherwise double with every let
 
 class Fail extends Error {}
 
 // ---------- parsing: fun/let/if reach as far right as they can; application binds tighter than +
 const KEYWORDS = ["fun", "let", "in", "if", "then", "else", "true", "false"];
 function lex(src) {
-  const out = [], re = /\s*(->|[-+=()]|\d+|[a-z_][A-Za-z0-9_']*|\S)/gy;
+  const out = [], re = /\s*(->|[-+=()]|\d[\w']*|[a-z_][A-Za-z0-9_']*|\S)/gy;
   let m;
   while (re.lastIndex < src.length && (m = re.exec(src))) out.push(m[1]);
   return out;
@@ -74,7 +75,8 @@ const showOne = t => show([t])[0];
  * With occurs false, the first binding that makes a variable contain itself stops the run.
  */
 export function infer(src, { occurs = true, seed = 0 } = {}) {
-  const res = { ok: false, type: null, error: null, constraints: [], bindings: [] };
+  const res = { ok: false, type: null, error: null, constraints: [], bindings: [], shuffleable: false };
+  if (src.length > MAX_SOURCE) { res.error = `too long: programs are limited to ${MAX_SOURCE} characters here`; return res; }
   let ast;
   try { ast = parse(src); } catch (e) { if (e instanceof Fail) { res.error = e.message; return res; } throw e; }
   const sub = new Map(), rnd = mulberry(seed);
@@ -85,7 +87,10 @@ export function infer(src, { occurs = true, seed = 0 } = {}) {
   const occursIn = (id, t) => { t = walk(t); return t.t === "v" ? t.id === id : t.t === "fn" && (occursIn(id, t.a) || occursIn(id, t.b)); };
   const rank = t => ({ int: 0, bool: 1, fn: 2 })[t.t];
   const raw = t => show([t], true)[0];
+  // Node count of t with substitutions applied, stopping once it passes MAX_TYPE so a huge type is never built.
+  const tooBig = t => { let n = 0; const go = u => { u = walk(u); if (++n > MAX_TYPE) return true; return u.t === "fn" && (go(u.a) || go(u.b)); }; return go(t); };
   const bind = (v, t) => {
+    if (tooBig(t)) throw new Fail(`type too large: more than ${MAX_TYPE} parts, so inference stops`);
     const cyclic = occursIn(v.id, t);
     if (cyclic && occurs) { const [a, b] = show([v, apply(t)]); throw new Fail(`occurs check: ${a} would have to equal ${b}`); }
     res.bindings.push(`${raw(v)} := ${raw(apply(t))}`);
@@ -104,6 +109,7 @@ export function infer(src, { occurs = true, seed = 0 } = {}) {
   }
   const solve = list => {
     const order = list.map(([a, b]) => [a, b]);
+    if (list.length > 1) res.shuffleable = true;
     if (seed) for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
     for (const [a, b] of order) { res.constraints.push(`${raw(apply(a))} = ${raw(apply(b))}`); unify(a, b); }
   };
@@ -143,9 +149,9 @@ export function infer(src, { occurs = true, seed = 0 } = {}) {
   return res;
 }
 
-/** How many of the SHUFFLES seeded orders (seeds 1…20) give the same type or the same failure as the generated order. */
+/** How many of the SHUFFLES seeded orders (seeds 1…20) agree with the generated order on succeeding and, if so, on the type. Failures agree with each other whatever their message. */
 export function agreement(src, occurs = true) {
-  const key = r => r.ok ? "type " + r.type : "fail " + r.error, base = key(infer(src, { occurs }));
+  const key = r => r.ok ? "type " + r.type : "fail", base = key(infer(src, { occurs }));
   let same = 0;
   for (let s = 1; s <= SHUFFLES; s++) if (key(infer(src, { occurs, seed: s })) === base) same++;
   return same;
@@ -156,7 +162,7 @@ export function view(src, opts = {}) {
   const r = infer(src, opts);
   return {
     r,
-    tiles: [[r.ok ? r.type : "none", "type"], [r.constraints.length, "constraints tried"], [r.bindings.length, "variables bound"], [`${agreement(src, opts.occurs ?? true)} of ${SHUFFLES}`, "orders agree"]],
+    tiles: [[r.ok ? r.type : "none", "type"], [r.constraints.length, "constraints tried"], [r.bindings.length, "variables bound"], [r.shuffleable ? `${agreement(src, opts.occurs ?? true)} of ${SHUFFLES}` : "n/a", "orders agree"]],
     constraints: r.constraints,
     bindings: r.bindings,
     status: r.error ?? "",

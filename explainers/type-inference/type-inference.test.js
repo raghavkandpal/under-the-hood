@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PROGRAMS, SHUFFLES, parse, infer, agreement, view, orderLabel, show } from "./type-inference.js";
+import { PROGRAMS, SHUFFLES, MAX_SOURCE, parse, infer, agreement, view, orderLabel, show } from "./type-inference.js";
 
 const ty = (src, o) => infer(src, o).type, err = (src, o) => infer(src, o).error;
 const prog = name => PROGRAMS.find(p => p.name === name).src;
@@ -46,8 +46,22 @@ test("fact 5: 20 shuffled orders agree for every built-in program, checked on an
   assert.equal(SHUFFLES, 20);
   assert.equal(PROGRAMS.length, 8);
   for (const p of PROGRAMS) for (const occurs of [true, false]) assert.equal(agreement(p.src, occurs), 20, p.name);
+  assert.equal(agreement("if true then (fun x -> x + 1) else 2"), 20); // fails in every order, with different messages
+  assert.equal(agreement("fun x -> (x + 1) (x true)"), 20);
+  assert.equal(agreement("if 1 then fun x -> x else 2"), 20);
   const key = r => r.ok ? r.type : r.error;
   for (const p of PROGRAMS) for (let seed = 0; seed <= 20; seed++) assert.equal(key(infer(p.src, { seed })), key(infer(p.src)), `${p.name} ${seed}`);
+});
+
+test("only programs with 2+ constraints in one scope have orders to compare", () => {
+  const shuffleable = PROGRAMS.filter(p => infer(p.src).shuffleable).map(p => p.name);
+  assert.deepEqual(shuffleable, ["compose", "add one", "bad if", "parameter"]);
+  for (const p of PROGRAMS) {
+    const lists = new Set([...Array(21).keys()].map(seed => infer(p.src, { seed }).constraints.join("|")));
+    assert.equal(lists.size > 1, shuffleable.includes(p.name), p.name);
+    assert.equal(view(p.src).tiles[3][0], shuffleable.includes(p.name) ? "20 of 20" : "n/a", p.name);
+  }
+  for (const src of ["", "fun x -> y", "fun x ->", "12abc"]) assert.equal(view(src).tiles[3][0], "n/a", src);
 });
 
 test("the order changes the lists, not the answer", () => {
@@ -72,7 +86,7 @@ test("what the page displays for each built-in program", () => {
   assert.deepEqual(bad.constraints, ["bool = bool", "int = bool"]);
   const self = view(prog("self-apply"), { occurs: false });
   assert.deepEqual(self.constraints, ["t1 = t1 -> t2"]);
-  assert.deepEqual(self.tiles, [["none", "type"], [1, "constraints tried"], [1, "variables bound"], ["20 of 20", "orders agree"]]);
+  assert.deepEqual(self.tiles, [["none", "type"], [1, "constraints tried"], [1, "variables bound"], ["n/a", "orders agree"]]);
   assert.match(view(prog("self-apply")).status, /^occurs check: 'a would have to equal 'a -> 'b$/);
   assert.equal(view(prog("let")).tiles[0][0], "bool");
   assert.equal(view(prog("parameter")).status, "cannot unify int with bool");
@@ -98,4 +112,23 @@ test("a program edited by the reader: parse errors show as status, nothing throw
   assert.deepEqual(parse("1 + 2 + 3").k, "add");
   assert.equal(ty("(fun x -> x) 1"), "int");
   assert.equal(err("1 2"), "cannot unify int with int -> 'a");
+});
+
+test("12abc is one bad token, not 12 then abc", () => {
+  assert.match(err("12abc"), /^parse error/);
+  assert.match(err("1 + 2x"), /^parse error/);
+  assert.equal(ty("(fun f1 -> f1 + 1) 2"), "int");
+});
+
+test("size guards: long programs and exploding types stop with a status, built-ins are untouched", () => {
+  for (const p of PROGRAMS) assert.ok(p.src.length < MAX_SOURCE / 4, p.name);
+  assert.match(err("1 + ".repeat(MAX_SOURCE) + "1"), /^too long/);
+  let s = "let f0 = fun a -> fun k -> k a a in ";
+  for (let i = 1; i <= 8; i++) s += `let f${i} = fun a -> f${i - 1} (f${i - 1} a) in `;
+  s += "f8";
+  assert.ok(s.length < MAX_SOURCE);
+  const t = Date.now(), v = view(s);
+  assert.match(v.status, /^type too large/);
+  assert.ok(Date.now() - t < 1000);
+  assert.equal(v.tiles[3][0], "20 of 20");
 });
