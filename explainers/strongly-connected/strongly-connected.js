@@ -25,7 +25,7 @@ export function kosaraju(g, pass2 = "reverse-postorder") {
   const p1 = dfsPass(reversed(g), ids), order = pass2 === "node" ? ids : [...p1.post].reverse();
   const p2 = dfsPass(g, order), comp = Array(g.n);
   p2.groups.forEach((grp, i) => grp.forEach(u => (comp[u] = i)));
-  return { order, groups: p2.groups.map(grp => [...grp].sort((a, b) => a - b)), comp, checks: p1.checks + p2.checks };
+  return { order, starts: p2.groups.map(grp => grp[0]), groups: p2.groups.map(grp => [...grp].sort((a, b) => a - b)), comp, checks: p1.checks + p2.checks };
 }
 
 /** reach[a][b]: b can be reached from a (Floyd–Warshall closure, the brute-force reference). */

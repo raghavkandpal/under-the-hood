@@ -95,6 +95,10 @@ test("the displayed views redraw from their inputs in every mode", () => {
   assert.deepEqual([a.groups.length, a.bad, a.correct, a.checks], [4, 0, true, 22]);
   assert.deepEqual([b.groups.length, b.bad, b.correct, b.checks], [1, 1, false, 22]);
   assert.equal(a.truthCount, 4);
+  // the #pass2 line lists real search starts, not every node considered
+  assert.deepEqual(a.order, [6, 7, 5, 3, 4, 0, 2, 1]);
+  assert.deepEqual(a.starts, [6, 5, 3, 0]);
+  assert.deepEqual(b.starts, [0]);
   const w = satView("worked"), p = satView("plus"), r1 = satView("random", 1), r2 = satView("random", 2);
   assert.deepEqual([w.nVars, w.clauses.length, w.edges, w.literals, w.satisfiable, w.holds], [3, 4, 8, 6, true, true]);
   assert.deepEqual([p.nVars, p.clauses.length, p.edges, p.literals, p.satisfiable, p.holds], [3, 5, 10, 6, false, null]);

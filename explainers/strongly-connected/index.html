@@ -39,7 +39,7 @@
 
   <h2>How it works</h2>
   <p><b>Groups.</b> A strongly connected component is a set of nodes that all reach each other. This graph has 8 nodes and 11 arrows, and falls into 4 groups. Collapse each group into one node and the groups form a graph with no cycle, since a cycle would have merged them. That is the condensation, and it can be put in order with a <a href="../topological-sort/">topological sort</a>.</p>
-  <p><b>Two passes.</b> Kosaraju–Sharir first runs a depth-first search on the reversed graph and notes the order in which nodes finish. Reading that finishing order backwards gives the start order for pass 2: a depth-first search on the original graph, starting from the first node in the list that is still unvisited. Each time pass 2 starts a new search, everything it reaches is one whole group, because the last node to finish in the reversed graph sits in a group with no arrows leaving it, so a search from there cannot leak into a group that is still waiting.</p>
+  <p><b>Two passes.</b> Kosaraju–Sharir first runs a depth-first search on the reversed graph and notes the order in which nodes finish. Reading that finishing order backwards gives the start order for pass 2: a depth-first search on the original graph, starting from the first node in the list that is still unvisited. Each time pass 2 starts a new search, everything it reaches is one whole group, because each start, the last to finish among the nodes still unvisited, sits in a group with no arrows leaving it into unvisited nodes, so the search cannot leak into a group that is still waiting.</p>
   <div class="note"><b>Try it:</b> switch pass 2 to node order. A search from node 0 reaches nodes 6 and 7, which cannot get back to 0, so one group swallows all 8 nodes and the count of groups that are not strongly connected goes to 1.</div>
   <p><b>The cost.</b> Each pass looks at every arrow once, so on this graph the two passes make 22 checks, twice 11, in either order. That is O(nodes + arrows) overall.</p>
   <p><b>2-SAT.</b> Each rule is "this or that", such as <code>a ∨ ¬b</code>. It says that if a is false then ¬b must hold, and if b is true then a must hold, so a clause becomes two arrows between the literals, <code>¬a ⇒ ¬b</code> and <code>b ⇒ a</code>. The formula (a ∨ ¬b) ∧ (¬a ∨ b) ∧ (¬a ∨ ¬b) ∧ (a ∨ ¬c) has 4 clauses, so 8 arrows over 6 literals.</p>
@@ -89,8 +89,8 @@ function render() {
   if (comps) {
     const v = componentsView(order), shown = v.groups.map(g => `{${g.join(" ")}}`).join(" ");
     drawGraph(v);
-    $("#pass2").textContent = `Pass 2 starts in this order: ${v.order.join(" ")}`;
-    $("#stats").innerHTML = [[v.groups.length, "groups found"], [v.bad, "not strongly connected"], [v.checks, "edge checks"], [v.truthCount, "groups by brute force"]].map(statTile).join("");
+    $("#pass2").textContent = `Pass 2 starts a search at: ${v.starts.join(" ")}`;
+    $("#stats").innerHTML = [[v.groups.length, "groups found"], [v.bad, "groups not strongly connected"], [v.checks, "edge checks"], [v.truthCount, "groups by brute force"]].map(statTile).join("");
     $("#status").textContent = `Found ${shown}. ${v.correct ? "Matches mutual reachability." : "Does not match mutual reachability."}`;
   } else {
     const seed = +$("#seed").value, v = satView(formula, seed), lit = l => literalName(l);
