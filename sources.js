@@ -408,6 +408,8 @@ export const SOURCES = {
     ["Cargo: Dependency Resolution", "https://doc.rust-lang.org/cargo/reference/resolver.html", "docs", "The Cargo Book"]],
   "compiler": [["Crafting Interpreters", "https://craftinginterpreters.com/", "book", "Robert Nystrom"],
     ["Compiler", "https://en.wikipedia.org/wiki/Compiler", "encyclopedia", "Wikipedia"]],
+  "type-inference": [["OCaml Programming: Correct + Efficient + Beautiful, 10.6 Type Inference", "https://cs3110.github.io/textbook/chapters/interp/inference.html", "book", "Clarkson et al., Cornell"],
+    ["CS 3110 Lecture 12: Type Inference and Unification", "https://cs.cornell.edu/courses/cs3110/2013sp/lectures/lec12-type-inference/lec12.html", "course", "Cornell CS 3110"]],
   "register-allocation": [["The LLVM Target-Independent Code Generator: Register Allocation", "https://llvm.org/docs/CodeGenerator.html#register-allocation", "docs", "LLVM"],
     ["Register allocation", "https://en.wikipedia.org/wiki/Register_allocation", "encyclopedia", "Wikipedia"],
     ["Graph coloring", "https://en.wikipedia.org/wiki/Graph_coloring", "encyclopedia", "Wikipedia"]],

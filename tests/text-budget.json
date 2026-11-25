@@ -158,6 +158,7 @@
 "tries-vs-suffix-arrays":{"helper":24,"caveat":47},
 "two-phase-commit":{"helper":0,"caveat":29},
 "twos-complement":{"helper":6,"caveat":18},
+"type-inference":{"helper":24,"caveat":32},
 "unicode":{"helper":36,"caveat":27},
 "union-find":{"helper":18,"caveat":20},
 "vector-clocks":{"helper":13,"caveat":35},
