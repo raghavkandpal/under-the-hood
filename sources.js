@@ -10,7 +10,7 @@ export const TRUSTED = [
   "en.wikipedia.org", "artint.info", "cl.cam.ac.uk", "martin.kleppmann.com", "docs.stripe.com", "agner.org", "brendangregg.com", "plato.stanford.edu", "web.stanford.edu", "developer.mozilla.org", "web.dev",
   "arxiv.org", "usenix.org", "research.google", "static.googleusercontent.com", "allthingsdistributed.com", "lamport.azurewebsites.net",
   "raft.github.io", "hal.inria.fr", "inria.hal.science", "crdt.tech", "bitcoin.org", "eprint.iacr.org", "toc.cryptobook.us", "cs.cornell.edu", "ilpubs.stanford.edu", "xmailserver.org", "akkadia.org",
-  "pages.cs.wisc.edu", "eecs.harvard.edu", "craftinginterpreters.com", "incompleteideas.net", "neuralnetworksanddeeplearning.com", "d2l.ai", "openintro.org", "algs4.cs.princeton.edu", "cp-algorithms.com",
+  "pages.cs.wisc.edu", "eecs.harvard.edu", "craftinginterpreters.com", "incompleteideas.net", "neuralnetworksanddeeplearning.com", "d2l.ai", "openintro.org", "algs4.cs.princeton.edu", "cp-algorithms.com", "cs3110.github.io",
   "book.systemsapproach.org", "cs231n.github.io", "seeing-theory.brown.edu", "setosa.io", "developers.google.com", "sre.google", "aws.amazon.com",
   "git-scm.com", "postgresql.org", "sqlite.org", "github.com", "docs.docker.com", "man7.org", "gnu.org", "nodejs.org", "semver.org", "docs.npmjs.com", "doc.rust-lang.org", "research.swtch.com", "swtch.com",
   "parquet.apache.org", "scikit-learn.org", "huggingface.co", "v8.dev", "code.visualstudio.com", "ftp.cs.ucla.edu", "postgis.net", "3blue1brown.com", "llvm.org", "cheatsheetseries.owasp.org", "owasp.org", "community.owasp.org", "builder.aws.com", "oauth.net", "tls13.xargs.org", "letsencrypt.org",
