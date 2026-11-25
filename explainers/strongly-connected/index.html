@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strongly connected components and 2-SAT</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  #graph { width: 100%; height: auto; display: block; margin-top: 8px; }
+  #graph text { font-size: 14px; fill: var(--text); text-anchor: middle; dominant-baseline: central; }
+  .mono { font-family: var(--mono); font-size: 0.9em; margin: 0.5rem 0; overflow-wrap: anywhere; }
+  table.lits { border-collapse: collapse; margin: 0.5rem 0; font-size: 0.9em; }
+  table.lits th, table.lits td { padding: 2px 12px 2px 0; text-align: left; font-weight: normal; }
+  table.lits thead th { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Strongly connected components and 2-SAT</h1>
+  <p class="lede">In a directed graph, two nodes belong together when each can reach the other. Finding those groups takes two depth-first passes, and the same groups decide whether a pile of "either this or that" rules can all hold at once.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="mode"></div></div>
+    <div id="comps">
+      <div class="row"><div class="seg" id="order"></div></div>
+      <svg id="graph" viewBox="0 0 600 230" role="img" aria-label="Eight nodes joined by arrows, coloured by the group the second pass found them in"></svg>
+      <div class="mono" id="pass2"></div>
+    </div>
+    <div id="sat" hidden>
+      <div class="row"><div class="seg" id="formula"></div>
+        <label class="inline" id="seedbox" hidden>Seed <input type="range" id="seed" min="1" max="200" value="1" aria-label="Random formula seed"> <b id="sv"></b></label></div>
+      <div class="mono" id="clauses"></div>
+      <div class="scroll-x"><table class="lits" id="lits"></table></div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="status" id="status" aria-live="polite"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Groups.</b> A strongly connected component is a set of nodes that all reach each other. This graph has 8 nodes and 11 arrows, and falls into 4 groups. Collapse each group into one node and the groups form a graph with no cycle, since a cycle would have merged them. That is the condensation, and it can be put in order with a <a href="../topological-sort/">topological sort</a>.</p>
+  <p><b>Two passes.</b> Kosaraju–Sharir first runs a depth-first search on the reversed graph and notes the order in which nodes finish. Reading that finishing order backwards gives the start order for pass 2: a depth-first search on the original graph, starting from the first node in the list that is still unvisited. Each time pass 2 starts a new search, everything it reaches is one whole group, because the last node to finish in the reversed graph sits in a group with no arrows leaving it, so a search from there cannot leak into a group that is still waiting.</p>
+  <div class="note"><b>Try it:</b> switch pass 2 to node order. A search from node 0 reaches nodes 6 and 7, which cannot get back to 0, so one group swallows all 8 nodes and the count of groups that are not strongly connected goes to 1.</div>
+  <p><b>The cost.</b> Each pass looks at every arrow once, so on this graph the two passes make 22 checks, twice 11, in either order. That is O(nodes + arrows) overall.</p>
+  <p><b>2-SAT.</b> Each rule is "this or that", such as <code>a ∨ ¬b</code>. It says that if a is false then ¬b must hold, and if b is true then a must hold, so a clause becomes two arrows between the literals, <code>¬a ⇒ ¬b</code> and <code>b ⇒ a</code>. The formula (a ∨ ¬b) ∧ (¬a ∨ b) ∧ (¬a ∨ ¬b) ∧ (a ∨ ¬c) has 4 clauses, so 8 arrows over 6 literals.</p>
+  <p><b>Reading the answer.</b> If a literal and its negation share a group, each implies the other and no assignment exists. Otherwise the formula is satisfiable. Pass 2 finds groups with the end of the condensation first, so set a variable true when its literal's group was found before its negation's. The worked formula comes out as a, b and c all false, and the page checks that against all 4 clauses. Adding (a ∨ b) makes 10 arrows, and a and ¬a land in one group: a ⇒ ¬b ⇒ ¬a ⇒ b ⇒ a.</p>
+  <p><b>Checked by brute force.</b> The Random formulas have 5 variables and 4 to 12 clauses. For each of the seeds 1 to 200, the verdict from groups agrees with trying all 32 assignments, and 165 of the 200 are satisfiable. For general SAT with more literals per clause, see <a href="../sat-sudoku/">constraint solving</a>.</p>
+  <p class="caveat">Simplified: recursive depth-first search on small graphs, and the 8-node graph and the formulas are made up for this page. Tarjan's one-pass algorithm finds the same groups.</p>
+</main>
+<script type="module">
+import { chrome, $, svgEl, statTile, tabs } from "../../shared/common.js";
+import { GRAPH, FORMULAS, literalName, clauseText, VARS, componentsView, satView } from "./strongly-connected.js";
+chrome();
+
+const ORDERS = { "reverse-postorder": "Reverse postorder", node: "Node order" };
+const COLORS = ["var(--accent)", "var(--blue)", "var(--green)", "var(--red)", "var(--muted)", "var(--text)", "var(--control-border)", "var(--accent)"];
+const POS = [[50, 170], [110, 50], [170, 170], [260, 170], [330, 170], [400, 70], [490, 50], [540, 170]];
+let mode = "comps", order = "reverse-postorder", formula = "worked";
+
+tabs($("#mode"), { comps: "Components", sat: "2-SAT" }, mode, k => { mode = k; render(); });
+$("#order").innerHTML = Object.entries(ORDERS).map(([k, l]) => `<button data-k="${k}">${l}</button>`).join("");
+$("#order").onclick = e => { const k = e.target.dataset.k; if (k) { order = k; render(); } };
+$("#formula").innerHTML = Object.entries(FORMULAS).map(([k, l]) => `<button data-k="${k}">${l}</button>`).join("");
+$("#formula").onclick = e => { const k = e.target.dataset.k; if (k) { formula = k; render(); } };
+$("#seed").oninput = render;
+
+function drawGraph(v) {
+  const svg = $("#graph"); svg.replaceChildren();
+  const marker = svgEl("marker", { id: "arr", viewBox: "0 0 8 8", refX: 8, refY: 4, markerWidth: 6, markerHeight: 6, orient: "auto" });
+  marker.append(svgEl("path", { d: "M0,0 L8,4 L0,8 z", fill: "var(--muted)" }));
+  svg.append(svgEl("defs")); svg.firstChild.append(marker);
+  for (const [a, b] of GRAPH.edges) {
+    const [x1, y1] = POS[a], [x2, y2] = POS[b], dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
+    const cx = (x1 + x2) / 2 - uy * 22, cy = (y1 + y2) / 2 + ux * 22; // bend to the left of travel so two-way arrows separate
+    const sx = x1 + ux * 17, sy = y1 + uy * 17, ex = x2 - ux * 19, ey = y2 - uy * 19;
+    svg.append(svgEl("path", { d: `M${sx},${sy} Q${cx},${cy} ${ex},${ey}`, fill: "none", stroke: "var(--muted)", "stroke-width": 1.4, "marker-end": "url(#arr)" }));
+  }
+  POS.forEach(([x, y], u) => {
+    svg.append(svgEl("circle", { cx: x, cy: y, r: 16, fill: "var(--panel)", stroke: COLORS[v.comp[u]], "stroke-width": 3 }));
+    svg.append(svgEl("text", { x, y }, u));
+  });
+}
+
+function render() {
+  const comps = mode === "comps";
+  for (const b of $("#order").children) b.setAttribute("aria-pressed", b.dataset.k === order);
+  for (const b of $("#formula").children) b.setAttribute("aria-pressed", b.dataset.k === formula);
+  $("#comps").hidden = !comps; $("#sat").hidden = comps; $("#seedbox").hidden = comps || formula !== "random";
+  if (comps) {
+    const v = componentsView(order), shown = v.groups.map(g => `{${g.join(" ")}}`).join(" ");
+    drawGraph(v);
+    $("#pass2").textContent = `Pass 2 starts in this order: ${v.order.join(" ")}`;
+    $("#stats").innerHTML = [[v.groups.length, "groups found"], [v.bad, "not strongly connected"], [v.checks, "edge checks"], [v.truthCount, "groups by brute force"]].map(statTile).join("");
+    $("#status").textContent = `Found ${shown}. ${v.correct ? "Matches mutual reachability." : "Does not match mutual reachability."}`;
+  } else {
+    const seed = +$("#seed").value, v = satView(formula, seed), lit = l => literalName(l);
+    $("#sv").textContent = seed;
+    $("#clauses").textContent = v.clauses.map(clauseText).join(" ∧ ");
+    $("#lits").innerHTML = `<thead><tr><th>Variable</th><th>Group of x</th><th>Group of ¬x</th><th>Value</th></tr></thead><tbody>${
+      Array.from({ length: v.nVars }, (_, i) => `<tr><td>${VARS[i]}</td><td>${v.comp[2 * i]}</td><td>${v.comp[2 * i + 1]}</td><td>${v.assignment ? (v.assignment[i] ? "true" : "false") : v.clash.includes(i) ? "clash" : "none"}</td></tr>`).join("")}</tbody>`;
+    $("#stats").innerHTML = [[v.edges, "implication edges"], [v.literals, "literals"], [v.satisfiable ? "satisfiable" : "unsatisfiable", "by groups"], [v.brute ? "satisfiable" : "unsatisfiable", `by trying all ${1 << v.nVars}`]].map(statTile).join("");
+    $("#status").textContent = v.satisfiable
+      ? `${v.assignment.map((t, i) => `${VARS[i]} = ${t ? "true" : "false"}`).join(", ")} satisfies all ${v.clauses.length} clauses.`
+      : `${v.clash.map(i => `${lit(2 * i)} and ${lit(2 * i + 1)}`).join(", ")} share a group: no assignment.`;
+  }
+}
+render();
+</script>
+</body>
+</html>

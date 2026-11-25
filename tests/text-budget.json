@@ -138,6 +138,7 @@
 "sql-injection":{"helper":3,"caveat":36},
 "sql-joins":{"helper":7,"caveat":0},
 "string-search":{"helper":36,"caveat":40},
+"strongly-connected":{"helper":45,"caveat":27},
 "subnets":{"helper":21,"caveat":28},
 "survival-curves":{"helper":24,"caveat":39},
 "switches":{"helper":31,"caveat":25},

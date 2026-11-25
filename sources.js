@@ -429,4 +429,7 @@ export const SOURCES = {
   "length-extension": [["RFC 2104: HMAC: Keyed-Hashing for Message Authentication", "https://www.rfc-editor.org/rfc/rfc2104.html", "standard", "IETF"],
     ["RFC 3174: US Secure Hash Algorithm 1 (SHA1)", "https://www.rfc-editor.org/rfc/rfc3174.html", "standard", "IETF"],
     ["Length extension attack", "https://en.wikipedia.org/wiki/Length_extension_attack", "encyclopedia", "Wikipedia"]],
+  "strongly-connected": [["Algorithms, 4th ed., 4.2 Directed Graphs (Sedgewick & Wayne)", "https://algs4.cs.princeton.edu/42digraph/", "book", "Princeton"],
+    ["Strongly connected components and condensation graph", "https://cp-algorithms.com/graph/strongly-connected-components.html", "article", "cp-algorithms"],
+    ["2-SAT", "https://cp-algorithms.com/graph/2SAT.html", "article", "cp-algorithms"]],
 };
