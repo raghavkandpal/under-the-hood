@@ -35,6 +35,7 @@ Each agent ends its report by answering its own question (in its file). A phase 
 ## 5. Ship
 
 - Update ROADMAP.md: mark the batch done, update the gap table, fold durable lessons into "How to work".
+- Tag the batch's explainers "New" on the index cards, and move the tag off the previous batch (see ROADMAP.md "New tag").
 - Review the branch with `/mattpocock-skills:code-review` and `/ponytail-review`; fix what they confirm.
 - **Gate:** summarise the batch (explainers, tests added, evaluator verdicts with SHAs, sweep result, anything skipped) and ask to push and open the PR.
 - Push (the pre-push hook runs `make check`) and open the PR with the body from `/pr`. Merge only on the user's word.
