@@ -86,7 +86,7 @@ function build() {
   $("#fig").style.display = $(".legend").style.display = mode === "loop" ? "none" : "";
   if (mode === "switch") {
     for (const [a, b] of [["A", "B"], ["B", "A"], ["A", "C"]]) el.append(btn(`${a} → ${b}`, () => showSwitch(lan.sendFrame(a, b, now), `${a} → ${b}`)));
-    el.append(btn(`Wait ${TIMEOUT + 1} s`, () => { now += TIMEOUT + 1; say(`t = ${now} s`); }),
+    el.append(btn(`Wait ${TIMEOUT + 1} s`, () => { now += TIMEOUT + 1; say(`t = ${now} s`); if ($("#out").querySelector("th")?.textContent === "Learned") $("#out").innerHTML = table(); }),
       btn("Move B to port 3", () => { lan.move("B", 3); say("B is now on port 3"); }), btn("Reset", reset));
   } else if (mode === "arp") {
     for (const ip of ["10.0.0.2", "203.0.113.5"]) el.append(btn(`A → ${ip}`, () => showArp(lan.send("A", ip, now), `A → ${ip}`)));
