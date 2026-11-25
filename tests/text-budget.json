@@ -22,6 +22,7 @@
 "clock-sync":{"helper":20,"caveat":40},
 "clt":{"helper":58,"caveat":25},
 "columnar":{"helper":14,"caveat":14},
+"command-lookup":{"helper":21,"caveat":31},
 "compiler":{"helper":12,"caveat":22},
 "congestion-control":{"helper":40,"caveat":37},
 "consistent-hashing":{"helper":19,"caveat":18},

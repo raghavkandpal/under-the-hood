@@ -396,6 +396,8 @@ export const CATALOG = [
     blurb: "Find the groups of nodes that all reach each other with two depth-first passes, then use them to decide whether a set of either-or rules can all hold.", prereqs: ["topological-sort"] },
   { id: "sequential-testing", title: "Sequential A/B tests", area: "statistics", topic: "experiments-and-inference", level: "deep", tags: ["sequential testing", "peeking", "stopping rule", "false positives", "a/b testing", "experiments"],
     blurb: "Check a test after every conversion and stop on a win: a stopping line fixed in advance keeps false winners rare, where plain peeking makes them common.", prereqs: ["abtest", "power-analysis"] },
+  { id: "command-lookup", title: "How the shell finds a command", area: "tools", topic: "everyday-tools", level: "intro", tags: ["shell", "bash", "path", "hash", "which", "command not found", "unix"],
+    blurb: "Type a command name and watch bash try a function, a builtin, the hash table, then each PATH directory in turn: why \"command not found\" happens and why a new install can be ignored.", prereqs: [] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -451,7 +453,7 @@ export const PATHS = [
     audience: "Anyone curious about what ZIP, JPEG and QR codes are actually doing.",
     outcomes: ["Explain how Huffman and LZ77 compress without losing anything", "Describe images and signals as sums of frequencies", "Explain what JPEG throws away and why you rarely notice", "Explain how error-correcting codes fix corrupted bits"] },
   { id: "toolbox", title: "A developer's toolbox", blurb: "What really happens when you run everyday commands.",
-    steps: ["pipes", "shell-expansion", "text-buffers", "diff", "hashtable", "git", "bisect", "three-way-merge", "build-systems", "dependency-resolution", "containers", "profilers", "debuggers", "fuzzing"],
+    steps: ["pipes", "shell-expansion", "command-lookup", "text-buffers", "diff", "hashtable", "git", "bisect", "three-way-merge", "build-systems", "dependency-resolution", "containers", "profilers", "debuggers", "fuzzing"],
     intro: "The commands developers run every day hide some clever engineering. This path opens up the shell, text editors, diff and git, then the build tools, package managers and containers that get code from your laptop into production.",
     audience: "Developers who use these tools daily and want to understand, and debug, what they do.",
     outcomes: ["Explain how pipes stream data between programs", "Describe how git stores history and how diff finds changes", "Explain incremental builds and dependency resolution", "Say what a container really is, and why layer order matters"] },
