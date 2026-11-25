@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tail latency and fan-out</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  /* Page-specific styles only. Shared: .row .tabs .seg .stats .stat .panel .controls .status .legend .caveat .scroll-x (shared/style.css). No helper text above the first h2: README › Text */
+</style>
+</head>
+<body>
+<main>
+  <h1>Tail latency and fan-out</h1>
+  <p class="lede">A server that is fast 99% of the time sounds fast. A request that needs a hundred of them is almost always waiting on one of the slow ones.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="mode"></div>
+      <label class="inline">Leaves <input type="range" id="n" min="1" max="100" value="100"> <b id="nv"></b></label></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>One server.</b> In this model, a leaf server answers in 10 ms 99% of the time and in 1,000 ms the other 1%. Its mean is 0.99 × 10 + 0.01 × 1,000 = 19.9 ms, nearly double what 99% of calls take. The mean describes almost no real call, which is why the <a href="https://sre.google/sre-book/service-level-objectives/">SRE book</a> measures percentiles instead.</p>
+  <p><b>Fan-out.</b> A request that fans out to n leaves waits for the slowest, so it is fast only if all n are: it is slow with probability 1 − 0.99<sup>n</sup>. That is 1% at n = 1, 9.6% at n = 10 and 63.4% at n = 100. At 100 leaves the median request takes 1,000 ms, because more than half of requests hit a slow leaf. A tail that rare per server becomes the usual case.</p>
+  <p><b>Hedging.</b> If a leaf hasn't answered after 20 ms, send the same call to another replica and take whichever comes back first. A leaf is now slow only if both copies are, which has probability 0.01 × 0.01. At n = 100 a request is slow with probability 1 − 0.9999<sup>100</sup>, about 1%, and the median falls to 30 ms: a slow first copy costs the 20 ms wait plus the 10 ms replica. Only the slow first copies get a second call, so it costs 1% extra calls.</p>
+  <p><b>Two copies always.</b> Sending every call twice from the start gives the same slow rate and a faster middle, a 10 ms median at n = 100 against 30 ms, but costs 100% extra calls. Waiting 20 ms gives the same slow rate for a hundredth of the extra work, which is the idea in <a href="https://research.google/pubs/pub40801/">The Tail at Scale</a>.</p>
+  <div class="note"><b>Try it.</b> With No hedge, drag Leaves from 1 to 100: the median jumps from 10 to 1,000 ms. Then try Hedge. The seeded tile is a sample, so it strays from the formula.</div>
+  <p class="caveat">Every leaf is independent, with latencies of exactly 10 or 1,000 ms. Real slowness is correlated and hedges add load; see <a href="../retries/">retries</a> for what extra load does.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs } from "../../shared/common.js";
+import { MODES, view } from "./tail-latency.js";
+chrome();
+
+let mode = "plain";
+tabs($("#mode"), MODES, mode, k => { mode = k; render(); });
+const pct = x => (100 * x).toFixed(x < 0.1 ? 2 : 1) + "%";
+function render() {
+  const n = +$("#n").value, v = view(n, mode);
+  $("#nv").textContent = n;
+  $("#stats").innerHTML = [[pct(v.formula), "slow requests"], [pct(v.slowRate), "slow in 10,000"], [v.median + " ms", "median"],
+    [pct(v.extra), "extra calls"], [+v.leafMean.toFixed(1) + " ms", "one leaf's mean"]].map(statTile).join("");
+}
+$("#n").oninput = render;
+render();
+</script>
+</body>
+</html>

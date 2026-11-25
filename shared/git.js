@@ -2,15 +2,16 @@
 // so blob/tree/commit hashes match real `git` for the same content and metadata.
 
 // ---------- SHA-1 (sync, small) ----------
-export function sha1(bytes) {
+// Optional `state` (five words) and `count` (bytes already hashed, a multiple of 64) resume a hash mid-stream.
+export function sha1(bytes, { state = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0], count = 0 } = {}) {
   const ml = bytes.length;
   const withPad = new Uint8Array(((ml + 9 + 63) >> 6) << 6);
   withPad.set(bytes); withPad[ml] = 0x80;
   const dv = new DataView(withPad.buffer);
-  const bits = ml * 8;
+  const bits = (count + ml) * 8;
   dv.setUint32(withPad.length - 8, Math.floor(bits / 2 ** 32));
   dv.setUint32(withPad.length - 4, bits >>> 0);
-  let h0 = 0x67452301, h1 = 0xefcdab89, h2 = 0x98badcfe, h3 = 0x10325476, h4 = 0xc3d2e1f0;
+  let [h0, h1, h2, h3, h4] = state;
   const w = new Uint32Array(80);
   for (let off = 0; off < withPad.length; off += 64) {
     for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4);

@@ -1,22 +1,22 @@
 # Roadmap
 
-Plan for the next explainers, plus the working notes a new session needs. 155 explainers exist today, in 9 areas, 29 topics and 11 learning paths, each with free further reading.
+Plan for the next explainers, plus the working notes a new session needs. 164 explainers exist today, in 9 areas, 29 topics and 11 learning paths, each with free further reading.
 
 ## Where the gaps are
 
-Areas and topics after batch 13 (155 explainers). Each explainer has an area and a topic in `catalog.js`; `PATHS` lists learning paths.
+Areas and topics after batch 14 (164 explainers). Each explainer has an area and a topic in `catalog.js`; `PATHS` lists learning paths.
 
 | Area | Count | Intro / Core / Deep | Topics | Gap |
 |---|---|---|---|---|
-| Systems: hardware & OS | 16 | 6 / 8 / 2 | Numbers & text, Memory, Operating systems, The processor | interrupts & syscalls in depth |
-| Networking & the web | 12 | 2 / 8 / 2 | How the network works, The web | Wi-Fi, more intro |
-| Databases & storage | 12 | 2 / 6 / 4 | Storage engines, Queries, Transactions & durability | more intro |
-| Distributed systems | 19 | 2 / 12 / 5 | Traffic & reliability, Spreading data, Agreement, Time & order | more intro; exactly-once streams |
-| Security & cryptography | 16 | 5 / 8 / 3 | Building blocks, Protocols, Attacks & defences | more deep dives |
-| Algorithms & data structures | 27 | 8 / 15 / 4 | Foundations, Data structures, Search & graphs, Compression & signals | more deep dives |
+| Systems: hardware & OS | 17 | 6 / 8 / 3 | Numbers & text, Memory, Operating systems, The processor | balanced; pick by reader demand |
+| Networking & the web | 13 | 3 / 8 / 2 | How the network works, The web | more intro |
+| Databases & storage | 13 | 3 / 6 / 4 | Storage engines, Queries, Transactions & durability | more intro |
+| Distributed systems | 20 | 2 / 12 / 6 | Traffic & reliability, Spreading data, Agreement, Time & order | more intro |
+| Security & cryptography | 17 | 5 / 8 / 4 | Building blocks, Protocols, Attacks & defences | more deep dives |
+| Algorithms & data structures | 28 | 8 / 15 / 5 | Foundations, Data structures, Search & graphs, Compression & signals | more deep dives |
 | Machine learning & AI | 26 | 8 / 12 / 6 | Classic ML, Neural networks, Language models | balanced; pick by reader demand |
-| Statistics & probability | 12 | 6 / 5 / 1 | Probability, Experiments & inference | **one deep dive** |
-| Developer tools | 15 | 2 / 12 / 1 | Version control, Building & shipping, Compilers & runtimes, Everyday tools | more intro and deep |
+| Statistics & probability | 13 | 6 / 5 / 2 | Probability, Experiments & inference | more deep dives |
+| Developer tools | 17 | 3 / 12 / 2 | Version control, Building & shipping, Compilers & runtimes, Everyday tools | more intro and deep |
 
 New explainers: pick the topic when scaffolding (`npm run new -- <id> "<Title>" <area> <level> <topic>`), and add them to a learning path in `PATHS` if one fits. `tests/catalog.test.js` checks that path steps come after their prerequisites.
 
@@ -221,7 +221,7 @@ Each spec gives the scaffold line, prereqs, where it goes in `PATHS`, sources (f
   3. An index on (last_name, first_name) serves `last = ?` and `last = ? AND first = ?`, but `first = ?` alone falls back to a full scan.
   4. Writes pay: an insert into a table with 3 indexes updates 4 structures (1 + k).
 
-## Next batch: batch 14 (planned, on `explainers/batch-14`)
+## Batch 14 ✅ done (merged in #32)
 
 Nine from the gap table, one per open gap: syscalls (systems: interrupts and syscalls), wifi (networking intro), transactions (databases intro), exactly-once (distributed: exactly-once streams), padding-oracle (security deep dive), bellman-ford (algorithms deep dive), bandits (the statistics deep dive), shell-expansion and linkers (tools intro and deep). ML is balanced and gets none. Same flow as batch 13: `tdd` per module, `code-review` plus `ponytail-review` before the PR, `pr` for the body.
 
@@ -347,6 +347,123 @@ Where the build departed from the plan:
 
 ### Questions for the user
 - Answered 2026-11-19: no tenth explainer (batch stays at nine); `book.systemsapproach.org` is a trusted domain; the Kafka docs link is pinned to the 4.0.0 tag, not trunk.
+
+## Batch 15 ✅ built (on `explainers/batch-15`, PR pending)
+
+Eight from the gap table, one per open gap: switches (networking intro), backups (databases intro), tail-latency (distributed intro), length-extension (security deep dive), strongly-connected (algorithms deep dive), sequential-testing (statistics deep dive), command-lookup and type-inference (tools intro and deep). Systems and ML are balanced and get none. Same flow as batch 14: `tdd` per module, `code-review` plus `ponytail-review` before the PR, `pr` for the body.
+
+Each spec gives the scaffold line, prereqs, path, sources (first one primary; **new domain** marks a host not yet in `TRUSTED`), reuse, the facts with the test that pins each, and what stays out. Numbers marked "printed" come from a seeded or exact run: the generator prints them first, the test pins them, and the prose copies them. Model constants (latencies, timeouts, thresholds) are the page's own; the prose says "in this model" and never presents them as values from a standard. Every id below was checked against `catalog.js` on 2026-11-25 and is free.
+
+### Build result (2026-11-25)
+All eight built, each evaluated by an agent until PASS: switches (42e41bb, 2 fix rounds), backups (e4edd81), tail-latency (1ad08ac, 1), length-extension (a2ffa68), strongly-connected (7b37dde, 1), sequential-testing (f37fe5c), command-lookup (ffa47ed, 1), type-inference (68f33a3, 1). `make check` 891 pass; phone-width sweep 173 pages, `bad: []`. The separate `code-review` and `ponytail-review` passes were skipped to save usage; the evaluators covered each page.
+
+Lessons: evaluators found the same class of bug again, a displayed value that is true at the default but stale or mislabelled after a state change (switches' table after Wait, tail-latency's leaf-mean tile, command-lookup's tiles after Run, type-inference's order tile). Tell generators up front to test what `view()` displays after every control change, and to pin every displayed line. A generator's own report once came back as "placeholder": check the commit and tests yourself.
+
+Open nits (not fixed, none false): backups legend says "recovered" where rows say "kept"; sequential-testing's "only because" and "however often you look" overreach; length-extension's "last role=" and "signs" wording; tail-latency's seeded-tile sentence is near the helper-text limit; strongly-connected's Random mode can repeat clauses; command-lookup resolves `..` lexically.
+
+### 1. `switches`: Switches and ARP
+- **Scaffold:** `npm run new -- switches "Switches and ARP" networking intro how-the-network-works`. Prereqs: subnets. Path `internet`: after subnets.
+- **Sources:** RFC 826: An Ethernet Address Resolution Protocol, https://www.rfc-editor.org/rfc/rfc826.html (standard); Peterson & Davie, Computer Networks: A Systems Approach, 3.2 Switched Ethernet, https://book.systemsapproach.org/internetworking/ethernet.html (free book; learning from source addresses, flooding unknown destinations, entry timeout, loops and spanning tree); the same book, 3.3 Basic Internetworking, https://book.systemsapproach.org/internetworking/basic-ip.html (free book; ARP broadcast and reply, ARP cache with timeout, next hop is the router when the destination is off the network).
+- **Reuse:** `parse` and `contains` from `shared/subnets.js` for the same-network test. A 4-port switch with hosts A, B, C on ports 1 to 3 and a router on port 4, all on 10.0.0.0/24 (router 10.0.0.254). Self-made MAC addresses. The entry timeout is a model constant.
+- **Facts:**
+  1. Empty table: the first frame from A (port 1) to B goes out ports 2, 3 and 4, never back out port 1, and the switch learns A on port 1. B's reply then goes out port 1 only. Test: the port list for each frame and the table after each.
+  2. Once both are learned, A to B goes out exactly port 2. Test: one port.
+  3. With no frame from B for longer than the timeout, B's entry is gone and A to B floods again. Test: ports before and after the timeout.
+  4. B moves from port 2 to port 3: frames to B still go to port 2 until B sends a frame, then to port 3. Test: the port before and after B's first frame from port 3.
+  5. ARP: A's first packet to 10.0.0.2 sends one broadcast ARP request (flooded to every other port) and gets one reply sent to A alone. A's second packet to 10.0.0.2 sends 0 ARP frames. Test: ARP frame counts and their ports for both packets.
+  6. Off the network: a packet from A to 203.0.113.5 makes A ask ARP for 10.0.0.254, never for 203.0.113.5. The frame's destination MAC is the router's and its IP destination stays 203.0.113.5. Test: the ARP target and the frame's two destination fields.
+  7. Loop: two switches joined by two cables. One broadcast from A still has frames in flight after 100 steps. With one of the two cables blocked, no frames are in flight after the broadcast is delivered. Test: in-flight count at step 100 in both setups.
+- **Out of scope:** the spanning tree election itself (root, designated ports), VLANs, ARP spoofing, IPv6 neighbour discovery, real Ethernet frame layout, real timeout values.
+
+### 2. `backups`: Backups and point-in-time recovery
+- **Scaffold:** `npm run new -- backups "Backups and point-in-time recovery" databases intro transactions-and-durability`. Prereqs: transactions. Path `databases`: after write-ahead-log.
+- **Sources:** PostgreSQL, Continuous Archiving and Point-in-Time Recovery (PITR), https://www.postgresql.org/docs/current/continuous-archiving.html (docs; base backup plus WAL replay, the backup need not be consistent because replay fixes it, stop replay at any time since the base backup, the 5:15 PM DROP TABLE example restored to 5:14 PM, the stop point must be after the base backup ends); PostgreSQL, Backup and Restore, https://www.postgresql.org/docs/current/backup.html (docs; the three approaches).
+- **Reuse:** none. The two accounts from `transactions` (Alice 100, Bob 50) plus a self-made day's log of timestamped transfers and one `DROP TABLE`. A nightly base backup at 00:00 and a WAL archive shipped in 15-minute segments (a model constant). Link to write-ahead-log for crash recovery rather than repeating it.
+- **Facts:**
+  1. Restoring only the 00:00 backup after a disk failure at 17:30 gives the state at 00:00 and loses every transfer committed after it (printed count). Test: restored rows equal the 00:00 state, and the lost count equals the log's commits in (00:00, 17:30].
+  2. Base backup plus replay of the whole archive gives the state at the last shipped segment. Test: rows equal the live state at that time.
+  3. With 15-minute segments, a failure at time t loses the commits in (15·⌊t/15⌋, t], never more than 15 minutes of them. Test: sweep t over every minute of the day against the formula.
+  4. The table is dropped at 17:15. Replaying to the end leaves it dropped. Replaying to 17:14 brings it back with exactly its rows at 17:14. Test: table present or absent for both targets, rows compared.
+  5. A backup copied row by row while a transfer of 30 runs can total 120 or 180 on its own. The same copy plus the archive replayed from the backup's start totals 150 at every interleaving. Test: sweep every interleaving of the copy and the transfer; the copy alone gives a total other than 150 at least once, and copy plus replay gives 150 every time.
+  6. A recovery target before the base backup ended (23:00 the day before, from the 00:00 backup) is refused. Test: the restore returns an error.
+- **Out of scope:** pg_dump and logical backups, standbys and replication (replication-lag), timelines, incremental backups, backup storage rules such as 3-2-1, restore speed.
+
+### 3. `tail-latency`: Tail latency and fan-out
+- **Scaffold:** `npm run new -- tail-latency "Tail latency and fan-out" distributed intro traffic-and-reliability`. Prereqs: none. Path `distributed`: after queues.
+- **Sources:** Dean & Barroso, "The Tail at Scale", CACM 2013, https://research.google/pubs/pub40801/ (paper; the record page, whose full text link goes to cacm.acm.org; see Questions); Google SRE book, ch. 4 Service Level Objectives, https://sre.google/sre-book/service-level-objectives/ (free book; percentiles over the mean, the mean and median can be far apart).
+- **Reuse:** `mulberry` from `shared/random.js`. A leaf server answers in 10 ms with probability 0.99 and 1,000 ms with 0.01, independently (model constants). A request fans out to n leaves and waits for the slowest. A hedged leaf call sends a second copy to another replica if nothing came back by 20 ms and takes the first answer.
+- **Facts:**
+  1. One leaf: the mean is 0.99 × 10 + 0.01 × 1,000 = 19.9 ms, while 99% of calls take 10 ms. Test: the exact mean and the share at 10 ms.
+  2. Fan-out: P(request slow) = 1 − 0.99ⁿ, which is 0.01 at n = 1, 0.0956 at n = 10 and 0.634 at n = 100. Test: the formula to 1e-3, and a seeded 10,000-request run within 0.02 at each n.
+  3. At n = 100 the median request takes 1,000 ms, because more than half of requests hit a slow leaf. Test: the seeded run's median.
+  4. Hedging after 20 ms: a leaf is slow only if both copies are, so P(request slow) at n = 100 is 1 − 0.9999¹⁰⁰ ≈ 0.00995, and the median falls to 30 ms. Test: the formula, the seeded rate within 0.005, and the seeded median.
+  5. The hedge costs 1% extra leaf calls (only the slow first copies get one). Sending two copies of every call costs 100% extra for the same slow rate. Test: extra-call fraction in both modes, exact and seeded.
+- **Out of scope:** tied requests and cancellation, the extra queueing hedges cause, coordinated omission, latency histograms, causes of slowness (GC, queues), retries (link to retries).
+
+### 4. `length-extension`: Length extension attacks
+- **Scaffold:** `npm run new -- length-extension "Length extension attacks" security deep attacks-and-defences`. Prereqs: hash-functions, jwt. Path `security`: after jwt.
+- **Sources:** RFC 2104: HMAC, https://www.rfc-editor.org/rfc/rfc2104.html (standard; the nested construction); RFC 3174: US Secure Hash Algorithm 1, https://www.rfc-editor.org/rfc/rfc3174.html (standard; §4 padding with a 1 bit, zeros and the 64-bit length); Wikipedia, Length extension attack, https://en.wikipedia.org/wiki/Length_extension_attack (encyclopedia; the appended duplicate parameter, trying key lengths, HMAC and SHA-3 not affected).
+- **Reuse:** `sha1` from `shared/git.js`, given an optional starting state and byte count so it can resume (default unchanged; `git.test.js` still checks it against real `git`, and its 8 importers keep working). `hmacSha1` and `textBytes` from `shared/totp.js` for the fix. The secret and the message (`user=alice&role=user`) are self-made; the server takes the last `role=` it sees.
+- **Facts:**
+  1. SHA-1 padding: 0x80, zeros, then the 8-byte bit length, to a multiple of 64 bytes. 55 bytes pad to 64, and 56 bytes pad to 128. Test: padded lengths at 55, 56 and 64 bytes and the final 8 bytes.
+  2. The digest is the state after the last block: resuming from sha1(m)'s five words, at byte count len(pad(m)), over x gives sha1(pad(m) ‖ x). Test: equality with the direct hash for several m and x.
+  3. With MAC = sha1(secret ‖ message), an attacker who knows the message, its MAC and the secret's length (16) makes message ‖ padding ‖ `&role=admin` and a MAC the server accepts, and the server reads role `admin`. Test: the server's check passes and the parsed role, with the forging function given only message, MAC, length and suffix.
+  4. Without the length, trying 1, 2, 3 … succeeds first at 16, after 16 server queries. Test: the query count.
+  5. With HMAC-SHA1 as the MAC, the same forgery fails for every guessed length from 1 to 64. Test: all 64 checks fail.
+- **Out of scope:** SHA-256 internals (same attack, other constants), MD5 collisions, sha1(message ‖ secret) and its weaknesses, real incidents, tools such as hash_extender, why SHA-3 resists beyond one caveat line.
+
+### 5. `strongly-connected`: Strongly connected components and 2-SAT
+- **Scaffold:** `npm run new -- strongly-connected "Strongly connected components and 2-SAT" algorithms deep search-and-graphs`. Prereqs: topological-sort. Path `algorithms`: after topological-sort.
+- **Sources:** Sedgewick & Wayne, Algorithms 4th ed., 4.2 Directed Graphs, https://algs4.cs.princeton.edu/42digraph/ (book; strong components, Kosaraju–Sharir, reverse postorder of the reverse graph, preorder instead does not work); cp-algorithms, Strongly connected components, https://cp-algorithms.com/graph/strongly-connected-components.html (article; condensation graph); cp-algorithms, 2-SAT, https://cp-algorithms.com/graph/2SAT.html (article; a ∨ b as ¬a ⇒ b and ¬b ⇒ a, unsatisfiable iff x and ¬x share a component, the assignment from component order, the worked formula).
+- **Reuse:** none. `explainers/topological-sort/` is the DAG side; link to it, and link to sat-sudoku for general SAT. Built-in graphs are self-made (an 8-node graph with several components, and the implication graphs below). Seeded 2-SAT formulas use `mulberry` from `shared/random.js`.
+- **Facts:**
+  1. The components of the built-in graph match brute-force reachability: two nodes share a component exactly when each reaches the other. Test: the partition against the reachability matrix.
+  2. The condensation (one node per component) has no cycle. Test: a topological sort of it succeeds.
+  3. Kosaraju–Sharir: pass 1 takes the reverse postorder of the reversed graph, pass 2 runs DFS on the graph in that order, and each pass 2 call collects exactly one component. Run pass 2 in plain node order instead and the built-in graph gets a group that is not strongly connected. Test: both partitions against brute force.
+  4. Both passes examine every edge once each: 2E edge checks in total. Test: the counter on each built-in graph.
+  5. 2-SAT: the formula (a ∨ ¬b) ∧ (¬a ∨ b) ∧ (¬a ∨ ¬b) ∧ (a ∨ ¬c) becomes 8 implication edges over 6 literals and is satisfiable, and the assignment read from component order satisfies all 4 clauses. Test: edge count, verdict, clause check.
+  6. Adding (a ∨ b) makes it unsatisfiable: a and ¬a land in one component. On 200 seeded formulas over 5 variables, the component verdict agrees with trying all 32 assignments. Test: the shared component, and agreement on all 200.
+- **Out of scope:** Tarjan's and path-based algorithms, 3-SAT and SAT solvers (sat-sudoku), bridges and articulation points, iterative DFS, real uses beyond 2-SAT.
+
+### 6. `sequential-testing`: Sequential A/B tests
+- **Scaffold:** `npm run new -- sequential-testing "Sequential A/B tests" statistics deep experiments-and-inference`. Prereqs: abtest, power-analysis. Path `stats`: after multiple-testing.
+- **Sources:** Johari, Pekelis, Walsh, "Always Valid Inference: Bringing Sequential Analysis to A/B Testing", arXiv 1512.04922 (paper; inferences are unreliable when people monitor continuously and stop when they like); Evan Miller, "Simple Sequential A/B Testing", https://www.evanmiller.org/sequential-ab-testing.html (article; pick N, stop when T − C reaches 2√N or T + C reaches N, one-sided at α = 0.05; N = 808 for a 20% lift at 80% power).
+- **Reuse:** `quantile` from `shared/normal.js` for z values. Exact results come from a small dynamic program over (conversions so far, T − C), so most facts need no random runs. The model counts conversions only: under no difference each conversion is treatment's with probability 1/2, and with a lift L it is (1 + L) / (2 + L).
+- **Facts:**
+  1. The rule with N = 808 and threshold d = ⌈2√808⌉ = 57 declares a false winner with probability at most 0.05 when there is no difference (exact, printed). Test: the dynamic program's value ≤ 0.05.
+  2. Peeking: checking a one-sided z-test (z > 1.645) after every conversion up to 808 and stopping at the first win gives a false winner far more often (exact, printed). Test: the value is more than twice the rule's.
+  3. A single test at conversion 808 only keeps the false winner rate at or below 0.05 (exact binomial). Test: the value ≤ 0.05.
+  4. With a true 20% lift, the rule finds the winner with power close to the 0.8 it was sized for (exact, printed), and stops before 808 conversions on average (printed). Test: power within 0.05 of 0.8, mean stopping point below 808.
+  5. With a 50% lift, it stops sooner on average than with 20% (printed). Test: the two mean stopping points.
+- **Out of scope:** the two-sided rule (2.25√N), mSPRT and always-valid p-value formulas, group sequential designs (Pocock, O'Brien–Fleming), Bayesian stopping (bandits), visitors who don't convert.
+
+### 7. `command-lookup`: How the shell finds a command
+- **Scaffold:** `npm run new -- command-lookup "How the shell finds a command" tools intro everyday-tools`. Prereqs: none. Path `toolbox`: after shell-expansion.
+- **Sources:** GNU Bash Reference Manual, 3.7.2 Command Search and Execution, https://www.gnu.org/software/bash/manual/html_node/Command-Search-and-Execution.html (docs; functions, then builtins, then PATH; names with a slash skip the search; the hash table; status 127 when not found); GNU Bash Reference Manual, 4.1 Bourne Shell Builtins, https://www.gnu.org/software/bash/manual/html_node/Bourne-Shell-Builtins.html (docs; `hash -r` forgets remembered locations); exec(3), https://man7.org/linux/man-pages/man3/exec.3.html (docs; a slash means PATH is ignored, a file that gives permission denied is skipped and the search goes on). Bash 5.2's Bourne Shell Variables page states that an empty PATH entry means the current directory. gnu.org answered 429 once during planning, so retry `check-sources` before swapping it.
+- **Reuse:** none. A toy file system with self-made paths (`/home/me/bin`, `/usr/local/bin`, `/usr/bin`, the current directory `/home/me/project`), executable bits, one function and the builtin `cd`. Link to shell-expansion for what happens before the lookup and to processes for fork and exec.
+- **Facts:**
+  1. With PATH `/home/me/bin:/usr/local/bin:/usr/bin` and `python` in the last two, `python` runs `/usr/local/bin/python`. Moving `/usr/bin` first runs `/usr/bin/python`. Test: the resolved path for both PATH values.
+  2. A function named `ls` runs instead of `/usr/bin/ls`, and `cd` is a builtin, so PATH is never searched for it. Test: the resolution kind and the number of directories searched (0).
+  3. `deploy` in the current directory: `deploy` is not found and the status is 127. `./deploy` runs it without searching PATH. Test: status and resolved path.
+  4. A trailing colon (`/usr/bin:`) adds the current directory, so `deploy` is found. Test: resolved path.
+  5. A `tool` without the executable bit in `/home/me/bin` is skipped and `/usr/bin/tool` runs. Test: resolved path.
+  6. After `python` runs once from `/usr/local/bin`, a new `/home/me/bin/python` is ignored because the location is remembered. After `hash -r`, the new one runs. Test: the resolved path before and after `hash -r`.
+- **Out of scope:** aliases, shebang lines and the script fallback, `type` and `command -v` output formats, CDPATH, other shells' rules, sudo's own path, Windows PATHEXT, environment variables beyond PATH.
+
+### 8. `type-inference`: Type inference
+- **Scaffold:** `npm run new -- type-inference "Type inference" tools deep compilers-and-runtimes`. Prereqs: compiler. Path `machine`: after compiler.
+- **Sources:** Clarkson et al., OCaml Programming: Correct + Efficient + Beautiful, 10.6 Type Inference, https://cs3110.github.io/textbook/chapters/interp/inference.html (free book, **new domain**, answered from here on 2026-11-25; constraint generation, unification, the occurs check, let-polymorphism with `let id = fun x -> x in let a = id 0 in id true`); Cornell CS 3110, Lecture 12: Type Inference and Unification, https://cs.cornell.edu/courses/cs3110/2013sp/lectures/lec12-type-inference/lec12.html (course; the worked types for `fun x -> x`, `fun x -> fun y -> x` and composition, self-application fails on a circularity). Add the new domain to `TRUSTED` and run `npm run check-sources`.
+- **Reuse:** none. `explainers/compiler/` has its own parser for a different language, so the toy language here is small and separate: integers, booleans, `+`, `if`, `fun`, application and `let`. Type variables are printed renamed in order of first appearance ('a, 'b, …) so tests compare strings.
+- **Facts:**
+  1. `fun x -> x` is `'a -> 'a`, `fun x -> fun y -> x` is `'a -> 'b -> 'a`, and `fun f -> fun g -> fun x -> f (g x)` is `('a -> 'b) -> ('c -> 'a) -> 'c -> 'b`. Test: the printed types.
+  2. `fun x -> x + 1` is `int -> int`, and `if true then 1 else false` fails unifying int with bool. Test: type and error.
+  3. Occurs check: `fun x -> x x` fails because 'a would have to equal 'a -> 'b. With the check turned off, unification binds a variable to a type containing itself. Test: the error, and that binding in the unchecked substitution.
+  4. Let-polymorphism: `let id = fun x -> x in let a = id 0 in id true` is `bool`. `(fun id -> let a = id 0 in id true) (fun x -> x)` fails unifying int with bool, because a function parameter is not generalised. Test: type and error.
+  5. The order constraints are solved in doesn't change the answer: for each built-in program, 20 seeded shuffles of its constraints give the same printed type or the same failure. Test: all 20 agree.
+- **Out of scope:** the value restriction and mutable references, type classes and overloading, subtyping and records, error message quality, TypeScript's or Rust's inference, bidirectional checking.
+
+### Questions for the user
+- Answered 2026-11-25: batch stays at eight; tail-latency links the research.google record page; `cs3110.github.io` is added to `TRUSTED`; sequential-testing is the one-sided rule only.
 
 ## How to work (read before starting)
 

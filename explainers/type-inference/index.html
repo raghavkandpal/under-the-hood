@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Type inference</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .in { width: 100%; font-family: var(--mono); font-size: 14px; padding: 6px 8px; box-sizing: border-box; }
+  .lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 16px; }
+  .lists ol, .lists ul { margin: 4px 0 10px; padding-left: 20px; font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+  .lists h3 { font-size: 14px; margin: 10px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Type inference</h1>
+  <p class="lede">You never wrote a type, yet the compiler knows <code>fun x -> x</code> works on anything. It gives every unknown a variable, collects equations between them, and solves the equations.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="progs"></div></div>
+    <div class="row"><label class="inline">Program <input class="in" id="src" spellcheck="false" autocomplete="off"></label></div>
+    <div class="row"><div class="tabs" id="occ"></div>
+      <label class="inline">Order <input type="range" id="seed" min="0" max="20" value="0"> <b id="sv"></b></label></div>
+    <div class="stats" id="stats" style="--stat-min:130px"></div>
+    <div class="status" id="status" role="status"></div>
+    <div class="lists">
+      <div><h3>Constraints</h3><ol id="cons"></ol></div>
+      <div><h3>Bindings</h3><ul id="binds"></ul></div>
+    </div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Constraints.</b> Inference walks the program and gives each unknown its own type variable, written <code>t1</code>, <code>t2</code>… while it works. In this model, <code>+</code> takes two integers. So <code>fun x -> x + 1</code> gives <code>x</code> the variable <code>t1</code> and produces 2 constraints, <code>t1 = int</code> and <code>int = int</code>. Solving them binds <code>t1</code> to <code>int</code>, and the type is <code>int -> int</code>.</p>
+  <p><b>Unification.</b> Solving a constraint makes both sides equal by binding variables, taking a function type apart into its argument and result. For <code>fun f -> fun g -> fun x -> f (g x)</code> the 2 constraints come from the 2 applications, and the answer is <code>('a -> 'b) -> ('c -> 'a) -> 'c -> 'b</code>. Finished types are renamed <code>'a</code>, <code>'b</code>… in order of first appearance, so the same shape always prints the same way. When two sides can't be made equal, as in <code>if true then 1 else false</code>, the branches must agree and inference stops: cannot unify int with bool.</p>
+  <p><b>The occurs check.</b> In <code>fun x -> x x</code>, <code>x</code> is used as a function of itself. The one constraint says <code>'a</code> would have to equal <code>'a -> 'b</code>, a type that contains itself and never ends. The occurs check refuses that binding. Turn it off and the solver binds <code>t1 := t1 -> t2</code> and stops there, because applying that binding again and again would never finish.</p>
+  <p><b>Let-polymorphism.</b> A <code>let</code> solves its own constraints first, then turns the variables nothing outside refers to into "any type", so each use of the name gets fresh variables. That is why <code>let id = fun x -> x in let a = id 0 in id true</code> is <code>bool</code>: <code>id</code> is used at int and at bool. A function parameter gets no such treatment. In <code>(fun id -> let a = id 0 in id true) (fun x -> x)</code> the parameter <code>id</code> has one type, and it can't be both <code>int -> t</code> and <code>bool -> t</code>: cannot unify int with bool.</p>
+  <p><b>Order.</b> The <b>orders agree</b> tile re-solves the same constraints in 20 seeded shuffles and counts how many give the same outcome as the generated order: a type, the same one, or a failure. A failure counts as agreeing even when the message differs. Shuffling happens inside one scope, because a <code>let</code> solves its own constraints before the outer ones. Only 4 of the 8 tabs have 2 or more constraints in a scope: <code>compose</code>, <code>add one</code>, <code>bad if</code> and <code>parameter</code>. For those, all 20 agree and the slider changes the lists while the type stays. For the others the tile reads n/a and the slider changes nothing.</p>
+  <p><b>Limits.</b> Programs are capped at 300 characters, and inference stops with a message when a type passes 200 parts, because types can double in size with every <code>let</code>.</p>
+  <div class="note"><b>Try it:</b> pick <code>self-apply</code>, then turn the occurs check off. Edit the program to <code>fun x -> x + x</code> and it types again.</div>
+  <p class="caveat">A toy: integers, booleans, <code>+</code>, <code>if</code>, <code>fun</code>, application and <code>let</code>, with no recursion, no mutable references, no records and no friendly error messages. Real languages add more rules on top of this core.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs, escapeHtml } from "../../shared/common.js";
+import { PROGRAMS, view, orderLabel } from "./type-inference.js";
+chrome();
+
+let occurs = true;
+const markP = tabs($("#progs"), Object.fromEntries(PROGRAMS.map(p => [p.name, escapeHtml(p.name)])), PROGRAMS[0].name, k => { $("#src").value = PROGRAMS.find(p => p.name === k).src; render(); });
+tabs($("#occ"), { on: "Occurs check on", off: "Occurs check off" }, "on", k => { occurs = k === "on"; render(); });
+const li = x => `<li>${escapeHtml(x)}</li>`;
+// Every control change redraws everything from the program text, the check and the order.
+function render() {
+  const src = $("#src").value, seed = +$("#seed").value, v = view(src, { occurs, seed });
+  markP(PROGRAMS.find(p => p.src === src)?.name);
+  $("#sv").textContent = orderLabel(seed);
+  $("#stats").innerHTML = v.tiles.map(statTile).join("");
+  $("#status").textContent = v.status;
+  $("#cons").innerHTML = v.constraints.map(li).join("");
+  $("#binds").innerHTML = v.bindings.map(li).join("");
+}
+$("#src").oninput = $("#seed").oninput = render;
+$("#src").value = PROGRAMS[0].src; render();
+</script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How the shell finds a command</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .in { width: 100%; font-family: var(--mono); font-size: 14px; padding: 6px 8px; box-sizing: border-box; }
+  .lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 16px; }
+  .lists ol, .lists ul { margin: 4px 0 10px; padding-left: 20px; font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+  .lists h3 { font-size: 14px; margin: 10px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>How the shell finds a command</h1>
+  <p class="lede">A command name is not a file path. The shell checks its own functions and builtins first, then walks the directories in PATH, and remembers what it found.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="cmds"></div></div>
+    <div class="row"><label class="inline">Command <input class="in" id="cmd" spellcheck="false" autocomplete="off"></label></div>
+    <div class="row"><div class="tabs" id="paths"></div></div>
+    <div class="row"><label class="inline">PATH <input class="in" id="path" spellcheck="false" autocomplete="off"></label></div>
+    <div class="row">
+      <button class="primary" id="run">Run</button>
+      <button id="hashr">hash -r</button>
+      <button id="add">Add ~/bin/python</button>
+      <button id="reset">Reset</button>
+    </div>
+    <h3 id="lastH"></h3>
+    <div class="stats" id="stats" style="--stat-min:130px"></div>
+    <div class="lists">
+      <div><h3>Next lookup</h3><ol id="steps"></ol></div>
+      <div><h3>Hash table</h3><ul id="hash"></ul><h3>Files</h3><ul id="files"></ul></div>
+    </div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The order.</b> Before any of this, the shell has already done its <a href="../shell-expansion/">expansions</a>. In bash, a name without a slash is looked up as a function, then a builtin, then in the hash table, then in each PATH directory from left to right. In this model, <code>ls</code> is a function, so it runs instead of <code>/usr/bin/ls</code>, and <code>cd</code> is a builtin. For both, 0 directories are searched.</p>
+  <p><b>PATH.</b> In this model, <code>python</code> exists in <code>/usr/local/bin</code> and <code>/usr/bin</code>. With PATH <code>/home/me/bin:/usr/local/bin:/usr/bin</code> the shell checks 2 directories and runs <code>/usr/local/bin/python</code>. Put <code>/usr/bin</code> first and it checks 1 and runs <code>/usr/bin/python</code>. The first match wins, so the order of PATH is the order of preference.</p>
+  <p><b>Slashes and the current directory.</b> In this model, <code>deploy</code> exists only in the current directory, <code>/home/me/project</code>. Typed as <code>deploy</code>, it is looked for in all 3 PATH directories, not found, and the status is 127. Typed as <code>./deploy</code>, the name has a slash, so PATH is not searched at all, and it runs. An empty PATH entry, or <code>.</code>, means the current directory, so a trailing colon, as in <code>/usr/bin:</code>, makes plain <code>deploy</code> work after 2 directories. That is also why a stray colon in PATH is a risk: whatever directory you are in becomes a place where commands are found.</p>
+  <p><b>Skipped files.</b> In this model, <code>/home/me/bin/tool</code> has no executable bit. The search skips it and runs <code>/usr/bin/tool</code> after checking 3 directories. If it were the only <code>tool</code> on PATH, nothing would run and the status would be 126, permission denied, instead of 127.</p>
+  <p><b>The hash table.</b> After a command is found through PATH, bash remembers where. The next run asks the table first and searches 0 directories. In this model, adding <code>/home/me/bin/python</code> after <code>python</code> has run changes nothing: the remembered <code>/usr/local/bin/python</code> still runs. <code>hash -r</code> empties the table, and the next lookup finds the new file after 1 directory. Assigning PATH empties the table too.</p>
+  <div class="note"><b>Try it:</b> run <code>python</code>, add <code>~/bin/python</code>, and watch the lookup keep the old file. Then press <code>hash -r</code>.</div>
+  <p class="caveat">A toy of bash with invented paths and a fixed current directory: one function, one builtin, executable bits, a bare name with no arguments, and no aliases, shebang lines or <code>type</code>. See <a href="../processes/">processes</a> for what happens once a file is chosen.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile, tabs, escapeHtml } from "../../shared/common.js";
+import { newShell, setPath, hashReset, addFile, resolve, run, tiles, hashRows, fileRows, PATH_PRESETS, COMMANDS, NEW_FILE } from "./command-lookup.js";
+chrome();
+
+let sh = newShell(), last = null; // last: the most recent Run, kept so the tiles do not jump to the next lookup
+const li = x => `<li>${escapeHtml(x)}</li>`;
+const markC = tabs($("#cmds"), Object.fromEntries(COMMANDS.map(c => [c, escapeHtml(c)])), COMMANDS[0], c => { $("#cmd").value = c; render(); });
+const markP = tabs($("#paths"), Object.fromEntries(Object.keys(PATH_PRESETS).map(k => [k, escapeHtml(k)])), "Default", k => { sh = setPath(sh, PATH_PRESETS[k]); render(); });
+// Every control change redraws everything from the shell state: nothing is cached on screen.
+function render() {
+  const name = $("#cmd").value.trim(), r = resolve(sh, name);
+  $("#path").value = sh.path;
+  markC(name);
+  markP(Object.keys(PATH_PRESETS).find(k => PATH_PRESETS[k] === sh.path));
+  $("#lastH").textContent = last ? `Last run: ${last.name}` : "";
+  $("#stats").innerHTML = last ? tiles(last.name, last).map(statTile).join("") : "";
+  $("#steps").innerHTML = name ? r.steps.map(li).join("") : "";
+  $("#hash").innerHTML = hashRows(sh).map(li).join("") || "<li>empty</li>";
+  $("#files").innerHTML = fileRows(sh).map(li).join("");
+  $("#add").disabled = NEW_FILE in sh.files;
+  $("#run").disabled = !name;
+}
+$("#cmd").oninput = render;
+$("#path").oninput = e => { sh = setPath(sh, e.target.value); const p = $("#path"), s = p.selectionStart; render(); p.setSelectionRange(s, s); };
+$("#run").onclick = () => { const name = $("#cmd").value.trim(), out = run(sh, name); sh = out.sh; last = { name, ...out }; render(); };
+$("#hashr").onclick = () => { sh = hashReset(sh); render(); };
+$("#add").onclick = () => { sh = addFile(sh, NEW_FILE); render(); };
+$("#reset").onclick = () => { sh = newShell(); last = null; $("#cmd").value = COMMANDS[0]; render(); };
+$("#cmd").value = COMMANDS[0]; render();
+</script>
+</body>
+</html>
