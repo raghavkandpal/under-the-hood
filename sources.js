@@ -419,4 +419,7 @@ export const SOURCES = {
   "text-buffers": [["Text Buffer Reimplementation", "https://code.visualstudio.com/blogs/2018/03/23/text-buffer-reimplementation", "article", "VS Code team"],
     ["Piece table", "https://en.wikipedia.org/wiki/Piece_table", "encyclopedia", "Wikipedia"],
     ["Gap buffer", "https://en.wikipedia.org/wiki/Gap_buffer", "encyclopedia", "Wikipedia"]],
+  "switches": [["RFC 826: An Ethernet Address Resolution Protocol", "https://www.rfc-editor.org/rfc/rfc826.html", "standard", "IETF"],
+    ["Computer Networks: A Systems Approach, 3.2 Switched Ethernet", "https://book.systemsapproach.org/internetworking/ethernet.html", "book", "Peterson & Davie"],
+    ["Computer Networks: A Systems Approach, 3.3 Basic Internetworking", "https://book.systemsapproach.org/internetworking/basic-ip.html", "book", "Peterson & Davie"]],
 };

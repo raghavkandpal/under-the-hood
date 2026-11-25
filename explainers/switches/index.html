@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Switches and ARP</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .sw { display: block; width: 100%; max-width: 420px; margin: 0 auto; }
+  .sw rect, .sw line { stroke: var(--border); fill: var(--surface); stroke-width: 1.5; }
+  .sw line.on { stroke: var(--accent); stroke-width: 4; }
+  .sw line.in { stroke: var(--blue); stroke-width: 4; }
+  .sw text { fill: var(--text); stroke: none; font-size: 12px; text-anchor: middle; }
+  table.t { border-collapse: collapse; margin-top: .6rem; font-size: .9rem; }
+  table.t th, table.t td { text-align: left; padding: .15rem .6rem .15rem 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Switches and ARP</h1>
+  <p class="lede">A switch learns which port each machine is on from the frames it sees. ARP turns an IP address into the MAC address a frame needs.</p>
+
+  <div class="panel">
+    <div class="row"><div class="tabs" id="mode"></div></div>
+    <div class="row" id="btns"></div>
+    <svg class="sw" id="fig" viewBox="0 0 420 200" role="img" aria-label="A switch with four ports">
+      <rect x="130" y="70" width="160" height="60" rx="6"></rect>
+      <text x="210" y="105">switch</text>
+      <line id="p1" x1="130" y1="80" x2="50" y2="40"></line><text x="30" y="35">1 A</text>
+      <line id="p2" x1="130" y1="120" x2="50" y2="160"></line><text x="30" y="175">2 B</text>
+      <line id="p3" x1="290" y1="80" x2="370" y2="40"></line><text x="390" y="35">3 C</text>
+      <line id="p4" x1="290" y1="120" x2="370" y2="160"></line><text x="385" y="175">4 Router</text>
+    </svg>
+    <ul class="legend"><li><i style="--c:var(--blue)"></i>in</li><li><i style="--c:var(--accent)"></i>out</li></ul>
+    <div class="status" id="status" role="status"></div>
+    <div class="scroll-x" id="out"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>Learning.</b> A switch starts with an empty table. Every frame that arrives tells it which port the sender is on, so it writes down source MAC and port. If it knows the destination it sends the frame out of that one port. If it does not, it floods: out of every port except the one the frame came in on. With an empty table, A's first frame to B reaches ports 2, 3 and 4, and B's reply goes out port 1 only, because A was learned from the first frame.</p>
+  <p><b>Forgetting.</b> Entries age out. In this model an entry is dropped after 300 seconds with no frame from that host, and the next frame to it floods again. If B moves to port 3, frames to B keep going to port 2 until B sends something, because that is the only way the switch finds out.</p>
+  <div class="note"><b>Try it.</b> On the Switch tab send A to B, then B to A, then A to B, and read the ports each time. Then wait and send again.</div>
+  <p><b>ARP.</b> A frame carries a MAC address, but programs use IP addresses. To reach 10.0.0.2, A broadcasts an ARP request, "who has 10.0.0.2?". The request is flooded to every other port and only B answers, with a reply sent to A alone. A keeps the answer in its ARP cache, so the second packet to 10.0.0.2 needs no ARP frames.</p>
+  <p><b>Off the network.</b> The router is on 10.0.0.254. For 203.0.113.5, which is outside 10.0.0.0/24, A asks ARP for the router's MAC and never for 203.0.113.5. The frame is addressed to the router's MAC, while the IP destination stays 203.0.113.5, and the router carries it on from there.</p>
+  <p><b>Loops.</b> Floods do not stop by themselves. With two switches joined by two cables, a broadcast from A goes over both cables, and each copy is flooded out of the other cable, so 2 frames are still in flight after 100 steps and B has received 100 copies. Block one cable and the broadcast arrives once and stops. Spanning tree is the protocol that picks which cable to block.</p>
+  <p class="caveat">One switch, one subnet and made-up MAC addresses; the 300-second timeout is this model's choice. Spanning tree itself, VLANs and ARP spoofing are left out.</p>
+</main>
+<script type="module">
+import { chrome, $, tabs } from "../../shared/common.js";
+import { makeLan, loop, HOSTS, TIMEOUT } from "./switches.js";
+chrome();
+
+let mode = "switch", lan, now, blocked = false, step = 100;
+const name = m => HOSTS.find(h => h.mac === m)?.name ?? (m.startsWith("ff") ? "all" : m);
+const btn = (label, fn) => { const b = document.createElement("button"); b.textContent = label; b.onclick = fn; return b; };
+const say = t => { $("#status").textContent = t; };
+function light(out = [], inPort = 0) {
+  for (let p = 1; p <= 4; p++) $("#p" + p).setAttribute("class", out.includes(p) ? "on" : p === inPort ? "in" : "");
+}
+function table() {
+  const rows = Object.entries(lan.entries()).map(([m, p]) => `<tr><td>${name(m)}</td><td>${p}</td></tr>`).join("");
+  return `<table class="t"><tr><th>Learned</th><th>Port</th></tr>${rows}</table>`;
+}
+function showSwitch(f, label) {
+  light(f.out, f.inPort);
+  say(`${label}: in port ${f.inPort}, out ${f.out.length ? "port " + f.out.join(", ") : "nowhere"} (t = ${now} s)`);
+  $("#out").innerHTML = table();
+}
+function showArp(frames, label) {
+  const last = frames.at(-1);
+  light(last.out, last.inPort);
+  say(`${label}: ${frames.filter(f => f.kind.startsWith("arp")).length} ARP frames`);
+  $("#out").innerHTML = `<table class="t"><tr><th>Frame</th><th>From</th><th>To</th><th>Out</th></tr>${frames.map(f =>
+    `<tr><td>${f.kind}${f.arpTarget ? " " + f.arpTarget : ""}${f.dstIp ? " for " + f.dstIp : ""}</td><td>${name(f.src)}</td><td>${name(f.dst)}</td><td>${f.out.join(", ")}</td></tr>`).join("")}</table>`;
+}
+function showLoop() {
+  const r = loop({ blocked, steps: step });
+  $("#sv").textContent = step;
+  say(`Step ${step}: ${r.inFlight} in flight, B has received ${r.delivered}`);
+}
+function reset() { lan = makeLan(); now = 0; say(""); $("#out").innerHTML = ""; light(); }
+function build() {
+  reset();
+  const el = $("#btns"); el.replaceChildren();
+  $("#fig").style.display = $(".legend").style.display = mode === "loop" ? "none" : "";
+  if (mode === "switch") {
+    for (const [a, b] of [["A", "B"], ["B", "A"], ["A", "C"]]) el.append(btn(`${a} → ${b}`, () => showSwitch(lan.sendFrame(a, b, now), `${a} → ${b}`)));
+    el.append(btn(`Wait ${TIMEOUT + 1} s`, () => { now += TIMEOUT + 1; say(`t = ${now} s`); }),
+      btn("Move B to port 3", () => { lan.move("B", 3); say("B is now on port 3"); }), btn("Reset", reset));
+  } else if (mode === "arp") {
+    for (const ip of ["10.0.0.2", "203.0.113.5"]) el.append(btn(`A → ${ip}`, () => showArp(lan.send("A", ip, now), `A → ${ip}`)));
+    el.append(btn("Reset", reset));
+  } else {
+    const b = btn("", () => { blocked = !blocked; b.textContent = blocked ? "Cable 2 blocked" : "Cable 2 open"; showLoop(); });
+    b.textContent = blocked ? "Cable 2 blocked" : "Cable 2 open";
+    const l = document.createElement("label"); l.className = "inline";
+    l.innerHTML = `Step <input type="range" min="0" max="100" value="${step}"> <b id="sv"></b>`;
+    l.querySelector("input").oninput = e => { step = +e.target.value; showLoop(); };
+    el.append(b, l); showLoop();
+  }
+}
+tabs($("#mode"), { switch: "Switch", arp: "ARP", loop: "Loop" }, mode, k => { mode = k; build(); });
+build();
+</script>
+</body>
+</html>
