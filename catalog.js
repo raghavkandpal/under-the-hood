@@ -390,6 +390,8 @@ export const CATALOG = [
     blurb: "Restoring last night's backup loses a day; replaying the log gets you to the minute before someone dropped the table.", prereqs: ["transactions"] },
   { id: "tail-latency", title: "Tail latency and fan-out", area: "distributed", topic: "traffic-and-reliability", level: "intro", tags: ["tail latency", "p99", "fan-out", "hedged requests", "percentiles", "the tail at scale"],
     blurb: "A server that is slow 1% of the time makes most requests slow once they fan out to a hundred of them; hedging fixes it for 1% extra calls.", prereqs: [] },
+  { id: "length-extension", title: "Length extension attacks", area: "security", topic: "attacks-and-defences", level: "deep", tags: ["sha-1", "hmac", "mac", "padding", "merkle-damgard", "forgery"],
+    blurb: "Why sha1(secret + message) is not a signature: resume the hash from its digest and append data the server accepts.", prereqs: ["hash-functions", "jwt"] },
 ];
 
 export const byId = id => CATALOG.find(c => c.id === id);
@@ -415,7 +417,7 @@ export const PATHS = [
     audience: "Developers and curious readers who use chatbots and want a real mental model of what's inside.",
     outcomes: ["Explain gradient descent and backpropagation in plain terms", "Describe tokens, embeddings and attention, and how they fit together", "Say how a model picks each next word, and what temperature changes", "Explain the KV cache, quantization, speculative decoding and RAG"] },
   { id: "security", title: "Security essentials", blurb: "The crypto and protocols behind every login and padlock.",
-    steps: ["hash-functions", "password-hashing", "timing-attacks", "totp", "cipher-modes", "padding-oracle", "dh", "signatures", "tls", "oauth", "jwt", "passkeys", "sql-injection", "xss", "csrf", "zero-knowledge"],
+    steps: ["hash-functions", "password-hashing", "timing-attacks", "totp", "cipher-modes", "padding-oracle", "dh", "signatures", "tls", "oauth", "jwt", "length-extension", "passkeys", "sql-injection", "xss", "csrf", "zero-knowledge"],
     intro: "Every login, padlock and password reset rests on a few cryptographic building blocks and the protocols built from them. This path starts with hashes and keys, builds up to TLS and OAuth, and ends with the attacks that break real systems when those pieces are misused.",
     audience: "Developers who handle logins, secrets or user data, and anyone who wants to know what the padlock means.",
     outcomes: ["Explain hashing, encryption and signatures, and which to use when", "Describe how TLS and “Sign in with…” keep credentials safe", "Store passwords properly and add a second factor", "Spot SQL injection and the misuse of cipher modes"] },

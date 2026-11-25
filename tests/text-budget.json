@@ -71,6 +71,7 @@
 "kmeans":{"helper":7,"caveat":31},
 "knn":{"helper":12,"caveat":27},
 "kv-cache":{"helper":15,"caveat":36},
+"length-extension":{"helper":40,"caveat":36},
 "linear-regression":{"helper":38,"caveat":37},
 "linkers":{"helper":14,"caveat":43},
 "load-balancing":{"helper":38,"caveat":45},

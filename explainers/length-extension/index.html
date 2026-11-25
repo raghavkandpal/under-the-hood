@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Length extension attacks</title>
+<link rel="stylesheet" href="../../shared/style.css">
+<script src="../../shared/theme.js"></script>
+<style>
+  .forged { font-family: var(--mono); font-size: 0.85em; word-break: break-all; margin: 0.5rem 0; }
+  .forged b { color: var(--accent); }
+  .macs { font-family: var(--mono); font-size: 0.85em; margin: 0.25rem 0; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Length extension attacks</h1>
+  <p class="lede">A server that signs a message by hashing a secret followed by the message can be tricked into signing more. Someone who sees one valid signature can extend the message without ever learning the secret.</p>
+
+  <div class="panel">
+    <div class="row"><div class="seg" id="kind"></div>
+      <label class="inline">Guessed length <input type="range" id="guess" min="1" max="64" value="16" aria-label="Guessed secret length in bytes"> <b id="gv"></b></label>
+      <button id="try">Try 1, 2, 3 …</button></div>
+    <div class="macs" id="macs"></div>
+    <div class="scroll-x"><div class="forged" id="forged"></div></div>
+    <div class="stats" id="stats"></div>
+    <div class="status" id="status" aria-live="polite"></div>
+  </div>
+
+  <h2>How it works</h2>
+  <p><b>The weak signature.</b> The server signs a query string by computing <code>sha1(secret ‖ message)</code>, here a 16-byte secret and the 20-byte message <code>user=alice&amp;role=user</code>. It accepts any message whose signature matches. The secret stays on the server, so nobody else should be able to make a valid one. See <a href="../hash-functions/">hash functions</a> for what a hash is and <a href="../jwt/">JSON Web Tokens</a> for a signature that is built correctly.</p>
+  <p><b>Padding.</b> SHA-1 works on 64-byte blocks. Before the last block it appends a 0x80 byte, zeros, and the message length in bits as 8 bytes, so the total is a multiple of 64. A 55-byte message pads out to 64 bytes and a 56-byte one to 128, because the 0x80 byte and the length no longer fit in the first block. The 36 bytes of secret and message get 28 bytes of padding.</p>
+  <p><b>The hash is its own state.</b> A SHA-1 digest is the five 32-bit words the computation holds after its last block. Anyone holding the digest of <code>m</code> can load those words, carry on at the byte count of <code>m</code> plus its padding, and hash more bytes <code>x</code>. The result equals <code>sha1(m ‖ padding ‖ x)</code>, as if the hash had been run in one go.</p>
+  <p><b>The forgery.</b> The attacker knows the message, its signature and the secret's length. They send the message, the padding that the server's hash would have added, and <code>&amp;role=admin</code>, together with the signature they computed by resuming. The forged message is 59 bytes. The server hashes the secret and that message, gets the same value, and accepts it. Its parser takes the last <code>role=</code> it sees, so the role is now admin. The padding bytes look odd but nothing checks them.</p>
+  <div class="note"><b>Try it:</b> set the guessed length to 15. The forged signature is the same as at 16, because the data still fills one 64-byte block, but the message carries one more padding byte and the server rejects it.</div>
+  <p><b>Not knowing the length.</b> The attacker can just try 1, 2, 3 and so on, and ask the server each time. With the 16-byte secret the first success is at length 16, after 16 queries.</p>
+  <p><b>The fix.</b> HMAC hashes twice with the key mixed in at both ends: <code>sha1(key ⊕ opad ‖ sha1(key ⊕ ipad ‖ message))</code>, as in <a href="../totp/">one-time codes</a>. The signature the attacker sees is the output of the outer hash, so it is not the state after the message, and resuming from it builds nothing the server accepts. Switch to HMAC-SHA1 and try all 64 lengths: every one fails. SHA-3 digests are not a resumable state, so it is not affected, but HMAC is the usual fix whichever hash you use.</p>
+  <p class="caveat">Simplified: one message, one suffix, a secret that fits in one block, and a server that reads bytes as plain text. Real attacks on other hashes, such as SHA-256, use the same idea with different constants.</p>
+</main>
+<script type="module">
+import { chrome, $, statTile } from "../../shared/common.js";
+import { view, MESSAGE } from "./length-extension.js";
+chrome();
+
+let kind = "sha1", searched = false;
+const KINDS = { sha1: "sha1(secret ‖ message)", hmac: "HMAC-SHA1" };
+$("#kind").innerHTML = Object.entries(KINDS).map(([k, l]) => `<button data-k="${k}">${l}</button>`).join("");
+$("#kind").onclick = e => { const k = e.target.dataset.k; if (!k) return; kind = k; searched = false; render(); };
+$("#guess").oninput = () => { searched = false; render(); };
+$("#try").onclick = () => {
+  searched = true;
+  const r = view(kind, +$("#guess").value, true).search;
+  if (r.keyLen) $("#guess").value = r.keyLen;
+  render();
+};
+function render() {
+  const guess = +$("#guess").value, v = view(kind, guess, searched);
+  $("#gv").textContent = guess;
+  for (const b of $("#kind").children) b.setAttribute("aria-pressed", b.dataset.k === kind);
+  $("#macs").innerHTML = `signature seen ${v.tag}<br>forged signature ${v.forgedMac}`;
+  const cut = MESSAGE.length; // the original message, then padding and suffix in bold
+  $("#forged").innerHTML = `${v.forgedMessage.slice(0, cut)}<b>${v.forgedMessage.slice(cut)}</b>`;
+  $("#stats").innerHTML = [[v.accepted ? "accepted" : "rejected", "server"], [v.role ?? "none", "role read"], [v.padBytes, "padding bytes"], [v.forgedLength, "message bytes"],
+    [v.search ? v.search.queries : "none", "queries"]].map(statTile).join("");
+  $("#status").textContent = v.search
+    ? (v.search.keyLen ? `Length ${v.search.keyLen} accepted after ${v.search.queries} queries.` : `No length from 1 to ${v.search.queries} accepted.`) : "";
+}
+render();
+</script>
+</body>
+</html>

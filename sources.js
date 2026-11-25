@@ -426,4 +426,7 @@ export const SOURCES = {
     ["PostgreSQL: Backup and Restore", "https://www.postgresql.org/docs/current/backup.html", "docs", "PostgreSQL"]],
   "tail-latency": [["The Tail at Scale (Dean & Barroso, CACM 2013)", "https://research.google/pubs/pub40801/", "paper", "Google"],
     ["Site Reliability Engineering, ch. 4: Service Level Objectives", "https://sre.google/sre-book/service-level-objectives/", "book", "Google"]],
+  "length-extension": [["RFC 2104: HMAC: Keyed-Hashing for Message Authentication", "https://www.rfc-editor.org/rfc/rfc2104.html", "standard", "IETF"],
+    ["RFC 3174: US Secure Hash Algorithm 1 (SHA1)", "https://www.rfc-editor.org/rfc/rfc3174.html", "standard", "IETF"],
+    ["Length extension attack", "https://en.wikipedia.org/wiki/Length_extension_attack", "encyclopedia", "Wikipedia"]],
 };
