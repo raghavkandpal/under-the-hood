@@ -6,7 +6,13 @@ export const LEAF = { fast: 10, slow: 1000, pSlow: 0.01, hedgeAfter: 20 };
 export const MODES = { plain: "No hedge", hedge: "Hedge at 20 ms", double: "Two copies" };
 export const SEED = 7, REQUESTS = 10000;
 
-export const leafMean = () => (1 - LEAF.pSlow) * LEAF.fast + LEAF.pSlow * LEAF.slow;
+/** Mean latency of one leaf call under `mode`, exact. */
+export const leafMean = (mode = "plain") => {
+  const { fast, slow, pSlow, hedgeAfter } = LEAF, q = 1 - pSlow;
+  if (mode === "plain") return q * fast + pSlow * slow;
+  if (mode === "double") return (1 - pSlow ** 2) * fast + pSlow ** 2 * slow;
+  return q * fast + pSlow * (q * (hedgeAfter + fast) + pSlow * slow);
+};
 export const leafFastShare = () => 1 - LEAF.pSlow;
 
 /** P(a request is slow) when it waits for n leaves; a hedged or doubled leaf is slow only if both copies are. */
@@ -41,5 +47,5 @@ export function simulate(n, mode, requests = REQUESTS, seed = SEED) {
 /** Everything the page displays for one n and mode. */
 export function view(n, mode) {
   const s = simulate(n, mode);
-  return { formula: pSlowRequest(n, mode), slowRate: s.slowRate, median: s.median, extra: s.extra, expectedExtra: extraCalls(mode), leafMean: leafMean() };
+  return { formula: pSlowRequest(n, mode), slowRate: s.slowRate, median: s.median, extra: s.extra, expectedExtra: extraCalls(mode), leafMean: leafMean(mode) };
 }

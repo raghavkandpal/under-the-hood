@@ -55,7 +55,10 @@ test("the page's view follows n and mode: every field changes with its inputs", 
   }
   assert.equal(view(100, "plain").median, 1000);
   assert.equal(view(100, "hedge").median, 30);
-  assert.equal(view(100, "hedge").leafMean, 19.9);
+  assert.equal(view(100, "double").median, 10);
+  near(view(100, "plain").leafMean, 19.9, 1e-9);
+  near(view(100, "hedge").leafMean, 10.297, 1e-9);
+  near(view(100, "double").leafMean, 10.099, 1e-9);
   assert.ok(seen.size >= 6);
   // changing only n, then only mode, changes the readout
   assert.notEqual(view(10, "plain").formula, view(100, "plain").formula);
