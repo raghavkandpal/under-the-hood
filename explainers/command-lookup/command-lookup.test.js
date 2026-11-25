@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { newShell, setPath, hashReset, addFile, resolve, run, hashRows, fileRows, pathDirs, tiles, PATH_PRESETS, COMMANDS, NEW_FILE, CWD, DEFAULT_PATH } from "./command-lookup.js";
+import { newShell, setPath, hashReset, addFile, resolve, run, hashRows, fileRows, pathDirs, tiles, PATH_PRESETS, COMMANDS, NEW_FILE, CWD, DEFAULT_PATH, HOME } from "./command-lookup.js";
 
 const sh0 = newShell();
 
@@ -96,4 +96,29 @@ test("presets are the facts, and every tile says what it shows", () => {
   assert.deepEqual(tiles("deploy", resolve(sh0, "deploy")), [["nowhere", "found by"], ["–", "runs"], [3, "directories searched"], [127, "exit status"]]);
   const refused = tiles("tool", resolve(setPath(sh0, "/home/me/bin"), "tool"));
   assert.deepEqual(refused.slice(1, 2).concat(refused.slice(3)), [["/home/me/bin/tool", "refused"], [126, "exit status"]]);
+});
+
+test("a slash name that is not there is found by nowhere, not by slash", () => {
+  for (const n of ["./nothing", "../bin/nothing", "~/bin/nothing"]) {
+    const t = tiles(n, resolve(sh0, n));
+    assert.deepEqual([t[0], t[3]], [["nowhere", "found by"], [127, "exit status"]], n);
+  }
+  assert.equal(tiles("./deploy", resolve(sh0, "./deploy"))[0][0], "slash");
+  assert.deepEqual(tiles("~/bin/tool", resolve(sh0, "~/bin/tool")).map(t => t[0]), ["slash", `${HOME}/bin/tool`, 0, 126]);
+});
+
+test("PATH entries: dot, double and trailing slashes, and ~ are read as bash reads them", () => {
+  assert.deepEqual(pathDirs(".:/usr//bin/:~/bin:~:./sub/..:../x"), [CWD, "/usr/bin", "/home/me/bin", HOME, CWD, "/home/me/x"]);
+  assert.equal(resolve(setPath(sh0, ".:/usr/bin"), "deploy").file, `${CWD}/deploy`);
+  const slash = resolve(setPath(sh0, "/usr/bin/:/x"), "python");
+  assert.deepEqual([slash.file, slash.status], ["/usr/bin/python", 0]);
+  const tilde = resolve(setPath(addFile(sh0, NEW_FILE), "~/bin:/usr/bin"), "python");
+  assert.deepEqual([tilde.file, tilde.searched], [NEW_FILE, 1]);
+});
+
+test("the tiles of a Run keep their numbers after the hash table fills", () => {
+  const ran = run(sh0, "python");
+  assert.deepEqual(tiles("python", ran).map(t => t[0]), ["PATH", "/usr/local/bin/python", 2, 0]);
+  const next = resolve(ran.sh, "python"); // what the page's steps show next
+  assert.deepEqual(tiles("python", next).map(t => t[0]), ["hash table", "/usr/local/bin/python", 0, 0]);
 });

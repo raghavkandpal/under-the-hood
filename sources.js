@@ -420,6 +420,7 @@ export const SOURCES = {
     ["Pipeline (Unix)", "https://en.wikipedia.org/wiki/Pipeline_(Unix)", "encyclopedia", "Wikipedia"]],
   "command-lookup": [["Bash Reference Manual: Command Search and Execution", "https://www.gnu.org/software/bash/manual/html_node/Command-Search-and-Execution.html", "docs", "GNU Project"],
     ["Bash Reference Manual: Bourne Shell Builtins", "https://www.gnu.org/software/bash/manual/html_node/Bourne-Shell-Builtins.html", "docs", "GNU Project"],
+    ["Bash Reference Manual: Bourne Shell Variables", "https://www.gnu.org/software/bash/manual/html_node/Bourne-Shell-Variables.html", "docs", "GNU Project"],
     ["exec(3)", "https://man7.org/linux/man-pages/man3/exec.3.html", "docs", "Linux man-pages"]],
   "shell-expansion": [["Bash Reference Manual: Shell Expansions", "https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html", "docs", "GNU Project"],
     ["glob(7)", "https://man7.org/linux/man-pages/man7/glob.7.html", "docs", "Linux man-pages"]],
