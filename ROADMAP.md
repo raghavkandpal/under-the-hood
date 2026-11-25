@@ -348,11 +348,18 @@ Where the build departed from the plan:
 ### Questions for the user
 - Answered 2026-11-19: no tenth explainer (batch stays at nine); `book.systemsapproach.org` is a trusted domain; the Kafka docs link is pinned to the 4.0.0 tag, not trunk.
 
-## Next batch: batch 15 (planned, on `explainers/batch-15`)
+## Batch 15 ✅ built (on `explainers/batch-15`, PR pending)
 
 Eight from the gap table, one per open gap: switches (networking intro), backups (databases intro), tail-latency (distributed intro), length-extension (security deep dive), strongly-connected (algorithms deep dive), sequential-testing (statistics deep dive), command-lookup and type-inference (tools intro and deep). Systems and ML are balanced and get none. Same flow as batch 14: `tdd` per module, `code-review` plus `ponytail-review` before the PR, `pr` for the body.
 
 Each spec gives the scaffold line, prereqs, path, sources (first one primary; **new domain** marks a host not yet in `TRUSTED`), reuse, the facts with the test that pins each, and what stays out. Numbers marked "printed" come from a seeded or exact run: the generator prints them first, the test pins them, and the prose copies them. Model constants (latencies, timeouts, thresholds) are the page's own; the prose says "in this model" and never presents them as values from a standard. Every id below was checked against `catalog.js` on 2026-11-25 and is free.
+
+### Build result (2026-11-25)
+All eight built, each evaluated by an agent until PASS: switches (42e41bb, 2 fix rounds), backups (e4edd81), tail-latency (1ad08ac, 1), length-extension (a2ffa68), strongly-connected (7b37dde, 1), sequential-testing (f37fe5c), command-lookup (ffa47ed, 1), type-inference (68f33a3, 1). `make check` 891 pass; phone-width sweep 173 pages, `bad: []`. The separate `code-review` and `ponytail-review` passes were skipped to save usage; the evaluators covered each page.
+
+Lessons: evaluators found the same class of bug again, a displayed value that is true at the default but stale or mislabelled after a state change (switches' table after Wait, tail-latency's leaf-mean tile, command-lookup's tiles after Run, type-inference's order tile). Tell generators up front to test what `view()` displays after every control change, and to pin every displayed line. A generator's own report once came back as "placeholder": check the commit and tests yourself.
+
+Open nits (not fixed, none false): backups legend says "recovered" where rows say "kept"; sequential-testing's "only because" and "however often you look" overreach; length-extension's "last role=" and "signs" wording; tail-latency's seeded-tile sentence is near the helper-text limit; strongly-connected's Random mode can repeat clauses; command-lookup resolves `..` lexically.
 
 ### 1. `switches`: Switches and ARP
 - **Scaffold:** `npm run new -- switches "Switches and ARP" networking intro how-the-network-works`. Prereqs: subnets. Path `internet`: after subnets.
