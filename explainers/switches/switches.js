@@ -29,7 +29,7 @@ export function makeLan(timeout = TIMEOUT) {
     const out = known ? (e.port === inPort ? [] : [e.port]) : PORTS.filter(p => p !== inPort);
     return { ...f, inPort, out };
   }
-  const entries = () => Object.fromEntries([...table].map(([m, e]) => [m, e.port]));
+  const entries = (now = 0) => Object.fromEntries([...table].filter(([, e]) => now - e.seen <= timeout).map(([m, e]) => [m, e.port]));
 
   /** Host `name` sends a packet to `dstIp` at `now`. Returns the frames on the wire, in order. */
   function send(name, dstIp, now = 0) {

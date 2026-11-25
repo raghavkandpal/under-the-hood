@@ -59,7 +59,7 @@ function light(out = [], inPort = 0) {
   for (let p = 1; p <= 4; p++) $("#p" + p).setAttribute("class", out.includes(p) ? "on" : p === inPort ? "in" : "");
 }
 function table() {
-  const rows = Object.entries(lan.entries()).map(([m, p]) => `<tr><td>${name(m)}</td><td>${p}</td></tr>`).join("");
+  const rows = Object.entries(lan.entries(now)).map(([m, p]) => `<tr><td>${name(m)}</td><td>${p}</td></tr>`).join("");
   return `<table class="t"><tr><th>Learned</th><th>Port</th></tr>${rows}</table>`;
 }
 function showSwitch(f, label) {

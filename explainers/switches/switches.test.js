@@ -26,6 +26,13 @@ test("an entry older than the timeout is gone and the frame floods again", () =>
   assert.equal(lan.entries()[mac("B")], undefined);
 });
 
+test("entries(now) hides an entry past the timeout even if nobody sent to it", () => {
+  const lan = makeLan();
+  lan.sendFrame("A", "B", 0); lan.sendFrame("B", "A", 0); lan.sendFrame("A", "C", TIMEOUT + 1);
+  assert.deepEqual(lan.entries(TIMEOUT + 1), { [mac("A")]: 1 });
+  assert.deepEqual(lan.entries(TIMEOUT), { [mac("A")]: 1, [mac("B")]: 2 });
+});
+
 test("a host that moves is reached on the old port until it sends a frame", () => {
   const lan = makeLan();
   lan.sendFrame("A", "B"); lan.sendFrame("B", "A");
@@ -60,7 +67,7 @@ test("off the network: A asks for the router's MAC, and the IP destination stays
 test("loop: two cables keep a broadcast alive at step 100, one blocked cable ends it", () => {
   const open = loop({ steps: 100 });
   assert.equal(open.inFlight, 2);
-  assert.equal(open.delivered, 100); // one more copy to B every step, printed
+  assert.equal(open.delivered, 100); // two more copies to B every other step, printed
   const cut = loop({ blocked: true, steps: 100 });
   assert.equal(cut.inFlight, 0);
   assert.equal(cut.delivered, 1);
