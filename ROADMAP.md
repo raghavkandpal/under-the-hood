@@ -489,6 +489,8 @@ Open nits (not fixed, none false): backups legend says "recovered" where rows sa
 - **Make the model honest before the page.** Several first drafts quietly failed their own claims: coverage-guided fuzzing needed AFL's deterministic stage to find the bug reliably, read-your-writes looked perfect only because every read fell inside its window, and a 4-bit history predictor can't learn a loop of 8. Print the numbers across the parameter range first.
 - **Sources:** the first source must not be an encyclopedia (a test checks), and every new domain goes in `TRUSTED`. Check a host answers from here before adding it: `nlp.stanford.edu` refused connections and had to be dropped.
 
+**New tag (wanted, not built yet):** every batch's explainers carry a "New" tag on their index cards, like a price tag in the card's top-right corner: flush to the corner, clipped to the card's rounded edge, with a small punched hole, in the theme's indigo (`--accent` fill, `--on-accent` text, so it follows dark mode) and right padding on the title so it never runs under the tag. Older cards get none. Do it with a `batch` number on each `catalog.js` entry and show the tag on the highest batch, so the next batch moves it with no manual cleanup. Build it as its own small change (CSS in `shared/style.css`, the card in `entryCards()` in `shared/common.js`, a test that only the latest batch is tagged), then every batch only sets `batch: <n>` on its new entries.
+
 **Final sweep (run before ending a session):** from `index.html` in the browser, start the sweep detached and poll, since a single call times out:
 
 ```js
