@@ -3,7 +3,7 @@
 // Fed from catalog.js, so a new explainer appears on the graph with no edit here.
 import { mulberry } from "../shared/random.js";
 
-export const NW = 150, NH = 26; // box size, so the layout can keep boxes from overlapping
+export const NW = 160, NH = 28; // box size, so the layout can keep boxes from overlapping
 const GAP = 8, REPEL = 40000, LINK = 190, SPRING = 0.03, ANCHOR = 0.01, RING = 700, STEPS = 320;
 
 export function layout(catalog, areas) {

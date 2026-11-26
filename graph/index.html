@@ -49,10 +49,12 @@ const lines = edges.map(({ from, to }) => {
 const boxes = nodes.map(n => {
   const c = byId.get(n.id), a = el("a", { href: linkTo(c), "aria-label": `${c.title}${c.prereqs.length ? `, builds on ${c.prereqs.map(id => byId.get(id)?.title).filter(Boolean).join(", ")}` : ""}` });
   a.append(el("rect", { x: n.x - NW / 2, y: n.y - NH / 2, width: NW, height: NH, rx: 8, fill: "var(--surface)", stroke: colour(n.area), "stroke-width": 1.5 }),
-    el("text", { x: n.x, y: n.y + 4, "text-anchor": "middle", "font-size": 12, fill: "var(--text)", "aria-hidden": "true" }, n.title.length > 24 ? n.title.slice(0, 23) + "…" : n.title));
+    el("text", { x: n.x, y: n.y + 4, "text-anchor": "middle", "font-size": 12, fill: "var(--text)", "aria-hidden": "true" }, n.title));
   g.append(a); return { n, a };
 });
 svg.append(g);
+// Keep 8px of margin each side: cut any title that would touch the border (the full title stays in the link's label).
+for (const t of g.querySelectorAll("text")) { let full = t.textContent; while (t.getComputedTextLength() > NW - 16 && full.length > 1) { full = full.slice(0, -1); t.textContent = full.trimEnd() + "…"; } }
 
 // Highlight: one explainer and its direct neighbours, or one whole area; everything else fades.
 let ids = null, k = 1, tx = 0, ty = 0;
