@@ -3,13 +3,14 @@
 // Fed from catalog.js, so a new explainer appears on the graph with no edit here.
 import { mulberry } from "../shared/random.js";
 
-const REPEL = 2600, LINK = 55, SPRING = 0.04, ANCHOR = 0.012, RING = 360, STEPS = 320;
+export const NW = 150, NH = 26; // box size, so the layout can keep boxes from overlapping
+const GAP = 8, REPEL = 40000, LINK = 190, SPRING = 0.03, ANCHOR = 0.01, RING = 700, STEPS = 320;
 
 export function layout(catalog, areas) {
   const known = new Set(catalog.map(c => c.id));
   const rnd = mulberry(15);
   const centre = new Map(areas.map((a, i) => [a.id, [RING * Math.cos(2 * Math.PI * i / areas.length), RING * Math.sin(2 * Math.PI * i / areas.length)]]));
-  const nodes = catalog.map(c => { const [cx, cy] = centre.get(c.area) ?? [0, 0]; return { id: c.id, title: c.title, area: c.area, x: cx + (rnd() - 0.5) * 160, y: cy + (rnd() - 0.5) * 160, vx: 0, vy: 0 }; });
+  const nodes = catalog.map(c => { const [cx, cy] = centre.get(c.area) ?? [0, 0]; return { id: c.id, title: c.title, area: c.area, x: cx + (rnd() - 0.5) * 320, y: cy + (rnd() - 0.5) * 320, vx: 0, vy: 0 }; });
   const index = new Map(nodes.map((n, i) => [n.id, i]));
   const edges = catalog.flatMap(c => c.prereqs.filter(p => known.has(p)).map(p => ({ from: p, to: c.id })));
   const pairs = edges.map(e => [nodes[index.get(e.from)], nodes[index.get(e.to)]]);
@@ -34,7 +35,18 @@ export function layout(catalog, areas) {
       n.vx *= 0.55; n.vy *= 0.55;
     }
   }
-  const minX = Math.min(...nodes.map(n => n.x)), minY = Math.min(...nodes.map(n => n.y));
+  // Boxes, not points: push overlapping boxes apart along the axis where they overlap least.
+  for (let pass = 0, moved = true; moved && pass < 400; pass++) {
+    moved = false;
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j], ox = NW + GAP - Math.abs(a.x - b.x), oy = NH + GAP - Math.abs(a.y - b.y);
+      if (ox <= 0 || oy <= 0) continue;
+      moved = true;
+      if (oy < ox) { const m = (oy / 2 + 0.5) * (a.y < b.y ? -1 : 1); a.y += m; b.y -= m; }
+      else { const m = (ox / 2 + 0.5) * (a.x < b.x ? -1 : 1); a.x += m; b.x -= m; }
+    }
+  }
+  const minX = Math.min(...nodes.map(n => n.x)) - NW / 2, minY = Math.min(...nodes.map(n => n.y)) - NH / 2; // x, y are box centres
   for (const n of nodes) { n.x -= minX; n.y -= minY; delete n.vx; delete n.vy; }
-  return { nodes, edges, width: Math.max(...nodes.map(n => n.x)), height: Math.max(...nodes.map(n => n.y)) };
+  return { nodes, edges, width: Math.max(...nodes.map(n => n.x)) + NW / 2, height: Math.max(...nodes.map(n => n.y)) + NH / 2 };
 }

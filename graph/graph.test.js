@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { layout } from "./graph.js";
+import { layout, NW, NH } from "./graph.js";
 import { CATALOG, AREAS } from "../catalog.js";
 
 const areas = [{ id: "a" }, { id: "b" }];
@@ -16,7 +16,7 @@ test("every node gets a finite position inside the box, and the box starts at th
   const { nodes, edges, width, height } = layout(toy, areas);
   assert.equal(nodes.length, 4);
   assert.equal(edges.length, 3);
-  for (const n of nodes) assert.ok(Number.isFinite(n.x) && Number.isFinite(n.y) && n.x >= 0 && n.y >= 0 && n.x <= width && n.y <= height, n.id);
+  for (const n of nodes) assert.ok(Number.isFinite(n.x) && Number.isFinite(n.y) && n.x - NW / 2 >= 0 && n.y - NH / 2 >= 0 && n.x + NW / 2 <= width && n.y + NH / 2 <= height, n.id);
 });
 
 test("the same catalog always gives the same picture", () => {
@@ -46,4 +46,10 @@ test("explainers of one area end up nearer each other than to the rest", () => {
   const mean = (a, b) => { let s = 0, n = 0; for (const p of a) for (const q of b) if (p !== q) { s += dist(p, q); n++; } return s / n; };
   const sec = nodes.filter(n => n.area === "security"), rest = nodes.filter(n => n.area !== "security");
   assert.ok(mean(sec, sec) < mean(sec, rest));
+});
+
+test("no two boxes overlap", () => {
+  const { nodes } = layout(CATALOG, AREAS);
+  for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++)
+    assert.ok(Math.abs(nodes[i].x - nodes[j].x) >= NW || Math.abs(nodes[i].y - nodes[j].y) >= NH, `${nodes[i].id} overlaps ${nodes[j].id}`);
 });
