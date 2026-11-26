@@ -19,6 +19,7 @@ GitHub Actions runs `npm test` on every push and pull request, and fetches every
 index.html                 home page: search, area filter, learning paths, cards by topic / concept map
 path/index.html            a learning path's introduction, steps and progress (path/?id=llms); path/ lists them all
                            (?q= ?area= ?view= and #topic-<id> / #path-<id> are shareable)
+graph/index.html           the knowledge graph: every explainer and its prerequisites, built from catalog.js (layout in graph/graph.js)
 sources.js                 further reading for every explainer: trusted, free sources (npm run check-sources)
 catalog.js                 the single list of explainers (area, topic, level, tags, prerequisites),
                            the areas with their topics, and PATHS (curated learning paths)
