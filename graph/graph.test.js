@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { layout, COLW, ROWH } from "./graph.js";
+import { layout } from "./graph.js";
 import { CATALOG, AREAS } from "../catalog.js";
 
 const areas = [{ id: "a" }, { id: "b" }];
@@ -10,14 +10,17 @@ const toy = [
   { id: "z", title: "Z", area: "a", prereqs: ["x", "y"] },
   { id: "w", title: "W", area: "a", prereqs: [] },
 ];
+const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
 
-test("one column per prerequisite depth, areas grouped inside a column", () => {
+test("every node gets a finite position inside the box, and the box starts at the origin", () => {
   const { nodes, edges, width, height } = layout(toy, areas);
-  const at = Object.fromEntries(nodes.map(n => [n.id, [n.x / COLW, n.y / ROWH]]));
-  assert.deepEqual(at, { w: [0, 0], x: [0, 1], y: [1, 0], z: [2, 0] });
+  assert.equal(nodes.length, 4);
   assert.equal(edges.length, 3);
-  assert.equal(width, 3 * COLW);
-  assert.equal(height, 2 * ROWH);
+  for (const n of nodes) assert.ok(Number.isFinite(n.x) && Number.isFinite(n.y) && n.x >= 0 && n.y >= 0 && n.x <= width && n.y <= height, n.id);
+});
+
+test("the same catalog always gives the same picture", () => {
+  assert.deepEqual(layout(toy, areas), layout(toy, areas));
 });
 
 test("an unknown prerequisite is ignored and a cycle cannot hang the layout", () => {
@@ -26,11 +29,21 @@ test("an unknown prerequisite is ignored and a cycle cannot hang the layout", ()
   assert.equal(edges.length, 2);
 });
 
-test("the real catalog: every explainer is placed once, and every arrow points right", () => {
+test("the real catalog: every explainer is placed once, and linked explainers sit closer than the average pair", () => {
   const { nodes, edges } = layout(CATALOG, AREAS);
   assert.equal(nodes.length, CATALOG.length);
-  assert.equal(new Set(nodes.map(n => `${n.x},${n.y}`)).size, CATALOG.length);
+  assert.equal(new Set(nodes.map(n => `${Math.round(n.x)},${Math.round(n.y)}`)).size, CATALOG.length, "no two nodes on the same spot");
   assert.equal(edges.length, CATALOG.reduce((s, c) => s + c.prereqs.length, 0));
   const at = new Map(nodes.map(n => [n.id, n]));
-  for (const { from, to } of edges) assert.ok(at.get(from).x < at.get(to).x, `${from} -> ${to}`);
+  const linked = edges.reduce((s, e) => s + dist(at.get(e.from), at.get(e.to)), 0) / edges.length;
+  let all = 0, pairs = 0;
+  for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) { all += dist(nodes[i], nodes[j]); pairs++; }
+  assert.ok(linked < (all / pairs) / 2, `linked ${linked.toFixed(0)} vs all ${(all / pairs).toFixed(0)}`);
+});
+
+test("explainers of one area end up nearer each other than to the rest", () => {
+  const { nodes } = layout(CATALOG, AREAS);
+  const mean = (a, b) => { let s = 0, n = 0; for (const p of a) for (const q of b) if (p !== q) { s += dist(p, q); n++; } return s / n; };
+  const sec = nodes.filter(n => n.area === "security"), rest = nodes.filter(n => n.area !== "security");
+  assert.ok(mean(sec, sec) < mean(sec, rest));
 });

@@ -24,40 +24,42 @@
   <p class="lede" id="lede"></p>
   <div class="bar">
     <div class="chips" id="chips" role="group" aria-label="Highlight an area"></div>
-    <div class="seg" role="group" aria-label="Zoom"><button id="out" aria-label="Zoom out">−</button><button id="fit">Reset</button><button id="in" aria-label="Zoom in">+</button></div>
+    <div class="seg" role="group" aria-label="Zoom"><button id="out" aria-label="Zoom out">−</button><button id="fit">Fit</button><button id="in" aria-label="Zoom in">+</button></div>
   </div>
   <div id="stage"><svg role="group" aria-label="Knowledge graph: arrows point from an explainer to the ones that build on it"></svg></div>
 </main>
 <script type="module">
 import { chrome, escapeHtml, linkTo } from "../shared/common.js";
 import { CATALOG, AREAS } from "../catalog.js";
-import { layout, NW, NH } from "./graph.js";
+import { layout } from "./graph.js";
 chrome();
 
 const ns = "http://www.w3.org/2000/svg", el = (t, a = {}, txt) => { const e = document.createElementNS(ns, t); for (const k in a) e.setAttribute(k, a[k]); if (txt != null) e.textContent = txt; return e; };
-const { nodes, edges, width, height } = layout(CATALOG, AREAS), PAD = 20;
+const { nodes, edges, width, height } = layout(CATALOG, AREAS), PAD = 40, R = 5;
 const colour = id => `var(--${AREAS.findIndex(a => a.id === id) < 8 ? "s" + (AREAS.findIndex(a => a.id === id) + 1) : "accent"})`;
-document.getElementById("lede").textContent = `${CATALOG.length} explainers in ${AREAS.length} areas. Arrows point from an explainer to the ones that build on it, so reading order runs left to right. Drag to pan, scroll to zoom, hover or tab to an explainer to light up its connections.`;
+document.getElementById("lede").textContent = `${CATALOG.length} explainers in ${AREAS.length} areas. Each line runs from an explainer to one that builds on it, and areas gather into clusters. Drag to pan, scroll to zoom in for names, hover or tab to an explainer to light up its connections.`;
 
 const stage = document.getElementById("stage"), svg = stage.querySelector("svg"), g = el("g");
 const at = new Map(nodes.map(n => [n.id, n])), byId = new Map(CATALOG.map(c => [c.id, c]));
 const lines = edges.map(({ from, to }) => {
-  const a = at.get(from), b = at.get(to), x1 = a.x + NW, y1 = a.y + NH / 2, x2 = b.x, y2 = b.y + NH / 2, k = (x2 - x1) / 2;
-  const p = el("path", { d: `M${x1} ${y1} C ${x1 + k} ${y1}, ${x2 - k} ${y2}, ${x2} ${y2}`, fill: "none", "stroke-width": 1, stroke: "var(--border)" });
-  g.append(p); return { from, to, p };
+  const a = at.get(from), b = at.get(to), p = el("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, "stroke-width": 1, stroke: "var(--border)" });
+  const dot = el("circle", { cx: (a.x + 2 * b.x) / 3, cy: (a.y + 2 * b.y) / 3, r: 1.6, fill: "var(--control-border)" }); // nearer the explainer that builds on it, so the line has a direction
+  g.append(p, dot); return { from, to, p, dot };
 });
 const boxes = nodes.map(n => {
   const c = byId.get(n.id), a = el("a", { href: linkTo(c), "aria-label": `${c.title}${c.prereqs.length ? `, builds on ${c.prereqs.map(id => byId.get(id)?.title).filter(Boolean).join(", ")}` : ""}` });
-  a.append(el("rect", { x: n.x, y: n.y, width: NW, height: NH, rx: 6, fill: "var(--surface)", stroke: colour(n.area), "stroke-width": 1.5 }),
-    el("text", { x: n.x + 8, y: n.y + NH / 2 + 4, "font-size": 12, fill: "var(--text)", "aria-hidden": "true" }, n.title.length > 24 ? n.title.slice(0, 23) + "…" : n.title));
-  g.append(a); return { n, a };
+  const label = el("text", { x: n.x, y: n.y + R + 11, "text-anchor": "middle", "font-size": 10, fill: "var(--text)", "aria-hidden": "true" }, n.title);
+  a.append(el("circle", { cx: n.x, cy: n.y, r: R + 4, fill: colour(n.area), opacity: 0.2 }), el("circle", { cx: n.x, cy: n.y, r: R, fill: colour(n.area) }), label);
+  g.append(a); return { n, a, label };
 });
 svg.append(g);
 
-// Highlight: one explainer and its direct neighbours, or one whole area; everything else fades.
-function paint(ids) {
-  for (const { n, a } of boxes) a.style.opacity = !ids || ids.has(n.id) ? 1 : 0.15;
-  for (const { from, to, p } of lines) { const on = ids && ids.has(from) && ids.has(to); p.style.opacity = !ids || on ? 1 : 0.05; p.setAttribute("stroke", on ? "var(--accent)" : "var(--border)"); }
+// Highlight: one explainer and its direct neighbours, or one whole area; everything else fades. Names show for the lit ones, or for all once zoomed in.
+let ids = null, k = 1, tx = 0, ty = 0;
+function paint(set) {
+  ids = set;
+  for (const { n, a, label } of boxes) { const on = !ids || ids.has(n.id); a.style.opacity = on ? 1 : 0.12; label.style.display = (ids ? on && ids.size < 40 : k >= 1.3) ? "" : "none"; }
+  for (const { from, to, p, dot } of lines) { const on = ids && ids.has(from) && ids.has(to); p.style.opacity = dot.style.opacity = !ids || on ? 1 : 0.04; p.setAttribute("stroke", on ? "var(--accent)" : "var(--border)"); }
 }
 const near = id => new Set([id, ...byId.get(id).prereqs, ...CATALOG.filter(c => c.prereqs.includes(id)).map(c => c.id)]);
 let area = null;
@@ -72,9 +74,8 @@ document.getElementById("chips").addEventListener("click", e => {
 });
 
 // Pan and zoom by transforming one group, so text stays crisp and focus survives.
-let k = 1, tx = 0, ty = 0;
-const apply = () => g.setAttribute("transform", `translate(${tx} ${ty}) scale(${k})`);
-const fit = () => { const r = stage.getBoundingClientRect(); k = Math.min(r.width / (width + 2 * PAD), 1.2); tx = (r.width - width * k) / 2; ty = PAD; apply(); }; // fit the width and start at the top: the graph is tall, so fitting the height would shrink the text past reading
+const apply = () => { g.setAttribute("transform", `translate(${tx} ${ty}) scale(${k})`); if (!ids) paint(null); };
+const fit = () => { const r = stage.getBoundingClientRect(); k = Math.min(r.width / (width + 2 * PAD), r.height / (height + 2 * PAD)); tx = (r.width - width * k) / 2; ty = (r.height - height * k) / 2; apply(); };
 const zoom = (f, cx, cy) => { const nk = Math.min(4, Math.max(0.1, k * f)); tx = cx - (cx - tx) * nk / k; ty = cy - (cy - ty) * nk / k; k = nk; apply(); };
 const mid = () => { const r = stage.getBoundingClientRect(); return [r.width / 2, r.height / 2]; };
 stage.addEventListener("wheel", e => { e.preventDefault(); const r = stage.getBoundingClientRect(); zoom(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top); }, { passive: false });

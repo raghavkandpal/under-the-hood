@@ -1,22 +1,40 @@
-// DOM-free layout for the full-page knowledge graph: one column per prerequisite depth, grouped by area inside a column.
+// DOM-free layout for the full-page knowledge graph: a seeded force simulation. Prerequisite links pull explainers together,
+// everything pushes apart, and each area is drawn toward its own spot so areas read as clusters.
 // Fed from catalog.js, so a new explainer appears on the graph with no edit here.
-export const COLW = 220, ROWH = 34, NW = 170, NH = 26;
+import { mulberry } from "../shared/random.js";
+
+const REPEL = 2600, LINK = 55, SPRING = 0.04, ANCHOR = 0.012, RING = 360, STEPS = 320;
 
 export function layout(catalog, areas) {
-  const known = new Map(catalog.map(c => [c.id, c]));
-  const prereqs = c => c.prereqs.filter(p => known.has(p));
-  const depth = new Map();
-  const D = id => {
-    if (!depth.has(id)) { depth.set(id, 0); const ps = prereqs(known.get(id)); depth.set(id, ps.length ? 1 + Math.max(...ps.map(D)) : 0); } // the 0 first stops a cycle
-    return depth.get(id);
-  };
-  const order = new Map(areas.map((a, i) => [a.id, i]));
-  const sorted = [...catalog].sort((a, b) => D(a.id) - D(b.id) || order.get(a.area) - order.get(b.area) || a.title.localeCompare(b.title));
-  const rows = new Map();
-  const nodes = sorted.map(c => {
-    const d = D(c.id), row = rows.get(d) ?? 0; rows.set(d, row + 1);
-    return { id: c.id, title: c.title, area: c.area, depth: d, x: d * COLW, y: row * ROWH };
-  });
-  const edges = catalog.flatMap(c => prereqs(c).map(p => ({ from: p, to: c.id })));
-  return { nodes, edges, width: (Math.max(0, ...depth.values()) + 1) * COLW, height: Math.max(0, ...rows.values()) * ROWH };
+  const known = new Set(catalog.map(c => c.id));
+  const rnd = mulberry(15);
+  const centre = new Map(areas.map((a, i) => [a.id, [RING * Math.cos(2 * Math.PI * i / areas.length), RING * Math.sin(2 * Math.PI * i / areas.length)]]));
+  const nodes = catalog.map(c => { const [cx, cy] = centre.get(c.area) ?? [0, 0]; return { id: c.id, title: c.title, area: c.area, x: cx + (rnd() - 0.5) * 160, y: cy + (rnd() - 0.5) * 160, vx: 0, vy: 0 }; });
+  const index = new Map(nodes.map((n, i) => [n.id, i]));
+  const edges = catalog.flatMap(c => c.prereqs.filter(p => known.has(p)).map(p => ({ from: p, to: c.id })));
+  const pairs = edges.map(e => [nodes[index.get(e.from)], nodes[index.get(e.to)]]);
+
+  for (let s = 0; s < STEPS; s++) {
+    const alpha = 1 - s / STEPS;
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j];
+      let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
+      if (d2 < 1) { dx = rnd() - 0.5; dy = rnd() - 0.5; d2 = 1; }
+      const f = REPEL * alpha / d2, d = Math.sqrt(d2);
+      a.vx += dx / d * f; a.vy += dy / d * f; b.vx -= dx / d * f; b.vy -= dy / d * f;
+    }
+    for (const [a, b] of pairs) {
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1, f = (d - LINK) * SPRING;
+      a.vx += dx / d * f; a.vy += dy / d * f; b.vx -= dx / d * f; b.vy -= dy / d * f;
+    }
+    for (const n of nodes) {
+      const [cx, cy] = centre.get(n.area) ?? [0, 0];
+      n.vx += (cx - n.x) * ANCHOR; n.vy += (cy - n.y) * ANCHOR;
+      n.x += Math.max(-30, Math.min(30, n.vx)); n.y += Math.max(-30, Math.min(30, n.vy));
+      n.vx *= 0.55; n.vy *= 0.55;
+    }
+  }
+  const minX = Math.min(...nodes.map(n => n.x)), minY = Math.min(...nodes.map(n => n.y));
+  for (const n of nodes) { n.x -= minX; n.y -= minY; delete n.vx; delete n.vy; }
+  return { nodes, edges, width: Math.max(...nodes.map(n => n.x)), height: Math.max(...nodes.map(n => n.y)) };
 }
